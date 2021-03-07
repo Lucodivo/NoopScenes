@@ -44,6 +44,9 @@ void portalScene(GLFWwindow* window) {
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LEQUAL);
 
+  glEnable(GL_STENCIL_TEST);
+  glStencilMask(0xFF); // enables which bits can be written to bitmask
+
   glLineWidth(3.0f);
 
   glEnable(GL_CULL_FACE);
@@ -121,12 +124,23 @@ void portalScene(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     { // draw portal
+      glStencilFunc(GL_NEVER, // test function applied to stored stencil value and ref [ex: discard when stored value is not GL_GREATER ref]
+                    1, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+      glStencilOp(GL_REPLACE, GL_KEEP, GL_REPLACE);
+
       glUseProgram(cubeShader.id);
       setUniform(cubeShader.id, "view", viewMatrix);
       setUniform(cubeShader.id, "model", quadModelMatrix);
       setUniform(cubeShader.id, "color", glm::vec3(0.2, 0.5, 0.3));
       drawIndexedTriangles(quadVertexAtt);
     }
+
+
+    glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discare when stored value GL_GREATER ref]
+                  1, // ref
+                  0xFF); // enable which bits in reference and stored value are compared
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 
     { // skybox
       glm::mat4 skyboxViewMat = glm::mat4(glm::mat3(viewMatrix));
