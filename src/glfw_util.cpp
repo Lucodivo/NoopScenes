@@ -14,3 +14,16 @@ Extent2D toFullScreenMode(GLFWwindow* window) {
   glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, GLFW_DONT_CARE);
   return Extent2D{ u32(max(0, mode->width)), u32(max(0, mode->height)) };
 }
+
+Extent2D toggleWindowSize(GLFWwindow* window, const u32 width, const u32 height)
+{
+  Extent2D resultWindowExtent{ width, height };
+  local_access bool windowMode = true;
+  if (windowMode) {
+    resultWindowExtent = toFullScreenMode(window);
+  } else{
+    toWindowedMode(window, width, height);
+  }
+  windowMode = !windowMode;
+  return resultWindowExtent;
+}

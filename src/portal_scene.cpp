@@ -1,128 +1,37 @@
 #include <glm/glm.hpp>
 
-#include <time.h>
-
 #include "vertex_attributes.h"
 #include "shader_program.h"
 #include "file_locations.h"
 #include "glfw_util.cpp"
 #include "util.h"
 #include "textures.h"
-
-const glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
-
-struct Camera {
-  glm::vec3 origin;
-  glm::vec3 up;
-  glm::vec3 right;
-  glm::vec3 forward;
-  f32 pitch; //
-  f32 yaw;
-};
-
-// NOTE: pitch and yaw are set to radians
-// NOTE: There is currently no support for lookAt where forward should point directly up
-Camera lookAt(glm::vec3 origin, glm::vec3 focus) {
-  const f32 forwardDotUpThresholdMax = 0.996194f; // cos(5 degrees)
-  const f32 forwardDotUpThresholdMin = -0.996194f; // cos(175 degrees)
-
-  Camera camera;
-  camera.origin = origin;
-  camera.forward = glm::normalize(focus - origin);
-  f32 forwardDotUp = glm::dot(camera.forward, worldUp);
-  if (forwardDotUp > forwardDotUpThresholdMax || forwardDotUp < forwardDotUpThresholdMin)
-  {
-    std::cout << "Look At Camera Failed" << std::endl;
-    camera.forward = glm::vec3(0.0f, 0.0f, -1.0f);
-  }
-
-  camera.pitch = glm::asin(camera.forward.y);
-
-  glm::vec2 cameraForwardXZPlane = glm::normalize(glm::vec2(camera.forward.x, camera.forward.z));
-  f32 cameraFrontDotZeroPitch = glm::dot(cameraForwardXZPlane, glm::vec2(0.0f, -1.0f));
-  camera.yaw = glm::acos(cameraFrontDotZeroPitch);
-
-  camera.right = glm::normalize(glm::cross(worldUp, camera.forward));
-  camera.up = glm::cross(camera.forward, camera.right);
-  return camera;
-}
-
-void rotateCamera(Camera* camera, f32 pitchOffset, f32 yawOffset) {
-  const f32 maxMinPitch = RadiansPerDegree * 85.0f;
-
-  camera->pitch += pitchOffset;
-  if(camera->pitch > maxMinPitch) {
-    camera->pitch = maxMinPitch;
-  } else if(camera->pitch < -maxMinPitch){
-    camera->pitch = -maxMinPitch;
-  }
-
-  camera->yaw += yawOffset;
-  if(camera->yaw > Tau32) {
-    camera->yaw -= Tau32;
-  }
-
-  // Calculate the new Front vector
-  glm::vec3 forward;
-  f32 cosPitch = cos(camera->pitch);
-  forward.x = sin(camera->yaw) * cosPitch;
-  forward.y = sin(camera->pitch);
-  forward.z = -cos(camera->yaw) * cosPitch;
-
-  camera->forward = glm::normalize(forward);
-  // Also re-calculate the Right and Up vector
-  camera->right = glm::normalize(glm::cross(camera->forward, worldUp));  // Normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.
-  camera->up = glm::normalize(glm::cross(camera->right, camera->forward));
-}
-
-// NOTE: offsetPitch and offsetYaw in radians
-glm::mat4 getViewMatrix(Camera camera) {
-  // In glm we access elements as mat[col][row] due to column-major layout
-  glm::mat4 translation = glm::mat4(
-          1.0f, 0.0f, 0.0f, 0.0f,
-          0.0f, 1.0f, 0.0f, 0.0f,
-          0.0f, 0.0f, 1.0f, 0.0f,
-          -camera.origin.x, -camera.origin.y, -camera.origin.z, 1.0f);
-
-  glm::mat4 rotation = glm::mat4(
-          camera.right.x, camera.up.x, -camera.forward.x, 0.0f,
-          camera.right.y, camera.up.y, -camera.forward.y, 0.0f,
-          camera.right.z, camera.up.z, -camera.forward.z, 0.0f,
-          0.0f, 0.0f, 0.0f, 1.0f);
-
-  // Return lookAt matrix as combination of translation and rotation matrix
-  return rotation * translation; // Remember to read from right to left (first translation then rotation)
-}
-
-Extent2D toggleWindowSize(GLFWwindow* window, const u32 width, const u32 height)
-{
-  Extent2D resultWindowExtent{ width, height };
-  local_access bool windowMode = true;
-  if (windowMode) {
-    resultWindowExtent = toFullScreenMode(window);
-  } else{
-    toWindowedMode(window, width, height);
-  }
-  windowMode = !windowMode;
-  return resultWindowExtent;
-}
+#include "camera.h"
 
 void portalScene(GLFWwindow* window) {
   Extent2D windowExtent = getWindowExtent();
   const Extent2D initWindowExtent = windowExtent;
   f32 aspectRatio = f32(windowExtent.width) / windowExtent.height;
-  Camera camera = lookAt(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+
+  Camera camera = lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+
   VertexAtt cubePosVertexAtt = initializeCubePositionVertexAttBuffers();
   ShaderProgram cubeShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
   ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
+  VertexAtt quadVertexAtt = initializeQuadPosTexVertexAttBuffers();
 
-  glm::mat4 cubeModelMatrix = glm::mat4(2.0f);
-  glm::mat4 tmpCubeModelMatrix;
-  glm::mat4 viewMatrix;
-  glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 100.0f);
-
+  const f32 cubeScale = 2.0f;
   glm::vec3 cubeColor = glm::vec3(0.9f, 0.9f, 0.9f);
   glm::vec3 wireFrameColor = glm::vec3(0.1f, 0.1f, 0.1f);
+
+  const f32 quadScale = 2.0f;
+  const glm::vec3 quadAspectRatioScale = glm::vec3(quadScale * aspectRatio, quadScale * 1.0f, 1.0f);
+  const glm::vec3 quadPosition = glm::vec3(0.0f, 0.0f, 5.0f);
+
+  glm::mat4 cubeModelMatrix = glm::mat4(cubeScale);
+  glm::mat4 quadModelMatrix = glm::translate(glm::scale(glm::mat4(1.0), quadAspectRatioScale), quadPosition);
+  glm::mat4 viewMatrix;
+  glm::mat4 projectionMatrix = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
 
   GLuint skyboxTextureId;
   loadCubeMapTexture(yellowCloudFaceLocations, &skyboxTextureId);
@@ -140,8 +49,8 @@ void portalScene(GLFWwindow* window) {
   glEnable(GL_CULL_FACE);
   glFrontFace(GL_CCW);
   glCullFace(GL_BACK);
+  glEnable(GL_STENCIL_TEST);
 
-  glBindVertexArray(cubePosVertexAtt.arrayObject);
   glViewport(0, 0, windowExtent.width, windowExtent.height);
 
   glUseProgram(cubeShader.id);
@@ -163,10 +72,11 @@ void portalScene(GLFWwindow* window) {
       break;
     }
 
+    // toggle fullscreen/window mode if alt + enter
     if(isActive(KeyboardInput_Alt_Right) && hotPress(KeyboardInput_Enter)) {
       windowExtent = toggleWindowSize(window, initWindowExtent.width, initWindowExtent.height);
       aspectRatio = f32(windowExtent.width) / windowExtent.height;
-      glm::mat4 projectionMatrix = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 100.0f);
+      glm::mat4 projectionMatrix = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
       glViewport(0, 0, windowExtent.width, windowExtent.height);
       setUniform(cubeShader.id, "projection", projectionMatrix);
     }
@@ -180,82 +90,77 @@ void portalScene(GLFWwindow* window) {
     Vec2_f64 mouseDelta = getMouseDelta();
 
     // use input to modify camera
-    b32 lateralMovement = leftIsActive != rightIsActive;
-    b32 forwardMovement = upIsActive != downIsActive;
-    if (lateralMovement || forwardMovement)
     {
-      f32 cameraMovementSpeed = leftShiftIsActive ? 2.0f : 1.0f;
-
-      // Camera movement direction
-      glm::vec3 cameraMovementDirection{};
-      if (lateralMovement)
+      b32 lateralMovement = leftIsActive != rightIsActive;
+      b32 forwardMovement = upIsActive != downIsActive;
+      if (lateralMovement || forwardMovement)
       {
-        cameraMovementDirection += rightIsActive ? camera.right : -camera.right;
+        f32 cameraMovementSpeed = leftShiftIsActive ? 2.0f : 1.0f;
+
+        // Camera movement direction
+        glm::vec3 cameraMovementDirection{};
+        if (lateralMovement)
+        {
+          cameraMovementDirection += rightIsActive ? camera.right : -camera.right;
+        }
+
+        if (forwardMovement)
+        {
+          cameraMovementDirection += upIsActive ? camera.forward : -camera.forward;
+        }
+
+        cameraMovementDirection = glm::normalize(cameraMovementDirection);
+        camera.origin += cameraMovementDirection * cameraMovementSpeed * stopWatch.delta;
       }
 
-      if (forwardMovement)
-      {
-        cameraMovementDirection += upIsActive ? camera.forward : -camera.forward;
-      }
-
-      cameraMovementDirection = glm::normalize(cameraMovementDirection);
-      camera.origin += cameraMovementDirection * cameraMovementSpeed * stopWatch.delta;
+      rotateCamera(&camera, -mouseDelta.y * 0.001, mouseDelta.x * 0.001);
+      viewMatrix = getViewMatrix(camera);
     }
-
-    cubeModelMatrix = glm::rotate(cubeModelMatrix, glm::radians(30.0f * stopWatch.delta), glm::vec3(0.0f, 1.0f, 0.0f));
-
-    rotateCamera(&camera, -mouseDelta.y * 0.001, mouseDelta.x * 0.001);
-    viewMatrix = getViewMatrix(camera);
 
     // draw
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glm::mat4 skyboxViewMat = glm::mat4(glm::mat3(viewMatrix));
+    { // draw portal
+      glUseProgram(cubeShader.id);
+      setUniform(cubeShader.id, "view", viewMatrix);
+      setUniform(cubeShader.id, "model", quadModelMatrix);
+      setUniform(cubeShader.id, "color", glm::vec3(0.2, 0.5, 0.3));
+      drawIndexedTriangles(quadVertexAtt);
+    }
 
-    glUseProgram(skyboxShader.id);
-    setUniform(skyboxShader.id, "view", skyboxViewMat);
-    glFrontFace(GL_CW);
-    {
-      // draw skybox
+    { // skybox
+      glm::mat4 skyboxViewMat = glm::mat4(glm::mat3(viewMatrix));
+
+      glUseProgram(skyboxShader.id);
+      glBindVertexArray(cubePosVertexAtt.arrayObject);
+      setUniform(skyboxShader.id, "view", skyboxViewMat);
+      glFrontFace(GL_CW);
+
       setUniform(skyboxShader.id, "color", glm::vec3(0.2, 0.5, 0.3));
-      glDrawElements(GL_TRIANGLES, // drawing mode
-                     36, // number of elements to draw (3 vertices per triangle * 2 triangles per face * 6 faces)
-                     GL_UNSIGNED_INT, // type of the indices
-                     0); // offset in the EBO
+      drawIndexedTriangles(cubePosVertexAtt);
+
+      glFrontFace(GL_CCW);
+    }
+
+    { // cube
+      cubeModelMatrix = glm::rotate(cubeModelMatrix,
+                                    30.0f * RadiansPerDegree * stopWatch.delta,
+                                    glm::vec3(0.0f, 1.0f, 0.0f));
+
+      glUseProgram(cubeShader.id);
+      setUniform(cubeShader.id, "view", viewMatrix);
+      setUniform(cubeShader.id, "model", cubeModelMatrix);
+
+      // draw cube
+      setUniform(cubeShader.id, "color", cubeColor);
+      drawIndexedTriangles(cubePosVertexAtt);
 
       // draw wireframe
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-      glDisable(GL_DEPTH_TEST);
-      setUniform(skyboxShader.id, "color", wireFrameColor);
-      glDrawElements(GL_TRIANGLES, // drawing mode
-                     36, // number of elements to draw (3 vertices per triangle * 2 triangles per face * 6 faces)
-                     GL_UNSIGNED_INT, // type of the indices
-                     0); // offset in the EBO
-      glEnable(GL_DEPTH_TEST);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    }
-    glFrontFace(GL_CCW);
-
-    glUseProgram(cubeShader.id);
-    setUniform(cubeShader.id, "view", viewMatrix);
-    setUniform(cubeShader.id, "model", cubeModelMatrix);
-    { // draw cube
-      setUniform(cubeShader.id, "color", cubeColor);
-      glDrawElements(GL_TRIANGLES, // drawing mode
-                     36, // number of elements to draw (3 vertices per triangle * 2 triangles per face * 6 faces)
-                     GL_UNSIGNED_INT, // type of the indices
-                     0); // offset in the EBO
-    }
-
-    { // draw wireframe
       glDisable(GL_DEPTH_TEST);
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
       glDisable(GL_CULL_FACE);
       setUniform(cubeShader.id, "color", wireFrameColor);
-      glDrawElements(GL_TRIANGLES, // drawing mode
-                     36, // number of elements to draw (3 vertices per triangle * 2 triangles per face * 6 faces)
-                     GL_UNSIGNED_INT, // type of the indices
-                     0); // offset in the EBO
+      drawIndexedTriangles(cubePosVertexAtt);
       glEnable(GL_CULL_FACE);
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
       glEnable(GL_DEPTH_TEST);
@@ -266,5 +171,6 @@ void portalScene(GLFWwindow* window) {
   }
 
   deleteShaderProgram(cubeShader);
-  deleteVertexAtt(cubePosVertexAtt);
+  VertexAtt vertexAtts[] = {cubePosVertexAtt, quadVertexAtt};
+  deleteVertexAtts(ArrayCount(vertexAtts), vertexAtts);
 }

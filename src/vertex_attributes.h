@@ -4,6 +4,7 @@ struct VertexAtt {
   u32 arrayObject;
   u32 bufferObject;
   u32 indexObject;
+  u32 vertexCount;
 };
 
 const u32 cubePositionSizeInBytes = 3 * sizeof(f32);
@@ -55,8 +56,25 @@ const u32 cubePositionIndices[]{
         22, 23, 20,
 };
 
+
+// ===== Quad values (vec3 position, vec2 tex) =====
+const u32 quadPosTexVertexAttSizeInBytes = 5 * sizeof(f32);
+const f32 quadPosTexVertexAttributes[] = {
+        // positions        // texCoords
+        -0.5f,  0.5f, 0.0f,  0.0f, 1.0f,
+        -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,
+        0.5f, -0.5f,  0.0f,  1.0f, 0.0f,
+        0.5f,  0.5f,  0.0f,  1.0f, 1.0f,
+};
+const u32 quadIndices[]{
+        0, 1, 2,
+        0, 2, 3,
+};
+// ===== Quad values (vec2 position, vec2 tex) =====
+
 VertexAtt initializeCubePositionVertexAttBuffers() {
   VertexAtt vertexAtt;
+  vertexAtt.vertexCount = ArrayCount(cubePositionIndices);
   glGenVertexArrays(1, &vertexAtt.arrayObject); // vertex array object
   glGenBuffers(1, &vertexAtt.bufferObject); // vertex buffer object backing the VAO
   glGenBuffers(1, &vertexAtt.indexObject);
@@ -85,6 +103,60 @@ VertexAtt initializeCubePositionVertexAttBuffers() {
   // Must unbind EBO AFTER unbinding VAO
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
   return vertexAtt;
+}
+
+VertexAtt initializeQuadPosTexVertexAttBuffers() {
+  VertexAtt vertexAtt;
+  vertexAtt.vertexCount = ArrayCount(quadIndices);
+  glGenVertexArrays(1, &vertexAtt.arrayObject);
+  glGenBuffers(1, &vertexAtt.bufferObject);
+  glGenBuffers(1, &vertexAtt.indexObject);
+
+  glBindVertexArray(vertexAtt.arrayObject);
+
+  glBindBuffer(GL_ARRAY_BUFFER, vertexAtt.bufferObject);
+  glBufferData(GL_ARRAY_BUFFER,
+               sizeof(quadPosTexVertexAttributes),
+               quadPosTexVertexAttributes,
+               GL_STATIC_DRAW);
+
+  // set the vertex attributes (position and texture)
+  // position attribute
+  glVertexAttribPointer(0,
+                        2,
+                        GL_FLOAT,
+                        GL_FALSE,
+                        quadPosTexVertexAttSizeInBytes,
+                        (void*)0);
+  glEnableVertexAttribArray(0);
+
+  // texture attribute
+  glVertexAttribPointer(1,
+                        2,
+                        GL_FLOAT,
+                        GL_FALSE,
+                        quadPosTexVertexAttSizeInBytes,
+                        (void*)(3 * sizeof(f32)));
+  glEnableVertexAttribArray(1);
+
+  // bind element buffer object to give indices
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexAtt.indexObject);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadIndices), quadIndices, GL_STATIC_DRAW);
+
+  // unbind VBO, VAO, & EBO
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindVertexArray(0);
+  // Must unbind EBO AFTER unbinding VAO, since VAO stores all glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _) calls
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  return vertexAtt;
+}
+
+void drawIndexedTriangles(VertexAtt vertexAtt) {
+  glBindVertexArray(vertexAtt.arrayObject);
+  glDrawElements(GL_TRIANGLES, // drawing mode
+                 vertexAtt.vertexCount, // number of elements
+                 GL_UNSIGNED_INT, // type of the indices
+                 0); // offset in the EBO
 }
 
 void deleteVertexAtt(VertexAtt vertexAtt) {
