@@ -151,12 +151,16 @@ VertexAtt initializeQuadPosTexVertexAttBuffers() {
   return vertexAtt;
 }
 
-void drawIndexedTriangles(VertexAtt vertexAtt) {
-  glBindVertexArray(vertexAtt.arrayObject);
+void drawIndexedTriangles(VertexAtt vertexAtt, u32 vertexCount, u32 indexOffset) {
+  glBindVertexArray(vertexAtt.arrayObject); // NOTE: Binding every time is unnecessary if the same vertexAtt is used for multiple calls in a row
   glDrawElements(GL_TRIANGLES, // drawing mode
-                 vertexAtt.vertexCount, // number of elements
+                 vertexCount, // number of elements
                  GL_UNSIGNED_INT, // type of the indices
-                 0); // offset in the EBO
+                 (void*)(indexOffset * sizeof(GLuint))); // offset in the EBO
+}
+
+inline void drawIndexedTriangles(VertexAtt vertexAtt) {
+  drawIndexedTriangles(vertexAtt, vertexAtt.vertexCount, 0);
 }
 
 void deleteVertexAtt(VertexAtt vertexAtt) {

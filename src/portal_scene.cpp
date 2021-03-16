@@ -9,43 +9,55 @@
 #include "camera.h"
 
 void portalScene(GLFWwindow* window) {
+  ShaderProgram cubeShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
+  ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
+
+
   Extent2D windowExtent = getWindowExtent();
   const Extent2D initWindowExtent = windowExtent;
   f32 aspectRatio = f32(windowExtent.width) / windowExtent.height;
 
   Camera camera = lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f));
-
   VertexAtt cubePosVertexAtt = initializeCubePositionVertexAttBuffers();
-  ShaderProgram cubeShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
-  ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
   VertexAtt quadVertexAtt = initializeQuadPosTexVertexAttBuffers();
 
-  const f32 cubeScale = 2.0f;
+  const f32 cubeScale = 1.0f;
+  const glm::vec3 cubePosition = glm::vec3(0.0f, 0.0f, 0.0f);
   glm::vec3 cubeColor = glm::vec3(0.9f, 0.9f, 0.9f);
   glm::vec3 wireFrameColor = glm::vec3(0.1f, 0.1f, 0.1f);
 
-  const f32 quadScale = 2.0f;
-  const glm::vec3 quadAspectRatioScale = glm::vec3(quadScale * aspectRatio, quadScale * 1.0f, 1.0f);
-  const glm::vec3 quadPosition = glm::vec3(0.0f, 0.0f, 5.0f);
+  const f32 portalScale = 2.0f;
+  const glm::vec3 portalPosition = glm::vec3(0.0f, 0.0f, 0.0f);
 
-  glm::mat4 cubeModelMatrix = glm::mat4(cubeScale);
-  glm::mat4 quadModelMatrix = glm::translate(glm::scale(glm::mat4(1.0), quadAspectRatioScale), quadPosition);
+  glm::mat4 cubeModelMatrix = glm::translate(glm::mat4(glm::mat3(cubeScale)), cubePosition);
+  glm::mat4 portalModelMatrix = glm::translate(glm::mat4(glm::mat3(portalScale)), portalPosition);
   glm::mat4 viewMatrix;
   glm::mat4 projectionMatrix = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
 
-  GLuint skyboxTextureId;
-  loadCubeMapTexture(yellowCloudFaceLocations, &skyboxTextureId);
+  GLuint skyboxTexture1Id, skyboxTexture2Id, skyboxTexture3Id, skyboxTexture4Id;
+  loadCubeMapTexture(skyboxYellowCloudFaceLocations, &skyboxTexture1Id);
+  loadCubeMapTexture(skyboxInterstellarFaceLocations, &skyboxTexture2Id);
+  loadCubeMapTexture(skyboxWaterFaceLocations, &skyboxTexture3Id);
+  loadCubeMapTexture(skyboxSpaceLightBlueFaceLocations, &skyboxTexture4Id);
 
-  u32 skyboxTextureIndex = 0;
-  glActiveTexture(GL_TEXTURE0 + skyboxTextureIndex);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTextureId);
+  s32 skyboxTexture1Index = 0;
+  s32 skyboxTexture2Index = 1;
+  s32 skyboxTexture3Index = 2;
+  s32 skyboxTexture4Index = 3;
+  glActiveTexture(GL_TEXTURE0 + skyboxTexture1Index);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture1Id);
+  glActiveTexture(GL_TEXTURE0 + skyboxTexture2Index);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture2Id);
+  glActiveTexture(GL_TEXTURE0 + skyboxTexture3Index);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture3Id);
+  glActiveTexture(GL_TEXTURE0 + skyboxTexture4Index);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture4Id);
 
-  glClearColor(0.3f, 0.1f, 0.2f, 1.0f);
+  glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LEQUAL);
 
   glEnable(GL_STENCIL_TEST);
-  glStencilMask(0xFF); // enables which bits can be written to bitmask
 
   glLineWidth(3.0f);
 
@@ -61,7 +73,6 @@ void portalScene(GLFWwindow* window) {
 
   glUseProgram(skyboxShader.id);
   setUniform(skyboxShader.id, "projection", projectionMatrix);
-  setUniform(skyboxShader.id, "skybox", skyboxTextureIndex);
 
   StopWatch stopWatch = createStopWatch();
   while(glfwWindowShouldClose(window) == GL_FALSE)
@@ -112,45 +123,81 @@ void portalScene(GLFWwindow* window) {
           cameraMovementDirection += upIsActive ? camera.forward : -camera.forward;
         }
 
-        cameraMovementDirection = glm::normalize(cameraMovementDirection);
+        cameraMovementDirection = glm::normalize(glm::vec3(cameraMovementDirection.x, 0.0f, cameraMovementDirection.z));
         camera.origin += cameraMovementDirection * cameraMovementSpeed * stopWatch.delta;
       }
 
-      rotateCamera(&camera, -mouseDelta.y * 0.001, mouseDelta.x * 0.001);
+      rotateCamera(&camera, f32(-mouseDelta.y * 0.001), f32(mouseDelta.x * 0.001));
       viewMatrix = getViewMatrix(camera);
     }
 
     // draw
+    glStencilMask(0xFF);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     { // draw portal
-      glStencilFunc(GL_NEVER, // test function applied to stored stencil value and ref [ex: discard when stored value is not GL_GREATER ref]
-                    1, // ref
-                    0xFF); // enable which bits in reference and stored value are compared
-      glStencilOp(GL_REPLACE, GL_KEEP, GL_REPLACE);
+      glStencilFunc(GL_NEVER, // stencil function never passes, so never draws
+                    0xFF,
+                    0xFF);
+      // GL_LESS
+      // Passes if ( ref & mask ) < ( stencil & mask )
+      glStencilOp(GL_REPLACE, // action when stencil fails
+                  GL_KEEP, // action when stencil passes but depth fails
+                  GL_REPLACE); // action when both stencil and depth pass
 
       glUseProgram(cubeShader.id);
       setUniform(cubeShader.id, "view", viewMatrix);
-      setUniform(cubeShader.id, "model", quadModelMatrix);
-      setUniform(cubeShader.id, "color", glm::vec3(0.2, 0.5, 0.3));
-      drawIndexedTriangles(quadVertexAtt);
+      setUniform(cubeShader.id, "model", portalModelMatrix);
+
+      glStencilMask(0x01);
+      drawIndexedTriangles(cubePosVertexAtt, 6, 0);
+
+      glStencilMask(0x02);
+      drawIndexedTriangles(cubePosVertexAtt, 6, 6);
+
+      glStencilMask(0x03);
+      drawIndexedTriangles(cubePosVertexAtt, 6, 24);
+
+      glStencilMask(0x04);
+      drawIndexedTriangles(cubePosVertexAtt, 6, 30);
     }
 
+    // turn off writes to the stencil
+    glStencilMask(0x00);
 
-    glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discare when stored value GL_GREATER ref]
-                  1, // ref
-                  0xFF); // enable which bits in reference and stored value are compared
-    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-
-    { // skybox
+    { // skyboxes
       glm::mat4 skyboxViewMat = glm::mat4(glm::mat3(viewMatrix));
 
-      glUseProgram(skyboxShader.id);
-      glBindVertexArray(cubePosVertexAtt.arrayObject);
-      setUniform(skyboxShader.id, "view", skyboxViewMat);
       glFrontFace(GL_CW);
+      glUseProgram(skyboxShader.id);
+      setUniform(skyboxShader.id, "view", skyboxViewMat);
 
-      setUniform(skyboxShader.id, "color", glm::vec3(0.2, 0.5, 0.3));
+      // portal skybox 1
+      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x01, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+      setUniform(skyboxShader.id, "skybox", skyboxTexture1Index);
+      drawIndexedTriangles(cubePosVertexAtt);
+
+      // portal skybox 2
+      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x02, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+      setUniform(skyboxShader.id, "skybox", skyboxTexture2Index);
+      drawIndexedTriangles(cubePosVertexAtt);
+
+      // portal skybox 3
+      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x03, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+      setUniform(skyboxShader.id, "skybox", skyboxTexture3Index);
+      drawIndexedTriangles(cubePosVertexAtt);
+
+      // portal skybox 4
+      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x04, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+      setUniform(skyboxShader.id, "skybox", skyboxTexture4Index);
       drawIndexedTriangles(cubePosVertexAtt);
 
       glFrontFace(GL_CCW);
@@ -160,6 +207,10 @@ void portalScene(GLFWwindow* window) {
       cubeModelMatrix = glm::rotate(cubeModelMatrix,
                                     30.0f * RadiansPerDegree * stopWatch.delta,
                                     glm::vec3(0.0f, 1.0f, 0.0f));
+
+      glStencilFunc(GL_LEQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x01, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
 
       glUseProgram(cubeShader.id);
       setUniform(cubeShader.id, "view", viewMatrix);
