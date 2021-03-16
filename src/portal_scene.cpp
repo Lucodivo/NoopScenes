@@ -8,10 +8,117 @@
 #include "textures.h"
 #include "camera.h"
 
+// Define these only in *one* .cc file.
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define TINYGLTF_NO_INCLUDE_STB_IMAGE
+// #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
+#include "tinygltf/tiny_gltf.h"
+
+
+VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
+{
+  const char* positionIndexKeyString = "POSITION";
+  const char* normalIndexKeyString = "NORMAL";
+  const char* texture0IndexKeyString = "TEXCOORD_0";
+
+  // TODO: Pull vertex attributes for more then the first primitive of the first mesh of a model
+  // TODO: Allow variability in attributes and not just POSITION, NORMAL, TEXCOORD_0
+  Assert(!model->meshes.empty())
+  Assert(!model->meshes[0].primitives.empty())
+  Assert(!model->meshes[0].primitives[0].attributes.empty())
+  u32 positionAccessorIndex = model->meshes[0].primitives[0].attributes[positionIndexKeyString];
+  u32 normalAccessorIndex = model->meshes[0].primitives[0].attributes[normalIndexKeyString];
+  u32 texture0AccessorIndex = model->meshes[0].primitives[0].attributes[texture0IndexKeyString];
+
+  u32 positionNumComponents = tinygltf::GetNumComponentsInType(model->accessors[positionAccessorIndex].type);
+  u32 normalNumComponents = tinygltf::GetNumComponentsInType(model->accessors[normalAccessorIndex].type);
+  u32 texture0NumComponents = tinygltf::GetNumComponentsInType(model->accessors[texture0AccessorIndex].type);
+
+  u32 positionGLTFBufferViewIndex = model->accessors[positionAccessorIndex].bufferView;
+  u32 normalGLTFBufferViewIndex = model->accessors[normalAccessorIndex].bufferView;
+  u32 texture0GLTFBufferViewIndex = model->accessors[texture0AccessorIndex].bufferView;
+
+  u32 positionGLTFBufferIndex = model->bufferViews[positionGLTFBufferViewIndex].buffer;
+  u32 normalGLTFBufferIndex = model->bufferViews[normalGLTFBufferViewIndex].buffer;
+  u32 texture0GLTFBufferIndex = model->bufferViews[texture0GLTFBufferViewIndex].buffer;
+
+  // TODO: Handle vertex attributes that don't share the same buffer
+  Assert(positionGLTFBufferIndex == normalGLTFBufferIndex && normalGLTFBufferIndex == texture0GLTFBufferIndex);
+
+  VertexAtt vertexAtt;
+  vertexAtt.vertexCount = model->accessors[positionAccessorIndex].count;
+  u32 sizeOfAttributeData = sizeof(f32) * (vertexAtt.vertexCount * (positionNumComponents + normalNumComponents + texture0NumComponents));
+  const u32 positionAttributeIndex = 0;
+  const u32 normalAttributeIndex = 1;
+  const u32 textureAttributeIndex = 2;
+
+//  glGenVertexArrays(1, &vertexAtt.arrayObject);
+//  glGenBuffers(1, &vertexAtt.bufferObject);
+//
+//  glBindVertexArray(vertexAtt.arrayObject);
+//
+//  glBindBuffer(GL_ARRAY_BUFFER, vertexAtt.bufferObject);
+//  glBufferData(GL_ARRAY_BUFFER,
+//               sizeof(quadPosTexVertexAttributes),
+//               quadPosTexVertexAttributes,
+//               GL_STATIC_DRAW);
+//
+//  // set the vertex attributes (position and texture)
+//  // position attribute
+//  glVertexAttribPointer(positionAttributeIndex,
+//                        2, // attribute size
+//                        GL_FLOAT,
+//                        GL_FALSE,
+//                        quadPosTexVertexAttSizeInBytes,
+//                        (void*)0);
+//  glEnableVertexAttribArray(positionAttributeIndex);
+//
+//  // texture attribute
+//  glVertexAttribPointer(textureAttributeIndex,
+//                        2, // attribute size
+//                        GL_FLOAT,
+//                        GL_FALSE,
+//                        quadPosTexVertexAttSizeInBytes,
+//                        (void*)(3 * sizeof(f32)));
+//  glEnableVertexAttribArray(textureAttributeIndex);
+//
+//  // unbind VBO, VAO, & EBO
+//  glBindBuffer(GL_ARRAY_BUFFER, 0);
+//  glBindVertexArray(0);
+
+  return vertexAtt;
+}
+
+VertexAtt loadModelVertexAtt(const char* filePath) {
+  tinygltf::Model model;
+  tinygltf::TinyGLTF loader;
+  std::string err;
+  std::string warn;
+
+  //bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, filePath); // for .gltf
+  bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, filePath); // for binary glTF(.glb)
+
+  if (!warn.empty()) {
+    printf("Warn: %s\n", warn.c_str());
+  }
+
+  if (!err.empty()) {
+    printf("Err: %s\n", err.c_str());
+  }
+
+  if (!ret) {
+    printf("Failed to parse glTF\n");
+  }
+
+  return initializeModelVertexBuffer(&model);
+}
+
 void portalScene(GLFWwindow* window) {
   ShaderProgram cubeShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
   ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
 
+  VertexAtt modelVertexAtt = loadModelVertexAtt(portalModelLoc);
 
   Extent2D windowExtent = getWindowExtent();
   const Extent2D initWindowExtent = windowExtent;

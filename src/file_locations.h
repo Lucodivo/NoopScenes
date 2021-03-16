@@ -20,3 +20,7 @@ const char* const skyboxYellowCloudFaceLocations[6] = skybox(yellow_cloud, jpg);
 const char* const skyboxWaterFaceLocations[6] = skybox(water, jpg);
 const char* const skyboxInterstellarFaceLocations[6] = skybox(interstellar, png);
 const char* const skyboxSpaceLightBlueFaceLocations[6] = skybox(space_light_blue, png);
+
+// ==== Models ====
+#define COMMON_MODEL_BASE "src/data/models/"
+const char* const portalModelLoc = COMMON_MODEL_BASE"Gate.glb";

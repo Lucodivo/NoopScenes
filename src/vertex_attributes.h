@@ -75,6 +75,8 @@ const u32 quadIndices[]{
 VertexAtt initializeCubePositionVertexAttBuffers() {
   VertexAtt vertexAtt;
   vertexAtt.vertexCount = ArrayCount(cubePositionIndices);
+  const u32 positionAttributeIndex = 0;
+
   glGenVertexArrays(1, &vertexAtt.arrayObject); // vertex array object
   glGenBuffers(1, &vertexAtt.bufferObject); // vertex buffer object backing the VAO
   glGenBuffers(1, &vertexAtt.indexObject);
@@ -85,13 +87,13 @@ VertexAtt initializeCubePositionVertexAttBuffers() {
 
   // set the vertex attributes
   // position attribute
-  glVertexAttribPointer(0, // index
+  glVertexAttribPointer(positionAttributeIndex, // index
                         3, // size
                         GL_FLOAT, // type of data
                         GL_FALSE, // whether the data needs to be normalized
                         cubePositionSizeInBytes, // stride
                         (void*)0); // offset
-  glEnableVertexAttribArray(0);
+  glEnableVertexAttribArray(positionAttributeIndex);
 
   // bind element buffer object to give indices
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexAtt.indexObject);
@@ -108,6 +110,9 @@ VertexAtt initializeCubePositionVertexAttBuffers() {
 VertexAtt initializeQuadPosTexVertexAttBuffers() {
   VertexAtt vertexAtt;
   vertexAtt.vertexCount = ArrayCount(quadIndices);
+  const u32 positionAttributeIndex = 0;
+  const u32 textureAttributeIndex = 1;
+
   glGenVertexArrays(1, &vertexAtt.arrayObject);
   glGenBuffers(1, &vertexAtt.bufferObject);
   glGenBuffers(1, &vertexAtt.indexObject);
@@ -122,22 +127,22 @@ VertexAtt initializeQuadPosTexVertexAttBuffers() {
 
   // set the vertex attributes (position and texture)
   // position attribute
-  glVertexAttribPointer(0,
-                        2,
+  glVertexAttribPointer(positionAttributeIndex,
+                        2, // attribute size
                         GL_FLOAT,
                         GL_FALSE,
                         quadPosTexVertexAttSizeInBytes,
                         (void*)0);
-  glEnableVertexAttribArray(0);
+  glEnableVertexAttribArray(positionAttributeIndex);
 
   // texture attribute
-  glVertexAttribPointer(1,
-                        2,
+  glVertexAttribPointer(textureAttributeIndex,
+                        2, // attribute size
                         GL_FLOAT,
                         GL_FALSE,
                         quadPosTexVertexAttSizeInBytes,
                         (void*)(3 * sizeof(f32)));
-  glEnableVertexAttribArray(1);
+  glEnableVertexAttribArray(textureAttributeIndex);
 
   // bind element buffer object to give indices
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexAtt.indexObject);
