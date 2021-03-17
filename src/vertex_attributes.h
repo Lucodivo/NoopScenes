@@ -1,10 +1,13 @@
 #pragma once
 
+#define VERTEX_ATT_NO_INDEX_OBJECT -1
+
 struct VertexAtt {
   u32 arrayObject;
   u32 bufferObject;
   u32 indexObject;
-  u32 vertexCount;
+  u32 indexCount;
+  u32 indexTypeSizeInBytes;
 };
 
 const u32 cubePositionSizeInBytes = 3 * sizeof(f32);
@@ -41,7 +44,7 @@ const f32 cubePositionAttributes[] = {
         0.5f,  0.5f,  0.5f,
         -0.5f,  0.5f,  0.5f,
 };
-const u32 cubePositionIndices[]{
+const u8 cubePositionIndices[]{
         0, 1, 2, // 0
         2, 3, 0,
         4, 6, 5, // 1
@@ -66,15 +69,31 @@ const f32 quadPosTexVertexAttributes[] = {
         0.5f, -0.5f,  0.0f,  1.0f, 0.0f,
         0.5f,  0.5f,  0.0f,  1.0f, 1.0f,
 };
-const u32 quadIndices[]{
+const u8 quadIndices[]{
         0, 1, 2,
         0, 2, 3,
 };
 // ===== Quad values (vec2 position, vec2 tex) =====
 
+u32 convertSizeInBytesToOpenGLUIntType(u8 sizeInBytes) {
+  Assert(sizeInBytes > 0);
+  Assert(sizeInBytes != 3);
+  Assert(sizeInBytes <= 4);
+
+  switch(sizeInBytes) {
+    case 1:
+      return GL_UNSIGNED_BYTE;
+    case 2:
+      return GL_UNSIGNED_SHORT;
+    case 3:
+      return GL_UNSIGNED_INT;
+  }
+}
+
 VertexAtt initializeCubePositionVertexAttBuffers() {
   VertexAtt vertexAtt;
-  vertexAtt.vertexCount = ArrayCount(cubePositionIndices);
+  vertexAtt.indexCount = ArrayCount(cubePositionIndices);
+  vertexAtt.indexTypeSizeInBytes = sizeof(cubePositionIndices) / vertexAtt.indexCount;
   const u32 positionAttributeIndex = 0;
 
   glGenVertexArrays(1, &vertexAtt.arrayObject); // vertex array object
@@ -109,7 +128,8 @@ VertexAtt initializeCubePositionVertexAttBuffers() {
 
 VertexAtt initializeQuadPosTexVertexAttBuffers() {
   VertexAtt vertexAtt;
-  vertexAtt.vertexCount = ArrayCount(quadIndices);
+  vertexAtt.indexCount = ArrayCount(quadIndices);
+  vertexAtt.indexTypeSizeInBytes = sizeof(quadIndices) / vertexAtt.indexCount;
   const u32 positionAttributeIndex = 0;
   const u32 textureAttributeIndex = 1;
 
@@ -156,16 +176,21 @@ VertexAtt initializeQuadPosTexVertexAttBuffers() {
   return vertexAtt;
 }
 
-void drawIndexedTriangles(VertexAtt vertexAtt, u32 vertexCount, u32 indexOffset) {
+file_access void drawIndexedTriangles(VertexAtt vertexAtt, u32 indexCount, u32 indexOffset) {
   glBindVertexArray(vertexAtt.arrayObject); // NOTE: Binding every time is unnecessary if the same vertexAtt is used for multiple calls in a row
   glDrawElements(GL_TRIANGLES, // drawing mode
-                 vertexCount, // number of elements
-                 GL_UNSIGNED_INT, // type of the indices
+                 indexCount, // number of elements
+                 convertSizeInBytesToOpenGLUIntType(vertexAtt.indexTypeSizeInBytes), // type of the indices
                  (void*)(indexOffset * sizeof(GLuint))); // offset in the EBO
 }
 
-inline void drawIndexedTriangles(VertexAtt vertexAtt) {
-  drawIndexedTriangles(vertexAtt, vertexAtt.vertexCount, 0);
+void drawTriangles(VertexAtt vertexAtt, u32 count, u32 offset) {
+  Assert(vertexAtt.indexCount >= (offset + count));
+  drawIndexedTriangles(vertexAtt, count, offset);
+}
+
+void drawTriangles(VertexAtt vertexAtt) {
+  drawTriangles(vertexAtt, vertexAtt.indexCount, 0);
 }
 
 void deleteVertexAtt(VertexAtt vertexAtt) {

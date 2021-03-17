@@ -23,4 +23,8 @@ const char* const skyboxSpaceLightBlueFaceLocations[6] = skybox(space_light_blue
 
 // ==== Models ====
 #define COMMON_MODEL_BASE "src/data/models/"
-const char* const portalModelLoc = COMMON_MODEL_BASE"Gate.glb";
+const char* const gateModelLoc = COMMON_MODEL_BASE"Gate.glb";
+const char* const crystalModelLoc = COMMON_MODEL_BASE"Crystal.glb";
+const char* const cubeModelLoc = COMMON_MODEL_BASE"Cube.glb";
+const char* const icosphere1ModelLoc = COMMON_MODEL_BASE"Icosphere-1.glb";
+const char* const torusTriangleModelLoc = COMMON_MODEL_BASE"Torus-Triangle.glb";
