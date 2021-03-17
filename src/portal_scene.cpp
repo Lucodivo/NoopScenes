@@ -176,7 +176,7 @@ void portalScene(GLFWwindow* window) {
   const f32 portalScale = 2.0f;
   const glm::vec3 portalPosition = glm::vec3(0.0f, 0.0f, 0.0f);
 
-  const f32 gateScale = 2.0f;
+  const f32 gateScale = portalScale;
 
   glm::mat4 cubeModelMatrix = glm::translate(glm::mat4(glm::mat3(cubeScale)), cubePosition);
   glm::mat4 portalModelMatrix = glm::translate(glm::mat4(glm::mat3(portalScale)), portalPosition);
@@ -286,8 +286,10 @@ void portalScene(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     // draw gate
-    glStencilMask(0x00);
     {
+      glStencilFunc(GL_ALWAYS, // stencil function always passes
+                    0x00, // reference
+                    0x00); // mask
       glUseProgram(cubeShader.id);
       setUniform(cubeShader.id, "view", viewMatrix);
       setUniform(cubeShader.id, "model", gateModelMatrix);
@@ -297,103 +299,105 @@ void portalScene(GLFWwindow* window) {
       drawTriangles(modelVertexAtt);
     }
 
-    // TODO: this is where I left off
-//    glStencilMask(0xFF);
-//    { // draw portals
-//      glStencilFunc(GL_NEVER, // stencil function never passes, so never draws
-//                    0xFF,
-//                    0xFF);
-//      // GL_LESS
-//      // Passes if ( ref & mask ) < ( stencil & mask )
-//      glStencilOp(GL_REPLACE, // action when stencil fails
-//                  GL_KEEP, // action when stencil passes but depth fails
-//                  GL_REPLACE); // action when both stencil and depth pass
-//
-//      glUseProgram(cubeShader.id);
-//      setUniform(cubeShader.id, "view", viewMatrix);
-//      setUniform(cubeShader.id, "model", portalModelMatrix);
-//
-//      glStencilMask(0x01);
-//      drawIndexedTriangles(cubePosVertexAtt, 6, 0);
-//
-//      glStencilMask(0x02);
-//      drawIndexedTriangles(cubePosVertexAtt, 6, 6);
-//
-//      glStencilMask(0x03);
-//      drawIndexedTriangles(cubePosVertexAtt, 6, 24);
-//
-//      glStencilMask(0x04);
-//      drawIndexedTriangles(cubePosVertexAtt, 6, 30);
-//    }
+    { // draw portals
+      // GL_EQUAL
+      // Passes if ( ref & mask ) == ( stencil & mask )
+      // Only draw portals where the stencil is cleared
+      glStencilFunc(GL_EQUAL, // func
+                    0xFF, // ref
+                    0x00); // mask
+      glStencilOp(GL_KEEP, // action when stencil fails
+                  GL_KEEP, // action when stencil passes but depth fails
+                  GL_REPLACE); // action when both stencil and depth pass
+
+      glUseProgram(cubeShader.id);
+      setUniform(cubeShader.id, "view", viewMatrix);
+      setUniform(cubeShader.id, "model", portalModelMatrix);
+
+      glStencilMask(0x01);
+      drawTriangles(cubePosVertexAtt, 6, 0);
+
+      glStencilMask(0x02);
+      drawTriangles(cubePosVertexAtt, 6, 6);
+
+      glStencilMask(0x03);
+      drawTriangles(cubePosVertexAtt, 6, 24);
+
+      glStencilMask(0x04);
+      drawTriangles(cubePosVertexAtt, 6, 30);
+    }
 
     // turn off writes to the stencil
-//    glStencilMask(0x00);
-//
-//    { // skyboxes
-//      glm::mat4 skyboxViewMat = glm::mat4(glm::mat3(viewMatrix));
-//
-//      glFrontFace(GL_CW);
-//      glUseProgram(skyboxShader.id);
-//      setUniform(skyboxShader.id, "view", skyboxViewMat);
-//
-//      // portal skybox 1
-//      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-//                    0x01, // ref
-//                    0xFF); // enable which bits in reference and stored value are compared
-//      setUniform(skyboxShader.id, "skybox", skyboxTexture1Index);
-//      drawTriangles(cubePosVertexAtt);
-//
-//      // portal skybox 2
-//      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-//                    0x02, // ref
-//                    0xFF); // enable which bits in reference and stored value are compared
-//      setUniform(skyboxShader.id, "skybox", skyboxTexture2Index);
-//      drawTriangles(cubePosVertexAtt);
-//
-//      // portal skybox 3
-//      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-//                    0x03, // ref
-//                    0xFF); // enable which bits in reference and stored value are compared
-//      setUniform(skyboxShader.id, "skybox", skyboxTexture3Index);
-//      drawTriangles(cubePosVertexAtt);
-//
-//      // portal skybox 4
-//      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-//                    0x04, // ref
-//                    0xFF); // enable which bits in reference and stored value are compared
-//      setUniform(skyboxShader.id, "skybox", skyboxTexture4Index);
-//      drawTriangles(cubePosVertexAtt);
-//
-//      glFrontFace(GL_CCW);
-//    }
-//
-//    { // cube
-//      cubeModelMatrix = glm::rotate(cubeModelMatrix,
-//                                    30.0f * RadiansPerDegree * stopWatch.delta,
-//                                    glm::vec3(0.0f, 1.0f, 0.0f));
-//
-//      glStencilFunc(GL_LEQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-//                    0x01, // ref
-//                    0xFF); // enable which bits in reference and stored value are compared
-//
-//      glUseProgram(cubeShader.id);
-//      setUniform(cubeShader.id, "view", viewMatrix);
-//      setUniform(cubeShader.id, "model", cubeModelMatrix);
-//
-//      // draw cube
-//      setUniform(cubeShader.id, "color", cubeColor);
-//      drawTriangles(cubePosVertexAtt);
-//
-//      // draw wireframe
-//      glDisable(GL_DEPTH_TEST);
-//      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-//      glDisable(GL_CULL_FACE);
-//      setUniform(cubeShader.id, "color", wireFrameColor);
-//      drawTriangles(cubePosVertexAtt);
-//      glEnable(GL_CULL_FACE);
-//      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-//      glEnable(GL_DEPTH_TEST);
-//    }
+    glStencilMask(0x00);
+
+    // We need to clear disable depth values so distant objects through the "portals" still get drawn
+    // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
+    glClear(GL_DEPTH_BUFFER_BIT);
+    { // skyboxes
+      glm::mat4 skyboxViewMat = glm::mat4(glm::mat3(viewMatrix));
+
+      glFrontFace(GL_CW);
+      glUseProgram(skyboxShader.id);
+      setUniform(skyboxShader.id, "view", skyboxViewMat);
+
+      // portal skybox 1
+      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x01, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+      setUniform(skyboxShader.id, "skybox", skyboxTexture1Index);
+      drawTriangles(cubePosVertexAtt);
+
+      // portal skybox 2
+      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x02, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+      setUniform(skyboxShader.id, "skybox", skyboxTexture2Index);
+      drawTriangles(cubePosVertexAtt);
+
+      // portal skybox 3
+      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x03, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+      setUniform(skyboxShader.id, "skybox", skyboxTexture3Index);
+      drawTriangles(cubePosVertexAtt);
+
+      // portal skybox 4
+      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x04, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+      setUniform(skyboxShader.id, "skybox", skyboxTexture4Index);
+      drawTriangles(cubePosVertexAtt);
+
+      glFrontFace(GL_CCW);
+    }
+
+    { // cube
+      cubeModelMatrix = glm::rotate(cubeModelMatrix,
+                                    30.0f * RadiansPerDegree * stopWatch.delta,
+                                    glm::vec3(0.0f, 1.0f, 0.0f));
+
+      glStencilFunc(GL_LEQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                    0x01, // ref
+                    0xFF); // enable which bits in reference and stored value are compared
+
+      glUseProgram(cubeShader.id);
+      setUniform(cubeShader.id, "view", viewMatrix);
+      setUniform(cubeShader.id, "model", cubeModelMatrix);
+
+      // draw cube
+      setUniform(cubeShader.id, "color", cubeColor);
+      drawTriangles(cubePosVertexAtt);
+
+      // draw wireframe
+      glDisable(GL_DEPTH_TEST);
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+      glDisable(GL_CULL_FACE);
+      setUniform(cubeShader.id, "color", wireFrameColor);
+      drawTriangles(cubePosVertexAtt);
+      glEnable(GL_CULL_FACE);
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+      glEnable(GL_DEPTH_TEST);
+    }
 
     glfwSwapBuffers(window); // swaps double buffers (call after all render commands are completed)
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)

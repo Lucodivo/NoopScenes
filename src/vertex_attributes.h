@@ -181,7 +181,7 @@ file_access void drawIndexedTriangles(VertexAtt vertexAtt, u32 indexCount, u32 i
   glDrawElements(GL_TRIANGLES, // drawing mode
                  indexCount, // number of elements
                  convertSizeInBytesToOpenGLUIntType(vertexAtt.indexTypeSizeInBytes), // type of the indices
-                 (void*)(indexOffset * sizeof(GLuint))); // offset in the EBO
+                 (void*)(indexOffset * vertexAtt.indexTypeSizeInBytes)); // offset in the EBO
 }
 
 void drawTriangles(VertexAtt vertexAtt, u32 count, u32 offset) {
