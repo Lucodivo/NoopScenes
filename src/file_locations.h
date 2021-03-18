@@ -2,10 +2,10 @@
 
 // ==== shaders ====
 #define COMMON_SHADER_BASE "src/shaders/"
-const char* const posVertexShaderFileLoc = COMMON_SHADER_BASE"PosVertexShader.glsl";
-const char* const singleColorFragmentShaderFileLoc = COMMON_SHADER_BASE"SingleColorFragmentShader.glsl";
-const char* const skyboxVertexShaderFileLoc = COMMON_SHADER_BASE"SkyboxVertexShader.glsl";
-const char* const skyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"SkyboxFragmentShader.glsl";
+const char* posVertexShaderFileLoc = COMMON_SHADER_BASE"PosVertexShader.glsl";
+const char* singleColorFragmentShaderFileLoc = COMMON_SHADER_BASE"SingleColorFragmentShader.glsl";
+const char* skyboxVertexShaderFileLoc = COMMON_SHADER_BASE"SkyboxVertexShader.glsl";
+const char* skyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"SkyboxFragmentShader.glsl";
 
 // Skybox Cube Map textures
 #define skybox(folder, extension) {  \
@@ -16,15 +16,16 @@ const char* const skyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"SkyboxFragmen
 "src/data/skybox/"#folder"/front."#extension,              \
 "src/data/skybox/"#folder"/back."#extension                \
 }
-const char* const skyboxYellowCloudFaceLocations[6] = skybox(yellow_cloud, jpg);
-const char* const skyboxWaterFaceLocations[6] = skybox(water, jpg);
-const char* const skyboxInterstellarFaceLocations[6] = skybox(interstellar, png);
-const char* const skyboxSpaceLightBlueFaceLocations[6] = skybox(space_light_blue, png);
+const char* skyboxYellowCloudFaceLocations[6] = skybox(yellow_cloud, jpg);
+const char* skyboxWaterFaceLocations[6] = skybox(water, jpg);
+const char* skyboxInterstellarFaceLocations[6] = skybox(interstellar, png);
+const char* skyboxSpaceLightBlueFaceLocations[6] = skybox(space_light_blue, png);
 
 // ==== Models ====
 #define COMMON_MODEL_BASE "src/data/models/"
-const char* const gateModelLoc = COMMON_MODEL_BASE"Gate.glb";
-const char* const crystalModelLoc = COMMON_MODEL_BASE"Crystal.glb";
-const char* const cubeModelLoc = COMMON_MODEL_BASE"Cube.glb";
-const char* const icosphere1ModelLoc = COMMON_MODEL_BASE"Icosphere-1.glb";
-const char* const torusTriangleModelLoc = COMMON_MODEL_BASE"Torus-Triangle.glb";
+const char* gateModelLoc = COMMON_MODEL_BASE"Gate.glb";
+const char* crystalModelLoc = COMMON_MODEL_BASE"Crystal-1.glb";
+const char* cubeModelLoc = COMMON_MODEL_BASE"Cube.glb";
+const char* icosphere1ModelLoc = COMMON_MODEL_BASE"Icosphere-1.glb";
+const char* torusTriangleModelLoc = COMMON_MODEL_BASE"Torus-Triangle.glb";
+const char* pyramidModelLoc = COMMON_MODEL_BASE"Pyramid.glb";

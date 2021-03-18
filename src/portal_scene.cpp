@@ -18,46 +18,56 @@
 
 VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
 {
+  struct gltfAttributeMetadata {
+    u32 accessorIndex;
+    u32 numComponents;
+    u32 bufferViewIndex;
+    u32 bufferIndex;
+    u64 bufferByteOffset;
+    u64 bufferByteLength;
+  };
+
   const char* positionIndexKeyString = "POSITION";
   const char* normalIndexKeyString = "NORMAL";
   const char* texture0IndexKeyString = "TEXCOORD_0";
 
-  // TODO: Pull vertex attributes for more then the first primitive of the first mesh of a model
-  // TODO: Allow variability in attributes and not just POSITION, NORMAL, TEXCOORD_0
+  // TODO: Pull vertex  attributes for more then the first primitive of the first mesh of a model
   Assert(!model->meshes.empty());
   Assert(!model->meshes[0].primitives.empty());
   tinygltf::Primitive primitive = model->meshes[0].primitives[0];
-  Assert(!primitive.attributes.empty());
+  Assert(primitive.indices > -1); // TODO: Should we deal with models that don't have indices?
+
+  auto populateAttributeMetadata = [primitive, model](const char* keyString) -> gltfAttributeMetadata {
+    gltfAttributeMetadata result;
+    result.accessorIndex = primitive.attributes.at(keyString);
+    result.numComponents = tinygltf::GetNumComponentsInType(model->accessors[result.accessorIndex].type);
+    result.bufferViewIndex = model->accessors[result.accessorIndex].bufferView;
+    result.bufferIndex = model->bufferViews[result.bufferViewIndex].buffer;
+    result.bufferByteOffset = model->bufferViews[result.bufferViewIndex].byteOffset;
+    result.bufferByteLength = model->bufferViews[result.bufferViewIndex].byteLength;
+    return result;
+  };
+
+  // TODO: Allow variability in attributes beyond POSITION, NORMAL, TEXCOORD_0
   Assert(primitive.attributes.find(positionIndexKeyString) != primitive.attributes.end());
-  Assert(primitive.attributes.find(normalIndexKeyString) != primitive.attributes.end());
-  Assert(primitive.attributes.find(texture0IndexKeyString) != primitive.attributes.end());
-  b32 hasIndices = primitive.indices > -1;
-  Assert(hasIndices);
+  gltfAttributeMetadata positionAttribute = populateAttributeMetadata(positionIndexKeyString);
 
-  u32 positionAccessorIndex = primitive.attributes[positionIndexKeyString];
-  u32 positionNumComponents = tinygltf::GetNumComponentsInType(model->accessors[positionAccessorIndex].type);
-  u32 positionGLTFBufferViewIndex = model->accessors[positionAccessorIndex].bufferView;
-  u32 positionGLTFBufferIndex = model->bufferViews[positionGLTFBufferViewIndex].buffer;
-  u64 positionGLTFBufferByteOffset = model->bufferViews[positionGLTFBufferViewIndex].byteOffset;
-  u64 positionGLTFBufferByteLength = model->bufferViews[positionGLTFBufferViewIndex].byteLength;
+  b32 normalAttributesAvailable = primitive.attributes.find(normalIndexKeyString) != primitive.attributes.end();
+  gltfAttributeMetadata normalAttribute;
+  if(normalAttributesAvailable) { // normal attribute data
+    normalAttribute = populateAttributeMetadata(normalIndexKeyString);
+    Assert(positionAttribute.bufferIndex == normalAttribute.bufferIndex);
+  }
 
-  u32 normalAccessorIndex = primitive.attributes[normalIndexKeyString];
-  u32 normalNumComponents = tinygltf::GetNumComponentsInType(model->accessors[normalAccessorIndex].type);
-  u32 normalGLTFBufferViewIndex = model->accessors[normalAccessorIndex].bufferView;
-  u32 normalGLTFBufferIndex = model->bufferViews[normalGLTFBufferViewIndex].buffer;
-  u64 normalGLTFBufferByteOffset = model->bufferViews[normalGLTFBufferViewIndex].byteOffset;
-  u64 normalGLTFBufferByteLength = model->bufferViews[normalGLTFBufferViewIndex].byteLength;
+  b32 texture0AttributesAvailable = primitive.attributes.find(texture0IndexKeyString) != primitive.attributes.end();
+  gltfAttributeMetadata texture0Attribute;
+  if(texture0AttributesAvailable) { // texture 0 uv coord attribute data
+    texture0Attribute = populateAttributeMetadata(texture0IndexKeyString);
+    Assert(positionAttribute.bufferIndex == texture0Attribute.bufferIndex);
+  }
 
-  u32 texture0AccessorIndex = primitive.attributes[texture0IndexKeyString];
-  u32 texture0NumComponents = tinygltf::GetNumComponentsInType(model->accessors[texture0AccessorIndex].type);
-  u32 texture0GLTFBufferViewIndex = model->accessors[texture0AccessorIndex].bufferView;
-  u32 texture0GLTFBufferIndex = model->bufferViews[texture0GLTFBufferViewIndex].buffer;
-  u64 texture0GLTFBufferByteOffset = model->bufferViews[texture0GLTFBufferViewIndex].byteOffset;
-  u64 texture0GLTFBufferByteLength = model->bufferViews[texture0GLTFBufferViewIndex].byteLength;
-
-  // TODO: Handle vertex attributes that don't share the same buffer
-  Assert(positionGLTFBufferIndex == normalGLTFBufferIndex && normalGLTFBufferIndex == texture0GLTFBufferIndex);
-  u32 vertexAttBufferIndex = positionGLTFBufferIndex;
+  // TODO: Handle vertex attributes that don't share the same buffer?
+  u32 vertexAttBufferIndex = positionAttribute.bufferIndex;
   Assert(model->buffers.size() > vertexAttBufferIndex);
 
   u32 indicesAccessorIndex = primitive.indices;
@@ -71,7 +81,7 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   VertexAtt vertexAtt;
   vertexAtt.indexCount = u32(model->accessors[indicesAccessorIndex].count);
   vertexAtt.indexTypeSizeInBytes = tinygltf::GetComponentSizeInBytes(model->accessors[indicesAccessorIndex].componentType);
-  u64 sizeOfAttributeData = texture0GLTFBufferByteOffset + texture0GLTFBufferByteLength;
+  u64 sizeOfAttributeData = texture0Attribute.bufferByteOffset + texture0Attribute.bufferByteLength;
   Assert(model->buffers[vertexAttBufferIndex].data.size() >= sizeOfAttributeData);
   const u32 positionAttributeIndex = 0;
   const u32 normalAttributeIndex = 1;
@@ -91,30 +101,34 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   // set the vertex attributes (position and texture)
   // position attribute
   glVertexAttribPointer(positionAttributeIndex,
-                        positionNumComponents, // attribute size
+                        positionAttribute.numComponents, // attribute size
                         GL_FLOAT, // type of data
                         GL_FALSE, // should data be normalized
-                        positionNumComponents * sizeof(f32),// stride
-                        (void*)positionGLTFBufferByteOffset); // offset of first component
+                        positionAttribute.numComponents * sizeof(f32),// stride
+                        (void*)positionAttribute.bufferByteOffset); // offset of first component
   glEnableVertexAttribArray(positionAttributeIndex);
 
   // normal attribute
-  glVertexAttribPointer(normalAttributeIndex,
-                        normalNumComponents, // attribute size
-                        GL_FLOAT,
-                        GL_FALSE,
-                        normalNumComponents * sizeof(f32),
-                        (void*)normalGLTFBufferByteOffset);
-  glEnableVertexAttribArray(normalAttributeIndex);
+  if(normalAttributesAvailable) {
+    glVertexAttribPointer(normalAttributeIndex,
+                          normalAttribute.numComponents, // attribute size
+                          GL_FLOAT,
+                          GL_FALSE,
+                          normalAttribute.numComponents * sizeof(f32),
+                          (void*)normalAttribute.bufferByteOffset);
+    glEnableVertexAttribArray(normalAttributeIndex);
+  }
 
-  // texture attribute
-  glVertexAttribPointer(texture0AttributeIndex,
-                        texture0NumComponents, // attribute size
-                        GL_FLOAT,
-                        GL_FALSE,
-                        texture0NumComponents * sizeof(f32),
-                        (void*)texture0GLTFBufferByteOffset);
-  glEnableVertexAttribArray(texture0AttributeIndex);
+  // texture 0 UV Coord attribute
+  if(texture0AttributesAvailable) {
+    glVertexAttribPointer(texture0AttributeIndex,
+                          texture0Attribute.numComponents, // attribute size
+                          GL_FLOAT,
+                          GL_FALSE,
+                          texture0Attribute.numComponents * sizeof(f32),
+                          (void*)texture0Attribute.bufferByteOffset);
+    glEnableVertexAttribArray(texture0AttributeIndex);
+  }
 
   // bind element buffer object to give indices
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexAtt.indexObject);
@@ -123,54 +137,57 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   // unbind VBO & VAO
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
-  if(hasIndices) { // Must unbind EBO AFTER unbinding VAO, since VAO stores all glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _) calls
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-  }
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
   return vertexAtt;
 }
 
-VertexAtt loadModelVertexAtt(const char* filePath) {
-  tinygltf::Model model;
+void loadModelsVertexAtt(const char** filePaths, VertexAtt** returnVertAtts, u32 count) {
   tinygltf::TinyGLTF loader;
-  std::string err;
-  std::string warn;
 
-  //bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, filePath); // for .gltf
-  bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, filePath); // for binary glTF(.glb)
+  for(u32 i = 0; i < count; ++i) {
+    std::string err;
+    std::string warn;
+    tinygltf::Model model;
 
-  if (!warn.empty()) {
-    printf("Warn: %s\n", warn.c_str());
+    //bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, filePath); // for .gltf
+    bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, filePaths[i]); // for binary glTF(.glb)
+
+    if (!warn.empty()) {
+      printf("Warn: %s\n", warn.c_str());
+    }
+
+    if (!err.empty()) {
+      printf("Err: %s\n", err.c_str());
+    }
+
+    if (!ret) {
+      printf("Failed to parse glTF\n");
+    }
+
+    *(returnVertAtts[i]) = initializeModelVertexBuffer(&model);
   }
-
-  if (!err.empty()) {
-    printf("Err: %s\n", err.c_str());
-  }
-
-  if (!ret) {
-    printf("Failed to parse glTF\n");
-  }
-
-  return initializeModelVertexBuffer(&model);
 }
 
 void portalScene(GLFWwindow* window) {
-  ShaderProgram cubeShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
+  ShaderProgram modelShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
   ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
 
-  VertexAtt modelVertexAtt = loadModelVertexAtt(gateModelLoc);
+  VertexAtt gateModelVertAtt, pyramidVertAtt, crystalModelVertAtt, icosphereModelVertAtt, torusTriangleModelVertAtt;
+  VertexAtt* modelPtrs[] = {&gateModelVertAtt, &pyramidVertAtt, &crystalModelVertAtt, &icosphereModelVertAtt, &torusTriangleModelVertAtt };
+  const char* modelLocs[] = { gateModelLoc, pyramidModelLoc, crystalModelLoc, icosphere1ModelLoc, torusTriangleModelLoc };
+  loadModelsVertexAtt(modelLocs, modelPtrs, ArrayCount(modelPtrs));
 
   Extent2D windowExtent = getWindowExtent();
   const Extent2D initWindowExtent = windowExtent;
   f32 aspectRatio = f32(windowExtent.width) / windowExtent.height;
 
   Camera camera = lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f));
-  VertexAtt cubePosVertexAtt = initializeCubePositionVertexAttBuffers();
-  VertexAtt quadVertexAtt = initializeQuadPosTexVertexAttBuffers();
+  VertexAtt cubePosVertexAtt = initializeCubePositionVertexAttBuffers(false);
+  VertexAtt invertedCubePosVertexAtt = initializeCubePositionVertexAttBuffers(true);
 
   const f32 cubeScale = 1.0f;
   const glm::vec3 cubePosition = glm::vec3(0.0f, 0.0f, 0.0f);
-  glm::vec3 cubeColor = glm::vec3(0.9f, 0.9f, 0.9f);
   glm::vec3 wireFrameColor = glm::vec3(0.1f, 0.1f, 0.1f);
 
   const f32 portalScale = 2.0f;
@@ -178,17 +195,17 @@ void portalScene(GLFWwindow* window) {
 
   const f32 gateScale = portalScale;
 
-  glm::mat4 cubeModelMatrix = glm::translate(glm::mat4(glm::mat3(cubeScale)), cubePosition);
+  glm::mat4 shapeModelMatrix = glm::translate(glm::mat4(glm::mat3(cubeScale)), cubePosition);
   glm::mat4 portalModelMatrix = glm::translate(glm::mat4(glm::mat3(portalScale)), portalPosition);
   glm::mat4 gateModelMatrix = glm::mat4(glm::mat3(gateScale));
   glm::mat4 viewMatrix;
   glm::mat4 projectionMatrix = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
 
   GLuint skyboxTexture1Id, skyboxTexture2Id, skyboxTexture3Id, skyboxTexture4Id;
-  loadCubeMapTexture(skyboxYellowCloudFaceLocations, &skyboxTexture1Id);
+  loadCubeMapTexture(skyboxWaterFaceLocations, &skyboxTexture1Id);
   loadCubeMapTexture(skyboxInterstellarFaceLocations, &skyboxTexture2Id);
-  loadCubeMapTexture(skyboxWaterFaceLocations, &skyboxTexture3Id);
-  loadCubeMapTexture(skyboxSpaceLightBlueFaceLocations, &skyboxTexture4Id);
+  loadCubeMapTexture(skyboxSpaceLightBlueFaceLocations , &skyboxTexture3Id);
+  loadCubeMapTexture(skyboxYellowCloudFaceLocations, &skyboxTexture4Id);
 
   s32 skyboxTexture1Index = 0;
   s32 skyboxTexture2Index = 1;
@@ -218,8 +235,8 @@ void portalScene(GLFWwindow* window) {
 
   glViewport(0, 0, windowExtent.width, windowExtent.height);
 
-  glUseProgram(cubeShader.id);
-  setUniform(cubeShader.id, "projection", projectionMatrix);
+  glUseProgram(modelShader.id);
+  setUniform(modelShader.id, "projection", projectionMatrix);
 
   glUseProgram(skyboxShader.id);
   setUniform(skyboxShader.id, "projection", projectionMatrix);
@@ -242,7 +259,7 @@ void portalScene(GLFWwindow* window) {
       aspectRatio = f32(windowExtent.width) / windowExtent.height;
       glm::mat4 projectionMatrix = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
       glViewport(0, 0, windowExtent.width, windowExtent.height);
-      setUniform(cubeShader.id, "projection", projectionMatrix);
+      setUniform(modelShader.id, "projection", projectionMatrix);
     }
 
     // gather input
@@ -290,16 +307,16 @@ void portalScene(GLFWwindow* window) {
       glStencilFunc(GL_ALWAYS, // stencil function always passes
                     0x00, // reference
                     0x00); // mask
-      glUseProgram(cubeShader.id);
-      setUniform(cubeShader.id, "view", viewMatrix);
-      setUniform(cubeShader.id, "model", gateModelMatrix);
+      glUseProgram(modelShader.id);
+      setUniform(modelShader.id, "view", viewMatrix);
+      setUniform(modelShader.id, "model", gateModelMatrix);
 
       // draw cube
-      setUniform(cubeShader.id, "color", glm::vec3(0.4f, 0.4f, 0.4f));
-      drawTriangles(modelVertexAtt);
+      setUniform(modelShader.id, "color", glm::vec3(0.4f, 0.4f, 0.4f));
+      drawTriangles(gateModelVertAtt);
     }
 
-    { // draw portals
+    { // draw out stencils
       // GL_EQUAL
       // Passes if ( ref & mask ) == ( stencil & mask )
       // Only draw portals where the stencil is cleared
@@ -310,9 +327,9 @@ void portalScene(GLFWwindow* window) {
                   GL_KEEP, // action when stencil passes but depth fails
                   GL_REPLACE); // action when both stencil and depth pass
 
-      glUseProgram(cubeShader.id);
-      setUniform(cubeShader.id, "view", viewMatrix);
-      setUniform(cubeShader.id, "model", portalModelMatrix);
+      glUseProgram(modelShader.id);
+      setUniform(modelShader.id, "view", viewMatrix);
+      setUniform(modelShader.id, "model", portalModelMatrix);
 
       glStencilMask(0x01);
       drawTriangles(cubePosVertexAtt, 6, 0);
@@ -333,77 +350,127 @@ void portalScene(GLFWwindow* window) {
     // We need to clear disable depth values so distant objects through the "portals" still get drawn
     // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
     glClear(GL_DEPTH_BUFFER_BIT);
-    { // skyboxes
+    { // use stencils to draw portals
       glm::mat4 skyboxViewMat = glm::mat4(glm::mat3(viewMatrix));
 
-      glFrontFace(GL_CW);
+      shapeModelMatrix = glm::rotate(shapeModelMatrix,
+                                     30.0f * RadiansPerDegree * stopWatch.delta,
+                                     glm::vec3(0.0f, 1.0f, 0.0f));
+
+
+      glUseProgram(modelShader.id);
+      setUniform(modelShader.id, "view", viewMatrix);
+      setUniform(modelShader.id, "model", shapeModelMatrix);
+
       glUseProgram(skyboxShader.id);
       setUniform(skyboxShader.id, "view", skyboxViewMat);
 
-      // portal skybox 1
-      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                    0x01, // ref
-                    0xFF); // enable which bits in reference and stored value are compared
-      setUniform(skyboxShader.id, "skybox", skyboxTexture1Index);
-      drawTriangles(cubePosVertexAtt);
+      // portal 1
+      {
+        glUseProgram(skyboxShader.id);
+        glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                      0x01, // ref
+                      0xFF); // enable which bits in reference and stored value are compared
+        setUniform(skyboxShader.id, "skybox", skyboxTexture1Index);
+        drawTriangles(invertedCubePosVertexAtt);
 
-      // portal skybox 2
-      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                    0x02, // ref
-                    0xFF); // enable which bits in reference and stored value are compared
-      setUniform(skyboxShader.id, "skybox", skyboxTexture2Index);
-      drawTriangles(cubePosVertexAtt);
+        // draw cube
+        glUseProgram(modelShader.id);
+        setUniform(modelShader.id, "color", glm::vec3(0.4, 0.4, 1.0));
+        drawTriangles(torusTriangleModelVertAtt);
 
-      // portal skybox 3
-      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                    0x03, // ref
-                    0xFF); // enable which bits in reference and stored value are compared
-      setUniform(skyboxShader.id, "skybox", skyboxTexture3Index);
-      drawTriangles(cubePosVertexAtt);
+        // draw wireframe
+        glDisable(GL_DEPTH_TEST);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glDisable(GL_CULL_FACE);
+        setUniform(modelShader.id, "color", wireFrameColor);
+        drawTriangles(torusTriangleModelVertAtt);
+        glEnable(GL_CULL_FACE);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glEnable(GL_DEPTH_TEST);
+      }
 
-      // portal skybox 4
-      glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                    0x04, // ref
-                    0xFF); // enable which bits in reference and stored value are compared
-      setUniform(skyboxShader.id, "skybox", skyboxTexture4Index);
-      drawTriangles(cubePosVertexAtt);
+      // portal 2
+      {
+        glUseProgram(skyboxShader.id);
+        glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                      0x02, // ref
+                      0xFF); // enable which bits in reference and stored value are compared
+        setUniform(skyboxShader.id, "skybox", skyboxTexture2Index);
+        drawTriangles(invertedCubePosVertexAtt);
 
-      glFrontFace(GL_CCW);
-    }
+        // draw cube
+        glUseProgram(modelShader.id);
+        setUniform(modelShader.id, "color", glm::vec3(0.4, 1.0, 0.4));
+        drawTriangles(crystalModelVertAtt);
 
-    { // cube
-      cubeModelMatrix = glm::rotate(cubeModelMatrix,
-                                    30.0f * RadiansPerDegree * stopWatch.delta,
-                                    glm::vec3(0.0f, 1.0f, 0.0f));
+        // draw wireframe
+        glDisable(GL_DEPTH_TEST);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glDisable(GL_CULL_FACE);
+        setUniform(modelShader.id, "color", wireFrameColor);
+        drawTriangles(crystalModelVertAtt);
+        glEnable(GL_CULL_FACE);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glEnable(GL_DEPTH_TEST);
+      }
 
-      glStencilFunc(GL_LEQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                    0x01, // ref
-                    0xFF); // enable which bits in reference and stored value are compared
+      // portal 3
+      {
+        glUseProgram(skyboxShader.id);
+        glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                      0x03, // ref
+                      0xFF); // enable which bits in reference and stored value are compared
+        setUniform(skyboxShader.id, "skybox", skyboxTexture3Index);
+        drawTriangles(invertedCubePosVertexAtt);
 
-      glUseProgram(cubeShader.id);
-      setUniform(cubeShader.id, "view", viewMatrix);
-      setUniform(cubeShader.id, "model", cubeModelMatrix);
+        // draw cube
+        glUseProgram(modelShader.id);
+        setUniform(modelShader.id, "color", glm::vec3(0.9, 0.9, 0.9));
+        drawTriangles(icosphereModelVertAtt);
 
-      // draw cube
-      setUniform(cubeShader.id, "color", cubeColor);
-      drawTriangles(cubePosVertexAtt);
+        // draw wireframe
+        glDisable(GL_DEPTH_TEST);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glDisable(GL_CULL_FACE);
+        setUniform(modelShader.id, "color", wireFrameColor);
+        drawTriangles(icosphereModelVertAtt);
+        glEnable(GL_CULL_FACE);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glEnable(GL_DEPTH_TEST);
+      }
 
-      // draw wireframe
-      glDisable(GL_DEPTH_TEST);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-      glDisable(GL_CULL_FACE);
-      setUniform(cubeShader.id, "color", wireFrameColor);
-      drawTriangles(cubePosVertexAtt);
-      glEnable(GL_CULL_FACE);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-      glEnable(GL_DEPTH_TEST);
+      // portal 4
+      {
+        glUseProgram(skyboxShader.id);
+        glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                      0x04, // ref
+                      0xFF); // enable which bits in reference and stored value are compared
+        setUniform(skyboxShader.id, "skybox", skyboxTexture4Index);
+        drawTriangles(invertedCubePosVertexAtt);
+
+        // draw cube
+        glUseProgram(modelShader.id);
+        setUniform(modelShader.id, "color", glm::vec3(1.0, 0.4, 0.4));
+        drawTriangles(pyramidVertAtt);
+
+        // draw wireframe
+        glDisable(GL_DEPTH_TEST);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glDisable(GL_CULL_FACE);
+        setUniform(modelShader.id, "color", wireFrameColor);
+        drawTriangles(pyramidVertAtt);
+        glEnable(GL_CULL_FACE);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        glEnable(GL_DEPTH_TEST);
+      }
     }
 
     glfwSwapBuffers(window); // swaps double buffers (call after all render commands are completed)
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
   }
 
-  deleteShaderProgram(cubeShader);
-  VertexAtt vertexAtts[] = {cubePosVertexAtt, quadVertexAtt};
-  deleteVertexAtts(ArrayCount(vertexAtts), vertexAtts);
+  deleteShaderProgram(modelShader);
+  deleteShaderProgram(skyboxShader);
+  deleteVertexAtts(ArrayCount(modelPtrs), modelPtrs);
 }

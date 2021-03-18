@@ -58,6 +58,20 @@ const u8 cubePositionIndices[]{
         20, 21, 22, // 5
         22, 23, 20,
 };
+const u8 invertedWindingCubePositionIndices[]{
+        0, 2, 1, // 0
+        2, 0, 3,
+        4, 5, 6, // 1
+        6, 7, 4,
+        8, 10, 9, // 2
+        10, 8, 11,
+        12, 13, 14, // 3
+        14, 15, 12,
+        16, 17, 18, // 4
+        18, 19, 16,
+        20, 22, 21, // 5
+        22, 20, 23,
+};
 
 
 // ===== Quad values (vec3 position, vec2 tex) =====
@@ -90,10 +104,12 @@ u32 convertSizeInBytesToOpenGLUIntType(u8 sizeInBytes) {
   }
 }
 
-VertexAtt initializeCubePositionVertexAttBuffers() {
+VertexAtt initializeCubePositionVertexAttBuffers(bool invertedWindingOrder = false) {
   VertexAtt vertexAtt;
   vertexAtt.indexCount = ArrayCount(cubePositionIndices);
   vertexAtt.indexTypeSizeInBytes = sizeof(cubePositionIndices) / vertexAtt.indexCount;
+  const u8* indexData = invertedWindingOrder ? invertedWindingCubePositionIndices : cubePositionIndices;
+
   const u32 positionAttributeIndex = 0;
 
   glGenVertexArrays(1, &vertexAtt.arrayObject); // vertex array object
@@ -116,7 +132,7 @@ VertexAtt initializeCubePositionVertexAttBuffers() {
 
   // bind element buffer object to give indices
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexAtt.indexObject);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubePositionIndices), cubePositionIndices, GL_STATIC_DRAW);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, vertexAtt.indexCount, indexData, GL_STATIC_DRAW);
 
   // unbind VBO, VAO, & EBO
   glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -199,15 +215,15 @@ void deleteVertexAtt(VertexAtt vertexAtt) {
   glDeleteBuffers(1, &vertexAtt.bufferObject);
 }
 
-void deleteVertexAtts(u32 count, VertexAtt* vertexAtts)
+void deleteVertexAtts(u32 count, VertexAtt** vertexAtts)
 {
   u32* deleteBufferObjects = new u32[count * 3];
-  u32* deleteIndexObjects = deleteBufferObjects + count;
-  u32* deleteVertexArrays = deleteIndexObjects + count;
+  u32* deleteIndexBufferObjects = deleteBufferObjects + count;
+  u32* deleteVertexArrays = deleteIndexBufferObjects + count;
   for(u32 i = 0; i < count; i++) {
-    deleteBufferObjects[i] = vertexAtts[i].bufferObject;
-    deleteIndexObjects[i] = vertexAtts[i].indexObject;
-    deleteVertexArrays[i] = vertexAtts[i].arrayObject;
+    deleteBufferObjects[i] = (*vertexAtts[i]).bufferObject;
+    deleteIndexBufferObjects[i] = (*vertexAtts[i]).indexObject;
+    deleteVertexArrays[i] = (*vertexAtts[i]).arrayObject;
   }
 
   glDeleteBuffers(count * 2, deleteBufferObjects);
