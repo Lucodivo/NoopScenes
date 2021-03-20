@@ -7,6 +7,7 @@
 #include "util.h"
 #include "textures.h"
 #include "camera.h"
+#include "uniform_buffer_object_structs.h"
 
 // Define these only in *one* .cc file.
 #define TINYGLTF_IMPLEMENTATION
@@ -170,12 +171,14 @@ void loadModelsVertexAtt(const char** filePaths, VertexAtt** returnVertAtts, u32
 }
 
 void portalScene(GLFWwindow* window) {
-  ShaderProgram modelShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
+  ShaderProgram shapeShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
   ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
 
-  VertexAtt gateModelVertAtt, pyramidVertAtt, crystalModelVertAtt, icosphereModelVertAtt, torusTriangleModelVertAtt;
-  VertexAtt* modelPtrs[] = {&gateModelVertAtt, &pyramidVertAtt, &crystalModelVertAtt, &icosphereModelVertAtt, &torusTriangleModelVertAtt };
-  const char* modelLocs[] = { gateModelLoc, pyramidModelLoc, crystalModelLoc, icosphere1ModelLoc, torusTriangleModelLoc };
+  ProjectionViewModelUBO projectionViewModelUbo;
+
+  VertexAtt gateModelVertAtt, pyramidVertAtt, crystalModelVertAtt, icosphereModelVertAtt, torusPentagonModelVertAtt;
+  VertexAtt* modelPtrs[] = { &gateModelVertAtt, &pyramidVertAtt, &crystalModelVertAtt, &icosphereModelVertAtt, &torusPentagonModelVertAtt };
+  const char* modelLocs[] = { gateModelLoc, pyramidModelLoc, crystalModelLoc, icosphere1ModelLoc, torusPentagonModelLoc };
   loadModelsVertexAtt(modelLocs, modelPtrs, ArrayCount(modelPtrs));
 
   Extent2D windowExtent = getWindowExtent();
@@ -201,24 +204,28 @@ void portalScene(GLFWwindow* window) {
   glm::mat4 viewMatrix;
   glm::mat4 projectionMatrix = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
 
-  GLuint skyboxTexture1Id, skyboxTexture2Id, skyboxTexture3Id, skyboxTexture4Id;
-  loadCubeMapTexture(skyboxWaterFaceLocations, &skyboxTexture1Id);
-  loadCubeMapTexture(skyboxInterstellarFaceLocations, &skyboxTexture2Id);
-  loadCubeMapTexture(skyboxSpaceLightBlueFaceLocations , &skyboxTexture3Id);
-  loadCubeMapTexture(skyboxYellowCloudFaceLocations, &skyboxTexture4Id);
+  GLuint mainSkyboxTextureId, portal1SkyboxTextureId, portal2SkyboxTextureId, portal3SkyboxTextureId, portal4SkyboxTextureId;
+  loadCubeMapTexture(caveFaceLocations, &mainSkyboxTextureId);
+  loadCubeMapTexture(calmSeaFaceLocations, &portal1SkyboxTextureId);
+  loadCubeMapTexture(skyboxInterstellarFaceLocations, &portal2SkyboxTextureId);
+  loadCubeMapTexture(pollutedEarthFaceLocations , &portal3SkyboxTextureId);
+  loadCubeMapTexture(skyboxYellowCloudFaceLocations, &portal4SkyboxTextureId);
 
-  s32 skyboxTexture1Index = 0;
-  s32 skyboxTexture2Index = 1;
-  s32 skyboxTexture3Index = 2;
-  s32 skyboxTexture4Index = 3;
-  glActiveTexture(GL_TEXTURE0 + skyboxTexture1Index);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture1Id);
-  glActiveTexture(GL_TEXTURE0 + skyboxTexture2Index);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture2Id);
-  glActiveTexture(GL_TEXTURE0 + skyboxTexture3Index);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture3Id);
-  glActiveTexture(GL_TEXTURE0 + skyboxTexture4Index);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture4Id);
+  s32 mainSkyboxTextureIndex = 0;
+  s32 portal1SkyboxTextureIndex = 1;
+  s32 portal2SkyboxTextureIndex = 2;
+  s32 portal3SkyboxTextureIndex = 3;
+  s32 portal4SkyboxTextureIndex = 4;
+  glActiveTexture(GL_TEXTURE0 + mainSkyboxTextureIndex);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, mainSkyboxTextureId);
+  glActiveTexture(GL_TEXTURE0 + portal1SkyboxTextureIndex);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, portal1SkyboxTextureId);
+  glActiveTexture(GL_TEXTURE0 + portal2SkyboxTextureIndex);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, portal2SkyboxTextureId);
+  glActiveTexture(GL_TEXTURE0 + portal3SkyboxTextureIndex);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, portal3SkyboxTextureId);
+  glActiveTexture(GL_TEXTURE0 + portal4SkyboxTextureIndex);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, portal4SkyboxTextureId);
 
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
@@ -235,11 +242,15 @@ void portalScene(GLFWwindow* window) {
 
   glViewport(0, 0, windowExtent.width, windowExtent.height);
 
-  glUseProgram(modelShader.id);
-  setUniform(modelShader.id, "projection", projectionMatrix);
-
-  glUseProgram(skyboxShader.id);
-  setUniform(skyboxShader.id, "projection", projectionMatrix);
+  // UBOs
+  GLuint projViewModelUBOid;
+  glGenBuffers(1, &projViewModelUBOid);
+  // allocate size for buffer
+  glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+  glBufferData(GL_UNIFORM_BUFFER, sizeof(ProjectionViewModelUBO), NULL, GL_STREAM_DRAW);
+  glBindBuffer(GL_UNIFORM_BUFFER, 0);
+  // attach buffer to ubo binding point
+  glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, projViewModelUBOid, 0, sizeof(ProjectionViewModelUBO));
 
   StopWatch stopWatch = createStopWatch();
   while(glfwWindowShouldClose(window) == GL_FALSE)
@@ -259,7 +270,6 @@ void portalScene(GLFWwindow* window) {
       aspectRatio = f32(windowExtent.width) / windowExtent.height;
       glm::mat4 projectionMatrix = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
       glViewport(0, 0, windowExtent.width, windowExtent.height);
-      setUniform(modelShader.id, "projection", projectionMatrix);
     }
 
     // gather input
@@ -302,18 +312,31 @@ void portalScene(GLFWwindow* window) {
     glStencilMask(0xFF);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
+    // universal matrices in UBO
+    projectionViewModelUbo.projection = projectionMatrix;
+    projectionViewModelUbo.view = viewMatrix;
+    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &projectionViewModelUbo);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
     // draw gate
     {
       glStencilFunc(GL_ALWAYS, // stencil function always passes
                     0x00, // reference
                     0x00); // mask
-      glUseProgram(modelShader.id);
-      setUniform(modelShader.id, "view", viewMatrix);
-      setUniform(modelShader.id, "model", gateModelMatrix);
 
-      // draw cube
-      setUniform(modelShader.id, "color", glm::vec3(0.4f, 0.4f, 0.4f));
+      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4), glm::value_ptr(gateModelMatrix));
+      glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+      // draw gate
+      glUseProgram(shapeShader.id);
+      setUniform(shapeShader.id, "color", glm::vec3(0.4f, 0.4f, 0.4f));
       drawTriangles(gateModelVertAtt);
+
+      glUseProgram(skyboxShader.id);
+      setUniform(skyboxShader.id, "skybox", mainSkyboxTextureIndex);
+      drawTriangles(invertedCubePosVertexAtt);
     }
 
     { // draw out stencils
@@ -327,9 +350,10 @@ void portalScene(GLFWwindow* window) {
                   GL_KEEP, // action when stencil passes but depth fails
                   GL_REPLACE); // action when both stencil and depth pass
 
-      glUseProgram(modelShader.id);
-      setUniform(modelShader.id, "view", viewMatrix);
-      setUniform(modelShader.id, "model", portalModelMatrix);
+      glUseProgram(shapeShader.id);
+      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4), glm::value_ptr(portalModelMatrix));
+      glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
       glStencilMask(0x01);
       drawTriangles(cubePosVertexAtt, 6, 0);
@@ -351,40 +375,36 @@ void portalScene(GLFWwindow* window) {
     // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
     glClear(GL_DEPTH_BUFFER_BIT);
     { // use stencils to draw portals
-      glm::mat4 skyboxViewMat = glm::mat4(glm::mat3(viewMatrix));
-
       shapeModelMatrix = glm::rotate(shapeModelMatrix,
                                      30.0f * RadiansPerDegree * stopWatch.delta,
                                      glm::vec3(0.0f, 1.0f, 0.0f));
 
-
-      glUseProgram(modelShader.id);
-      setUniform(modelShader.id, "view", viewMatrix);
-      setUniform(modelShader.id, "model", shapeModelMatrix);
-
-      glUseProgram(skyboxShader.id);
-      setUniform(skyboxShader.id, "view", skyboxViewMat);
+      // all shapes use the same model matrix
+      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4), glm::value_ptr(shapeModelMatrix));
+      glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
       // portal 1
       {
-        glUseProgram(skyboxShader.id);
         glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
                       0x01, // ref
                       0xFF); // enable which bits in reference and stored value are compared
-        setUniform(skyboxShader.id, "skybox", skyboxTexture1Index);
+
+        glUseProgram(skyboxShader.id);
+        setUniform(skyboxShader.id, "skybox", portal1SkyboxTextureIndex);
         drawTriangles(invertedCubePosVertexAtt);
 
         // draw cube
-        glUseProgram(modelShader.id);
-        setUniform(modelShader.id, "color", glm::vec3(0.4, 0.4, 1.0));
-        drawTriangles(torusTriangleModelVertAtt);
+        glUseProgram(shapeShader.id);
+        setUniform(shapeShader.id, "color", glm::vec3(0.4, 0.4, 1.0));
+        drawTriangles(torusPentagonModelVertAtt);
 
         // draw wireframe
         glDisable(GL_DEPTH_TEST);
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glDisable(GL_CULL_FACE);
-        setUniform(modelShader.id, "color", wireFrameColor);
-        drawTriangles(torusTriangleModelVertAtt);
+        setUniform(shapeShader.id, "color", wireFrameColor);
+        drawTriangles(torusPentagonModelVertAtt);
         glEnable(GL_CULL_FACE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         glEnable(GL_DEPTH_TEST);
@@ -392,23 +412,24 @@ void portalScene(GLFWwindow* window) {
 
       // portal 2
       {
-        glUseProgram(skyboxShader.id);
         glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
                       0x02, // ref
                       0xFF); // enable which bits in reference and stored value are compared
-        setUniform(skyboxShader.id, "skybox", skyboxTexture2Index);
+
+        glUseProgram(skyboxShader.id);
+        setUniform(skyboxShader.id, "skybox", portal2SkyboxTextureIndex);
         drawTriangles(invertedCubePosVertexAtt);
 
         // draw cube
-        glUseProgram(modelShader.id);
-        setUniform(modelShader.id, "color", glm::vec3(0.4, 1.0, 0.4));
+        glUseProgram(shapeShader.id);
+        setUniform(shapeShader.id, "color", glm::vec3(0.4, 1.0, 0.4));
         drawTriangles(crystalModelVertAtt);
 
         // draw wireframe
         glDisable(GL_DEPTH_TEST);
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glDisable(GL_CULL_FACE);
-        setUniform(modelShader.id, "color", wireFrameColor);
+        setUniform(shapeShader.id, "color", wireFrameColor);
         drawTriangles(crystalModelVertAtt);
         glEnable(GL_CULL_FACE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -417,23 +438,24 @@ void portalScene(GLFWwindow* window) {
 
       // portal 3
       {
-        glUseProgram(skyboxShader.id);
         glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
                       0x03, // ref
                       0xFF); // enable which bits in reference and stored value are compared
-        setUniform(skyboxShader.id, "skybox", skyboxTexture3Index);
+
+        glUseProgram(skyboxShader.id);
+        setUniform(skyboxShader.id, "skybox", portal3SkyboxTextureIndex);
         drawTriangles(invertedCubePosVertexAtt);
 
         // draw cube
-        glUseProgram(modelShader.id);
-        setUniform(modelShader.id, "color", glm::vec3(0.9, 0.9, 0.9));
+        glUseProgram(shapeShader.id);
+        setUniform(shapeShader.id, "color", glm::vec3(0.9, 0.9, 0.9));
         drawTriangles(icosphereModelVertAtt);
 
         // draw wireframe
         glDisable(GL_DEPTH_TEST);
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glDisable(GL_CULL_FACE);
-        setUniform(modelShader.id, "color", wireFrameColor);
+        setUniform(shapeShader.id, "color", wireFrameColor);
         drawTriangles(icosphereModelVertAtt);
         glEnable(GL_CULL_FACE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -442,23 +464,24 @@ void portalScene(GLFWwindow* window) {
 
       // portal 4
       {
-        glUseProgram(skyboxShader.id);
         glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
                       0x04, // ref
                       0xFF); // enable which bits in reference and stored value are compared
-        setUniform(skyboxShader.id, "skybox", skyboxTexture4Index);
+
+        glUseProgram(skyboxShader.id);
+        setUniform(skyboxShader.id, "skybox", portal4SkyboxTextureIndex);
         drawTriangles(invertedCubePosVertexAtt);
 
         // draw cube
-        glUseProgram(modelShader.id);
-        setUniform(modelShader.id, "color", glm::vec3(1.0, 0.4, 0.4));
+        glUseProgram(shapeShader.id);
+        setUniform(shapeShader.id, "color", glm::vec3(1.0, 0.4, 0.4));
         drawTriangles(pyramidVertAtt);
 
         // draw wireframe
         glDisable(GL_DEPTH_TEST);
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glDisable(GL_CULL_FACE);
-        setUniform(modelShader.id, "color", wireFrameColor);
+        setUniform(shapeShader.id, "color", wireFrameColor);
         drawTriangles(pyramidVertAtt);
         glEnable(GL_CULL_FACE);
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -470,7 +493,7 @@ void portalScene(GLFWwindow* window) {
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
   }
 
-  deleteShaderProgram(modelShader);
+  deleteShaderProgram(shapeShader);
   deleteShaderProgram(skyboxShader);
   deleteVertexAtts(ArrayCount(modelPtrs), modelPtrs);
 }

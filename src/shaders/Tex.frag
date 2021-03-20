@@ -1,4 +1,4 @@
-#version 410
+#version 420
 layout (location = 0) in vec2 inTexCoord;
 
 uniform sampler2D texture;

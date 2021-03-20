@@ -74,6 +74,13 @@ layout (location = 1) in vec3 inViewDir;
 layout (location = 2) in vec3 inLightDir;
 ```
 
+Fragment sampler uniform variables:
+- OpenGL requires sampler variables to be explicitly declared as uniform
+```
+uniform samplerCube envMapTexture;
+uniform sampler2D noiseTexture
+```
+
 Fragment shader output variables:
 - No indices currently reserved for fragment shaders as render buffers vary greatly.
 - The following naming convention and explicit prefix of layout location is enforced.
@@ -96,3 +103,12 @@ layout (location = 4) in vec3 instPos;
 layout (location = 5) in vec3 instRot;
 layout (location = 6) in float instScale;
 ```
+
+
+### Special Thanks
+
+#### Environment Skyboxes
+- [3delyvisions](https://opengameart.org/content/elyvisions-skyboxes)
+- [Xonotic](https://opengameart.org/content/xonotic-skyboxes)
+- [Ulukai - Jonathan Denil](https://opengameart.org/content/ulukais-space-skyboxes)
+- [Mayhem](https://opengameart.org/content/mayhems-skyboxes)
