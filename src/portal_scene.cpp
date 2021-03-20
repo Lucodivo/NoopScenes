@@ -8,201 +8,54 @@
 #include "textures.h"
 #include "camera.h"
 #include "uniform_buffer_object_structs.h"
+#include "model.h"
 
-// Define these only in *one* .cc file.
-#define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define TINYGLTF_NO_INCLUDE_STB_IMAGE
-// #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
-#include "tinygltf/tiny_gltf.h"
+const glm::vec3 defaultPlayerDimensionInMeters = glm::vec3(0.5f, 1.75f, 0.25f); // ~1'7"w, 6'h, 9"d
 
-
-VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
-{
-  struct gltfAttributeMetadata {
-    u32 accessorIndex;
-    u32 numComponents;
-    u32 bufferViewIndex;
-    u32 bufferIndex;
-    u64 bufferByteOffset;
-    u64 bufferByteLength;
-  };
-
-  const char* positionIndexKeyString = "POSITION";
-  const char* normalIndexKeyString = "NORMAL";
-  const char* texture0IndexKeyString = "TEXCOORD_0";
-
-  // TODO: Pull vertex  attributes for more then the first primitive of the first mesh of a model
-  Assert(!model->meshes.empty());
-  Assert(!model->meshes[0].primitives.empty());
-  tinygltf::Primitive primitive = model->meshes[0].primitives[0];
-  Assert(primitive.indices > -1); // TODO: Should we deal with models that don't have indices?
-
-  auto populateAttributeMetadata = [primitive, model](const char* keyString) -> gltfAttributeMetadata {
-    gltfAttributeMetadata result;
-    result.accessorIndex = primitive.attributes.at(keyString);
-    result.numComponents = tinygltf::GetNumComponentsInType(model->accessors[result.accessorIndex].type);
-    result.bufferViewIndex = model->accessors[result.accessorIndex].bufferView;
-    result.bufferIndex = model->bufferViews[result.bufferViewIndex].buffer;
-    result.bufferByteOffset = model->bufferViews[result.bufferViewIndex].byteOffset;
-    result.bufferByteLength = model->bufferViews[result.bufferViewIndex].byteLength;
-    return result;
-  };
-
-  // TODO: Allow variability in attributes beyond POSITION, NORMAL, TEXCOORD_0
-  Assert(primitive.attributes.find(positionIndexKeyString) != primitive.attributes.end());
-  gltfAttributeMetadata positionAttribute = populateAttributeMetadata(positionIndexKeyString);
-
-  b32 normalAttributesAvailable = primitive.attributes.find(normalIndexKeyString) != primitive.attributes.end();
-  gltfAttributeMetadata normalAttribute;
-  if(normalAttributesAvailable) { // normal attribute data
-    normalAttribute = populateAttributeMetadata(normalIndexKeyString);
-    Assert(positionAttribute.bufferIndex == normalAttribute.bufferIndex);
-  }
-
-  b32 texture0AttributesAvailable = primitive.attributes.find(texture0IndexKeyString) != primitive.attributes.end();
-  gltfAttributeMetadata texture0Attribute;
-  if(texture0AttributesAvailable) { // texture 0 uv coord attribute data
-    texture0Attribute = populateAttributeMetadata(texture0IndexKeyString);
-    Assert(positionAttribute.bufferIndex == texture0Attribute.bufferIndex);
-  }
-
-  // TODO: Handle vertex attributes that don't share the same buffer?
-  u32 vertexAttBufferIndex = positionAttribute.bufferIndex;
-  Assert(model->buffers.size() > vertexAttBufferIndex);
-
-  u32 indicesAccessorIndex = primitive.indices;
-  u32 indicesGLTFBufferViewIndex = model->accessors[indicesAccessorIndex].bufferView;
-  u32 indicesGLTFBufferIndex = model->bufferViews[indicesGLTFBufferViewIndex].buffer;
-  u64 indicesGLTFBufferByteOffset = model->bufferViews[indicesGLTFBufferViewIndex].byteOffset;
-  u64 indicesGLTFBufferByteLength = model->bufferViews[indicesGLTFBufferViewIndex].byteLength;
-
-  u8* dataOffset = model->buffers[indicesGLTFBufferIndex].data.data() + indicesGLTFBufferByteOffset;
-
-  VertexAtt vertexAtt;
-  vertexAtt.indexCount = u32(model->accessors[indicesAccessorIndex].count);
-  vertexAtt.indexTypeSizeInBytes = tinygltf::GetComponentSizeInBytes(model->accessors[indicesAccessorIndex].componentType);
-  u64 sizeOfAttributeData = texture0Attribute.bufferByteOffset + texture0Attribute.bufferByteLength;
-  Assert(model->buffers[vertexAttBufferIndex].data.size() >= sizeOfAttributeData);
-  const u32 positionAttributeIndex = 0;
-  const u32 normalAttributeIndex = 1;
-  const u32 texture0AttributeIndex = 2;
-
-  glGenVertexArrays(1, &vertexAtt.arrayObject);
-  glGenBuffers(1, &vertexAtt.bufferObject);
-  glGenBuffers(1, &vertexAtt.indexObject);
-
-  glBindVertexArray(vertexAtt.arrayObject);
-  glBindBuffer(GL_ARRAY_BUFFER, vertexAtt.bufferObject);
-  glBufferData(GL_ARRAY_BUFFER,
-               sizeOfAttributeData,
-               model->buffers[vertexAttBufferIndex].data.data(),
-               GL_STATIC_DRAW);
-
-  // set the vertex attributes (position and texture)
-  // position attribute
-  glVertexAttribPointer(positionAttributeIndex,
-                        positionAttribute.numComponents, // attribute size
-                        GL_FLOAT, // type of data
-                        GL_FALSE, // should data be normalized
-                        positionAttribute.numComponents * sizeof(f32),// stride
-                        (void*)positionAttribute.bufferByteOffset); // offset of first component
-  glEnableVertexAttribArray(positionAttributeIndex);
-
-  // normal attribute
-  if(normalAttributesAvailable) {
-    glVertexAttribPointer(normalAttributeIndex,
-                          normalAttribute.numComponents, // attribute size
-                          GL_FLOAT,
-                          GL_FALSE,
-                          normalAttribute.numComponents * sizeof(f32),
-                          (void*)normalAttribute.bufferByteOffset);
-    glEnableVertexAttribArray(normalAttributeIndex);
-  }
-
-  // texture 0 UV Coord attribute
-  if(texture0AttributesAvailable) {
-    glVertexAttribPointer(texture0AttributeIndex,
-                          texture0Attribute.numComponents, // attribute size
-                          GL_FLOAT,
-                          GL_FALSE,
-                          texture0Attribute.numComponents * sizeof(f32),
-                          (void*)texture0Attribute.bufferByteOffset);
-    glEnableVertexAttribArray(texture0AttributeIndex);
-  }
-
-  // bind element buffer object to give indices
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexAtt.indexObject);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesGLTFBufferByteLength, dataOffset, GL_STATIC_DRAW);
-
-  // unbind VBO & VAO
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-  return vertexAtt;
-}
-
-void loadModelsVertexAtt(const char** filePaths, VertexAtt** returnVertAtts, u32 count) {
-  tinygltf::TinyGLTF loader;
-
-  for(u32 i = 0; i < count; ++i) {
-    std::string err;
-    std::string warn;
-    tinygltf::Model model;
-
-    //bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, filePath); // for .gltf
-    bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, filePaths[i]); // for binary glTF(.glb)
-
-    if (!warn.empty()) {
-      printf("Warn: %s\n", warn.c_str());
-    }
-
-    if (!err.empty()) {
-      printf("Err: %s\n", err.c_str());
-    }
-
-    if (!ret) {
-      printf("Failed to parse glTF\n");
-    }
-
-    *(returnVertAtts[i]) = initializeModelVertexBuffer(&model);
-  }
-}
+struct Player {
+  glm::vec3 minBoxPosition;
+  glm::vec3 dimensionInMeters;
+  // assume "eyes" (FPS camera) is positioned on front Z, top Y, middle X
+};
 
 void portalScene(GLFWwindow* window) {
+  Extent2D windowExtent = getWindowExtent();
+  const Extent2D initWindowExtent = windowExtent;
+  f32 aspectRatio = f32(windowExtent.width) / windowExtent.height;
+
+  ShaderProgram gateShader = createShaderProgram(posNormTexVertexShaderFileLoc, portalFragmentShaderFileLoc);
   ShaderProgram shapeShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
   ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
 
   ProjectionViewModelUBO projectionViewModelUbo;
+  Player player;
+  player.minBoxPosition = glm::vec3(0.0f, 0.0f, 10.0f);
+  player.dimensionInMeters = defaultPlayerDimensionInMeters;
 
   VertexAtt gateModelVertAtt, pyramidVertAtt, crystalModelVertAtt, icosphereModelVertAtt, torusPentagonModelVertAtt;
   VertexAtt* modelPtrs[] = { &gateModelVertAtt, &pyramidVertAtt, &crystalModelVertAtt, &icosphereModelVertAtt, &torusPentagonModelVertAtt };
   const char* modelLocs[] = { gateModelLoc, pyramidModelLoc, crystalModelLoc, icosphere1ModelLoc, torusPentagonModelLoc };
   loadModelsVertexAtt(modelLocs, modelPtrs, ArrayCount(modelPtrs));
 
-  Extent2D windowExtent = getWindowExtent();
-  const Extent2D initWindowExtent = windowExtent;
-  f32 aspectRatio = f32(windowExtent.width) / windowExtent.height;
-
-  Camera camera = lookAt(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 0.0f, 0.0f));
-  VertexAtt cubePosVertexAtt = initializeCubePositionVertexAttBuffers(false);
-  VertexAtt invertedCubePosVertexAtt = initializeCubePositionVertexAttBuffers(true);
-
-  const f32 cubeScale = 1.0f;
-  const glm::vec3 cubePosition = glm::vec3(0.0f, 0.0f, 0.0f);
-  glm::vec3 wireFrameColor = glm::vec3(0.1f, 0.1f, 0.1f);
-
-  const f32 portalScale = 2.0f;
-  const glm::vec3 portalPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+  const f32 portalScale = 3.0f;
+  const glm::vec3 portalPosition = glm::vec3(0.0f, portalScale * 0.5f, 0.0);
 
   const f32 gateScale = portalScale;
+  const glm::vec3 gatePosition = portalPosition;
 
-  glm::mat4 shapeModelMatrix = glm::translate(glm::mat4(glm::mat3(cubeScale)), cubePosition);
-  glm::mat4 portalModelMatrix = glm::translate(glm::mat4(glm::mat3(portalScale)), portalPosition);
-  glm::mat4 gateModelMatrix = glm::mat4(glm::mat3(gateScale));
-  glm::mat4 viewMatrix;
-  glm::mat4 projectionMatrix = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
+  const f32 shapeScale = 1.5f;
+  const glm::vec3 shapePosition = portalPosition;
+  glm::vec3 wireFrameColor = glm::vec3(0.1f, 0.1f, 0.1f);
+
+  glm::vec3 cameraPosition = player.minBoxPosition + (player.dimensionInMeters * glm::vec3(0.5f, 1.0f, 1.0f));
+  Camera firstPersonCamera = lookAt(cameraPosition, gatePosition);
+  VertexAtt cubePosVertexAtt = initializeCubePositionVertexAttBuffers();
+  VertexAtt invertedCubePosVertexAtt = initializeCubePositionVertexAttBuffers(true);
+
+  glm::mat4 shapeModelMatrix = glm::translate(glm::mat4(glm::mat3(1.0f)), shapePosition) * glm::mat4(glm::mat3(shapeScale));
+  glm::mat4 portalModelMatrix = glm::translate(glm::mat4(glm::mat3(1.0f)), portalPosition) * glm::mat4(glm::mat3(portalScale));
+  glm::mat4 gateModelMatrix = glm::translate(glm::mat4(glm::mat3(1.0f)), gatePosition) * glm::mat4(glm::mat3(gateScale));
+  projectionViewModelUbo.projection = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
 
   GLuint mainSkyboxTextureId, portal1SkyboxTextureId, portal2SkyboxTextureId, portal3SkyboxTextureId, portal4SkyboxTextureId;
   loadCubeMapTexture(caveFaceLocations, &mainSkyboxTextureId);
@@ -242,6 +95,20 @@ void portalScene(GLFWwindow* window) {
 
   glViewport(0, 0, windowExtent.width, windowExtent.height);
 
+  u32 portalFragUBOBindingIndex = 1;
+  struct PortalFragUBO {
+    glm::vec3 directionalLightColor;
+    u8 __padding1;
+    glm::vec3 ambientLightColor;
+    u8 __padding2;
+    glm::vec3 directionalLightDirToSource;
+    u8 __padding3;
+  } portalFragUbo;
+
+  portalFragUbo.directionalLightColor = glm::vec3(0.5f, 0.5f, 0.5f);
+  portalFragUbo.ambientLightColor = glm::vec3(0.2f, 0.2f, 0.2f);
+  portalFragUbo.directionalLightDirToSource = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
+
   // UBOs
   GLuint projViewModelUBOid;
   glGenBuffers(1, &projViewModelUBOid);
@@ -251,6 +118,16 @@ void portalScene(GLFWwindow* window) {
   glBindBuffer(GL_UNIFORM_BUFFER, 0);
   // attach buffer to ubo binding point
   glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, projViewModelUBOid, 0, sizeof(ProjectionViewModelUBO));
+
+  GLuint portalFragUBOid;
+  glGenBuffers(1, &portalFragUBOid);
+  // allocate size for buffer
+  glBindBuffer(GL_UNIFORM_BUFFER, portalFragUBOid);
+  glBufferData(GL_UNIFORM_BUFFER, sizeof(PortalFragUBO), &portalFragUbo, GL_STATIC_DRAW);
+  glBindBuffer(GL_UNIFORM_BUFFER, 0);
+  // attach buffer to ubo binding point
+  glBindBufferRange(GL_UNIFORM_BUFFER, portalFragUBOBindingIndex, portalFragUBOid, 0, sizeof(PortalFragUBO));
+
 
   StopWatch stopWatch = createStopWatch();
   while(glfwWindowShouldClose(window) == GL_FALSE)
@@ -280,7 +157,7 @@ void portalScene(GLFWwindow* window) {
     b32 downIsActive = isActive(KeyboardInput_S) || isActive(KeyboardInput_Down);
     Vec2_f64 mouseDelta = getMouseDelta();
 
-    // use input to modify camera
+    // use input to modify firstPersonCamera
     {
       b32 lateralMovement = leftIsActive != rightIsActive;
       b32 forwardMovement = upIsActive != downIsActive;
@@ -292,20 +169,20 @@ void portalScene(GLFWwindow* window) {
         glm::vec3 cameraMovementDirection{};
         if (lateralMovement)
         {
-          cameraMovementDirection += rightIsActive ? camera.right : -camera.right;
+          cameraMovementDirection += rightIsActive ? firstPersonCamera.right : -firstPersonCamera.right;
         }
 
         if (forwardMovement)
         {
-          cameraMovementDirection += upIsActive ? camera.forward : -camera.forward;
+          cameraMovementDirection += upIsActive ? firstPersonCamera.forward : -firstPersonCamera.forward;
         }
 
         cameraMovementDirection = glm::normalize(glm::vec3(cameraMovementDirection.x, 0.0f, cameraMovementDirection.z));
-        camera.origin += cameraMovementDirection * cameraMovementSpeed * stopWatch.delta;
+        firstPersonCamera.origin += cameraMovementDirection * cameraMovementSpeed * stopWatch.delta;
       }
 
-      rotateCamera(&camera, f32(-mouseDelta.y * 0.001), f32(mouseDelta.x * 0.001));
-      viewMatrix = getViewMatrix(camera);
+      rotateCamera(&firstPersonCamera, f32(-mouseDelta.y * 0.001), f32(mouseDelta.x * 0.001));
+      projectionViewModelUbo.view = getViewMatrix(firstPersonCamera);
     }
 
     // draw
@@ -313,9 +190,8 @@ void portalScene(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     // universal matrices in UBO
-    projectionViewModelUbo.projection = projectionMatrix;
-    projectionViewModelUbo.view = viewMatrix;
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+    // TODO: We don't need to copy over projection but will have to for each portal soon
     glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &projectionViewModelUbo);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
@@ -330,8 +206,7 @@ void portalScene(GLFWwindow* window) {
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
       // draw gate
-      glUseProgram(shapeShader.id);
-      setUniform(shapeShader.id, "color", glm::vec3(0.4f, 0.4f, 0.4f));
+      glUseProgram(gateShader.id);
       drawTriangles(gateModelVertAtt);
 
       glUseProgram(skyboxShader.id);

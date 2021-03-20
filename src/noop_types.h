@@ -42,6 +42,12 @@ struct Extent2D
   u32 height;
 };
 
+struct Vec2
+{
+  f32 x;
+  f32 y;
+};
+
 struct Vec2_f64
 {
   f64 x;

@@ -8,6 +8,7 @@ const char* texVertexShaderFileLoc = COMMON_SHADER_BASE"Tex.vert";
 const char* skyboxVertexShaderFileLoc = COMMON_SHADER_BASE"Skybox.vert";
 const char* singleColorFragmentShaderFileLoc = COMMON_SHADER_BASE"SingleColor.frag";
 const char* skyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"Skybox.frag";
+const char* portalFragmentShaderFileLoc = COMMON_SHADER_BASE"Portal.frag";
 
 // Skybox Cube Map textures
 #define skybox(folder, extension) {  \

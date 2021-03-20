@@ -6,13 +6,17 @@ not limit my thought process to a single way of creating software. In the future
 they are wonderful at and use a better tool for things they aren't.
 
 ### Standards
-This project makes an attempt at a standardization for input/output of GLSL shaders, where consistency is valued over
-absolute best convention.
+*In this project, consistency is often valued over absolute best convention.*
 
-#### Vertex Shader Input/Output Variables
+#### Dimensions
+- Any dimensions/positions in the code will always refer to length in meters
+
+#### Vertex & Fragment Shaders
+- Using binding points for uniform buffer objects requires us to use at least GLSL #version 420
+
 Vertex attribute input variables:
 - According to documentation for glGet, GL_MAX_VERTEX_ATTRIBS must be at least 16.
-- I am currently reserving the first four indices and will be using the following naming convention.
+- Four indices are reserved and will be using the following naming convention.
 
 ```
 layout(location = 0) in vec3 inPos;
@@ -52,26 +56,24 @@ struct UBO {              // base alignment   // aligned offset
 }
 ```
 
-Vertex shader output variables:
-- According to documentation for glGet, GL_MAX_VERTEX_OUTPUT_COMPONENTS must be at least 64.
-- No indices currently reserved for output vertex shader output variables. 
-- The following naming convention and explicit prefix with layout location is enforeced.
+Vertex/Fragment shader output/input variables:
+- According to documentation for glGet, GL_MAX_VERTEX_OUTPUT_COMPONENTS must be at least 64 and 
+  GL_MAX_FRAGMENT_INPUT_COMPONENTS must be at least 128.
+- Three layout location indices currently reserved for output/input vertex/fragment shader variables for normals, 
+  texture coordinates, and color.
+- The following naming convention and explicit prefix with layout location is enforced.
 
 ```
+// glsl vertex shader
 layout (location = 0) out vec3 outNormal;
-layout (location = 1) out vec3 outViewDir;
-layout (location = 2) out vec3 outLightDir;
+layout (location = 1) out vec3 outTexCoord;
+layout (location = 2) out vec3 outColor;
 ```
-
-#### Fragment Shader Input/Output Variables
-Fragment shader input variables:
-- No indices currently reserved for input fragment shader variables.
-- The following naming convention and explicit prefix of layout location is enforced.
-
 ```
+// glsl fragment shader
 layout (location = 0) in vec3 inNormal;
-layout (location = 1) in vec3 inViewDir;
-layout (location = 2) in vec3 inLightDir;
+layout (location = 1) in vec3 inTexCoord;
+layout (location = 2) in vec3 inColor;
 ```
 
 Fragment sampler uniform variables:

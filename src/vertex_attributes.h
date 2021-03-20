@@ -90,18 +90,17 @@ const u8 quadIndices[]{
 // ===== Quad values (vec2 position, vec2 tex) =====
 
 u32 convertSizeInBytesToOpenGLUIntType(u8 sizeInBytes) {
-  Assert(sizeInBytes > 0);
-  Assert(sizeInBytes != 3);
-  Assert(sizeInBytes <= 4);
-
   switch(sizeInBytes) {
     case 1:
       return GL_UNSIGNED_BYTE;
     case 2:
       return GL_UNSIGNED_SHORT;
-    case 3:
+    case 4:
       return GL_UNSIGNED_INT;
   }
+
+  Assert(false); // Note: if not 1, 2, or 4 throw error
+  return 0;
 }
 
 VertexAtt initializeCubePositionVertexAttBuffers(bool invertedWindingOrder = false) {
@@ -197,7 +196,7 @@ file_access void drawIndexedTriangles(VertexAtt vertexAtt, u32 indexCount, u32 i
   glDrawElements(GL_TRIANGLES, // drawing mode
                  indexCount, // number of elements
                  convertSizeInBytesToOpenGLUIntType(vertexAtt.indexTypeSizeInBytes), // type of the indices
-                 (void*)(indexOffset * vertexAtt.indexTypeSizeInBytes)); // offset in the EBO
+                 (void*)(u64(indexOffset * vertexAtt.indexTypeSizeInBytes))); // offset in the EBO
 }
 
 void drawTriangles(VertexAtt vertexAtt, u32 count, u32 offset) {
