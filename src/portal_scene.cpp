@@ -23,7 +23,7 @@ void portalScene(GLFWwindow* window) {
   const Extent2D initWindowExtent = windowExtent;
   f32 aspectRatio = f32(windowExtent.width) / windowExtent.height;
 
-  ShaderProgram gateShader = createShaderProgram(posNormTexVertexShaderFileLoc, portalFragmentShaderFileLoc);
+  ShaderProgram gateShader = createShaderProgram(portalVertexShaderFileLoc, portalFragmentShaderFileLoc);
   ShaderProgram shapeShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
   ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
 
@@ -32,10 +32,12 @@ void portalScene(GLFWwindow* window) {
   player.minBoxPosition = glm::vec3(0.0f, 0.0f, 10.0f);
   player.dimensionInMeters = defaultPlayerDimensionInMeters;
 
-  VertexAtt gateModelVertAtt, pyramidVertAtt, crystalModelVertAtt, icosphereModelVertAtt, torusPentagonModelVertAtt;
-  VertexAtt* modelPtrs[] = { &gateModelVertAtt, &pyramidVertAtt, &crystalModelVertAtt, &icosphereModelVertAtt, &torusPentagonModelVertAtt };
-  const char* modelLocs[] = { gateModelLoc, pyramidModelLoc, crystalModelLoc, icosphere1ModelLoc, torusPentagonModelLoc };
-  loadModelsVertexAtt(modelLocs, modelPtrs, ArrayCount(modelPtrs));
+  Model gateModel = loadModel(gateModelLoc);
+
+  VertexAtt pyramidVertAtt, crystalModelVertAtt, icosphereModelVertAtt, torusPentagonModelVertAtt;
+  VertexAtt* shapeModelPtrs[] = {&pyramidVertAtt, &crystalModelVertAtt, &icosphereModelVertAtt, &torusPentagonModelVertAtt };
+  const char* shapeModelLocs[] = {pyramidModelLoc, crystalModelLoc, icosphere1ModelLoc, torusPentagonModelLoc };
+  loadModelsVertexAtt(shapeModelLocs, shapeModelPtrs, ArrayCount(shapeModelPtrs));
 
   const f32 portalScale = 3.0f;
   const glm::vec3 portalPosition = glm::vec3(0.0f, portalScale * 0.5f, 0.0);
@@ -69,16 +71,15 @@ void portalScene(GLFWwindow* window) {
   s32 portal2SkyboxTextureIndex = 2;
   s32 portal3SkyboxTextureIndex = 3;
   s32 portal4SkyboxTextureIndex = 4;
-  glActiveTexture(GL_TEXTURE0 + mainSkyboxTextureIndex);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, mainSkyboxTextureId);
-  glActiveTexture(GL_TEXTURE0 + portal1SkyboxTextureIndex);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, portal1SkyboxTextureId);
-  glActiveTexture(GL_TEXTURE0 + portal2SkyboxTextureIndex);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, portal2SkyboxTextureId);
-  glActiveTexture(GL_TEXTURE0 + portal3SkyboxTextureIndex);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, portal3SkyboxTextureId);
-  glActiveTexture(GL_TEXTURE0 + portal4SkyboxTextureIndex);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, portal4SkyboxTextureId);
+  s32 modelAlbedoTextureIndex = 5;
+  s32 modelNormalTextureIndex = 6;
+  bindActiveTextureCubeMap(mainSkyboxTextureIndex, mainSkyboxTextureId);
+  bindActiveTextureCubeMap(portal1SkyboxTextureIndex, portal1SkyboxTextureId);
+  bindActiveTextureCubeMap(portal2SkyboxTextureIndex, portal2SkyboxTextureId);
+  bindActiveTextureCubeMap(portal3SkyboxTextureIndex, portal3SkyboxTextureId);
+  bindActiveTextureCubeMap(portal4SkyboxTextureIndex, portal4SkyboxTextureId);
+  bindActiveTextureSampler2d(modelAlbedoTextureIndex, gateModel.textureData.albedoTextureId);
+  bindActiveTextureSampler2d(modelNormalTextureIndex, gateModel.textureData.normalTextureId);
 
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
@@ -107,7 +108,7 @@ void portalScene(GLFWwindow* window) {
 
   portalFragUbo.directionalLightColor = glm::vec3(0.5f, 0.5f, 0.5f);
   portalFragUbo.ambientLightColor = glm::vec3(0.2f, 0.2f, 0.2f);
-  portalFragUbo.directionalLightDirToSource = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
+  portalFragUbo.directionalLightDirToSource = glm::vec3(1.0f, 1.0f, 1.0f);
 
   // UBOs
   GLuint projViewModelUBOid;
@@ -134,6 +135,9 @@ void portalScene(GLFWwindow* window) {
   {
     loadInputStateForFrame(window);
     updateStopWatch(&stopWatch);
+
+    f32 sinTime = sin(stopWatch.lastFrame);
+    f32 cosTime = cos(stopWatch.lastFrame);
 
     if (isActive(KeyboardInput_Esc))
     {
@@ -163,7 +167,7 @@ void portalScene(GLFWwindow* window) {
       b32 forwardMovement = upIsActive != downIsActive;
       if (lateralMovement || forwardMovement)
       {
-        f32 cameraMovementSpeed = leftShiftIsActive ? 2.0f : 1.0f;
+        f32 cameraMovementSpeed = leftShiftIsActive ? 5.0f : 1.0f;
 
         // Camera movement direction
         glm::vec3 cameraMovementDirection{};
@@ -197,6 +201,12 @@ void portalScene(GLFWwindow* window) {
 
     // draw gate
     {
+      // universal matrices in UBO
+      glBindBuffer(GL_UNIFORM_BUFFER, portalFragUBOid);
+      portalFragUbo.directionalLightDirToSource = glm::vec3(sinTime, 1.0f, cosTime);
+      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(PortalFragUBO, directionalLightDirToSource), sizeof(glm::vec4), &portalFragUbo.directionalLightDirToSource);
+      glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
       glStencilFunc(GL_ALWAYS, // stencil function always passes
                     0x00, // reference
                     0x00); // mask
@@ -207,7 +217,9 @@ void portalScene(GLFWwindow* window) {
 
       // draw gate
       glUseProgram(gateShader.id);
-      drawTriangles(gateModelVertAtt);
+      setUniform(gateShader.id, "albedoTex", modelAlbedoTextureIndex);
+      setUniform(gateShader.id, "normalTex", modelNormalTextureIndex);
+      drawTriangles(gateModel.vertexAtt);
 
       glUseProgram(skyboxShader.id);
       setUniform(skyboxShader.id, "skybox", mainSkyboxTextureIndex);
@@ -370,5 +382,6 @@ void portalScene(GLFWwindow* window) {
 
   deleteShaderProgram(shapeShader);
   deleteShaderProgram(skyboxShader);
-  deleteVertexAtts(ArrayCount(modelPtrs), modelPtrs);
+  deleteVertexAtts(ArrayCount(shapeModelPtrs), shapeModelPtrs);
+  deleteVertexAtt(gateModel.vertexAtt);
 }

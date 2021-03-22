@@ -82,5 +82,6 @@ glm::mat4 getViewMatrix(Camera camera) {
           0.0f, 0.0f, 0.0f, 1.0f);
 
   // Return lookAt matrix as combination of translation and rotation matrix
-  return rotation * translation; // Remember to read from right to left (first translation then rotation)
+  glm::mat4 resultMat = rotation * translation;
+  return resultMat; // Remember to read from right to left (first translation then rotation)
 }

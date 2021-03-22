@@ -18,6 +18,71 @@ enum FramebufferCreationFlags {
   FramebufferCreate_color_sRGB = 1 << 1,
 };
 
+file_access inline void bindActiveTexture(s32 activeIndex, GLuint textureId, GLenum target) {
+  glActiveTexture(GL_TEXTURE0 + activeIndex);
+  glBindTexture(target, textureId);
+}
+
+void inline bindActiveTextureSampler2d(s32 activeIndex, GLuint textureId) {
+  bindActiveTexture(activeIndex, textureId, GL_TEXTURE_2D);
+}
+
+void inline bindActiveTextureCubeMap(s32 activeIndex, GLuint textureId) {
+  bindActiveTexture(activeIndex, textureId, GL_TEXTURE_CUBE_MAP);
+}
+
+void load2DTexture(const char* imgLocation, u32& textureId, bool flipImageVert, bool inputSRGB, u32* width, u32* height)
+{
+  glGenTextures(1, &textureId);
+  glBindTexture(GL_TEXTURE_2D, textureId);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // disables bilinear filtering (creates sharp edges when magnifying texture)
+
+  // load image data
+  s32 w, h, numChannels;
+  stbi_set_flip_vertically_on_load(flipImageVert);
+  u8* data = stbi_load(imgLocation, &w, &h, &numChannels, 0 /*desired channels*/);
+  if (data && numChannels <= 4)
+  {
+    u32 dataColorSpace;
+    u32 dataComponentComposition;
+    if (numChannels == 3)
+    {
+      dataColorSpace = inputSRGB ? GL_SRGB : GL_RGB;
+      dataComponentComposition = GL_RGB;
+    } else if(numChannels == 4)
+    {
+      dataColorSpace = inputSRGB ? GL_SRGB_ALPHA : GL_RGBA;
+      dataComponentComposition = GL_RGBA;
+    } else if(numChannels == 1) {
+      dataColorSpace = dataComponentComposition = GL_RED;
+    } else if(numChannels == 2) {
+      dataColorSpace = dataComponentComposition = GL_RG;
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, // target
+                 0, // level of detail (level n is the nth mipmap reduction image)
+                 dataColorSpace, // What is the color space of the data
+                 w, // width of texture
+                 h, // height of texture
+                 0, // border (legacy stuff, MUST BE 0)
+                 dataComponentComposition, // How are the components of the data composed
+                 GL_UNSIGNED_BYTE, // specifies data type of pixel data
+                 data); // pointer to the image data
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    if (width != NULL) *width = w;
+    if (height != NULL) *height = h;
+  } else
+  {
+    std::cout << "Failed to load texture" << std::endl;
+  }
+  stbi_image_free(data); // free texture image memory
+}
+
 void loadCubeMapTexture(const char* const imgLocations[6], GLuint* textureId, bool flipImageVert = false)
 {
   glGenTextures(1, textureId);
@@ -106,8 +171,6 @@ Framebuffer initializeFramebuffer(Extent2D framebufferExtent, FramebufferCreatio
   glActiveTexture(originalActiveTexture);
   return resultBuffer;
 }
-
-
 
 void deleteFramebuffer(Framebuffer* framebuffer)
 {

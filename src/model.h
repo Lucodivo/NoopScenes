@@ -135,6 +135,129 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   return vertexAtt;
 }
 
+struct TextureData {
+  GLuint albedoTextureId;
+  GLuint normalTextureId;
+};
+
+struct Model {
+  VertexAtt vertexAtt;
+  TextureData textureData;
+};
+
+
+
+void loadModelTexture(u32* textureId, tinygltf::Image* image, b32 inputSRGB = false)
+{
+  glGenTextures(1, textureId);
+  glBindTexture(GL_TEXTURE_2D, *textureId);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // disables bilinear filtering (creates sharp edges when magnifying texture)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+  u8* imageData = image->image.data();
+  u32 numComponents = image->component;
+
+  // load image data
+  if (!image->image.empty() && numComponents <= 4)
+  {
+    u32 dataColorSpace;
+    u32 dataComponentComposition;
+    switch(numComponents) {
+      case 1:
+        dataColorSpace = dataComponentComposition = GL_RED;
+        break;
+      case 2:
+        dataColorSpace = dataComponentComposition = GL_RG;
+        break;
+      case 3:
+        dataColorSpace = inputSRGB ? GL_SRGB : GL_RGB;
+        dataComponentComposition = GL_RGB;
+        break;
+      case 4:
+        dataColorSpace = inputSRGB ? GL_SRGB_ALPHA : GL_RGBA;
+        dataComponentComposition = GL_RGBA;
+        break;
+      default:
+        Assert(false);
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, // target
+                 0, // level of detail (level n is the nth mipmap reduction image)
+                 dataColorSpace, // What is the color space of the data
+                 image->width, // width of texture
+                 image->height, // height of texture
+                 0, // border (legacy stuff, MUST BE 0)
+                 dataComponentComposition, // How are the components of the data composed
+                 GL_UNSIGNED_BYTE, // specifies data type of pixel data
+                 imageData); // pointer to the image data
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    // set texture options
+  } else
+  {
+    std::cout << "Failed to load texture" << std::endl;
+  }
+
+  glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+TextureData initializeModelTextureData(tinygltf::Model* model) {
+  TextureData resultTextureData;
+
+  // TODO: handle more then just drawing the first mesh
+  Assert(!model->meshes.empty());
+  Assert(!model->meshes[0].primitives.empty());
+  u32 materialIndex = model->meshes[0].primitives[0].material;
+  tinygltf::Material material = model->materials[materialIndex];
+  // TODO: Handle more then just TEXCOORD_0 vertex attribute?
+  Assert(material.normalTexture.texCoord == 0 && material.pbrMetallicRoughness.baseColorTexture.texCoord == 0)
+  u32 normalTextureIndex = material.normalTexture.index;
+  u32 baseColorTextureIndex = material.pbrMetallicRoughness.baseColorTexture.index;
+
+  // NOTE: gltf.textures.samplers gives info about how to magnify/minify textures and how texture wrapping should work
+  u32 normalImageIndex = model->textures[normalTextureIndex].source;
+  tinygltf::Image normalImage = model->images[normalImageIndex];
+  u32 albedoColorImageIndex = model->textures[baseColorTextureIndex].source;
+  tinygltf::Image albedoImage = model->images[albedoColorImageIndex];
+
+  loadModelTexture(&resultTextureData.normalTextureId, &normalImage);
+  loadModelTexture(&resultTextureData.albedoTextureId, &albedoImage);
+
+  return resultTextureData;
+}
+
+Model loadModel(const char* filePath) {
+  tinygltf::TinyGLTF loader;
+  std::string err;
+  std::string warn;
+  tinygltf::Model tinyGLTFModel;
+  Model resultModel;
+
+  //bool ret = loader.LoadASCIIFromFile(&tinyGLTFModel, &err, &warn, filePath); // for .gltf
+  bool ret = loader.LoadBinaryFromFile(&tinyGLTFModel, &err, &warn, filePath); // for binary glTF(.glb)
+
+  if (!warn.empty()) {
+    printf("Warn: %s\n", warn.c_str());
+  }
+
+  if (!err.empty()) {
+    printf("Err: %s\n", err.c_str());
+  }
+
+  if (!ret) {
+    printf("Failed to parse glTF\n");
+  }
+
+  resultModel.vertexAtt = initializeModelVertexBuffer(&tinyGLTFModel);
+  resultModel.textureData = initializeModelTextureData(&tinyGLTFModel);
+
+  return resultModel;
+}
+
 void loadModelsVertexAtt(const char** filePaths, VertexAtt** returnVertAtts, u32 modelCount) {
   tinygltf::TinyGLTF loader;
   std::vector<tinygltf::Model> models;
