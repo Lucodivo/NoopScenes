@@ -8,8 +8,8 @@ const char* texVertexShaderFileLoc = COMMON_SHADER_BASE"Tex.vert";
 const char* skyboxVertexShaderFileLoc = COMMON_SHADER_BASE"Skybox.vert";
 const char* singleColorFragmentShaderFileLoc = COMMON_SHADER_BASE"SingleColor.frag";
 const char* skyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"Skybox.frag";
-const char* portalFragmentShaderFileLoc = COMMON_SHADER_BASE"Portal.frag";
-const char* portalVertexShaderFileLoc = COMMON_SHADER_BASE"Portal.vert";
+const char* gateFragmentShaderFileLoc = COMMON_SHADER_BASE"Gate.frag";
+const char* gateVertexShaderFileLoc = COMMON_SHADER_BASE"Gate.vert";
 
 // Skybox Cube Map textures
 #define skybox(folder, extension) {  \
@@ -49,6 +49,11 @@ const char* gateModelLoc = COMMON_MODEL_BASE"Gate.glb";
 const char* crystalModelLoc = COMMON_MODEL_BASE"Crystal-1.glb";
 const char* cubeModelLoc = COMMON_MODEL_BASE"Cube.glb";
 const char* icosphere1ModelLoc = COMMON_MODEL_BASE"Icosphere-1.glb";
+const char* icosphere2ModelLoc = COMMON_MODEL_BASE"Icosphere-2.glb";
 const char* torusTriangleModelLoc = COMMON_MODEL_BASE"Torus-Triangle.glb";
 const char* torusPentagonModelLoc = COMMON_MODEL_BASE"Torus-Pentagon.glb";
 const char* pyramidModelLoc = COMMON_MODEL_BASE"Pyramid.glb";
+const char* tetrahedronModelLoc = COMMON_MODEL_BASE"tetrahedron.glb";
+const char* octahedronModelLoc = COMMON_MODEL_BASE"Octahedron.glb";
+const char* dodecahedronModelLoc = COMMON_MODEL_BASE"Dodecahedron.glb";
+const char* icosahedronModelLoc = COMMON_MODEL_BASE"Icosahedron.glb";

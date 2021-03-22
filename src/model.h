@@ -46,14 +46,14 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   gltfAttributeMetadata positionAttribute = populateAttributeMetadata(positionIndexKeyString);
 
   b32 normalAttributesAvailable = primitive.attributes.find(normalIndexKeyString) != primitive.attributes.end();
-  gltfAttributeMetadata normalAttribute;
+  gltfAttributeMetadata normalAttribute{};
   if(normalAttributesAvailable) { // normal attribute data
     normalAttribute = populateAttributeMetadata(normalIndexKeyString);
     Assert(positionAttribute.bufferIndex == normalAttribute.bufferIndex);
   }
 
   b32 texture0AttributesAvailable = primitive.attributes.find(texture0IndexKeyString) != primitive.attributes.end();
-  gltfAttributeMetadata texture0Attribute;
+  gltfAttributeMetadata texture0Attribute{};
   if(texture0AttributesAvailable) { // texture 0 uv coord attribute data
     texture0Attribute = populateAttributeMetadata(texture0IndexKeyString);
     Assert(positionAttribute.bufferIndex == texture0Attribute.bufferIndex);
@@ -74,7 +74,7 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   VertexAtt vertexAtt;
   vertexAtt.indexCount = u32(accessors->at(indicesAccessorIndex).count);
   vertexAtt.indexTypeSizeInBytes = tinygltf::GetComponentSizeInBytes(accessors->at(indicesAccessorIndex).componentType);
-  u64 sizeOfAttributeData = texture0Attribute.bufferByteOffset + texture0Attribute.bufferByteLength;
+  u64 sizeOfAttributeData = positionAttribute.bufferByteLength + normalAttribute.bufferByteLength + texture0Attribute.bufferByteLength;
   Assert(model->buffers[vertexAttBufferIndex].data.size() >= sizeOfAttributeData);
   const u32 positionAttributeIndex = 0;
   const u32 normalAttributeIndex = 1;

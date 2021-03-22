@@ -14,6 +14,13 @@ layout (location = 1) out vec2 outTexCoord;
 layout (location = 2) out vec3 outFragmentWorldPos;
 layout (location = 3) out vec3 outCameraWorldPos;
 
+vec3 pullCameraPositionFromViewMat() {
+  mat3 rotationTranspose = transpose(mat3(ubo.view));
+  vec3 rotatedTranslation = ubo.view[3].xyz;
+  vec3 originalTranslation = rotationTranspose * rotatedTranslation;
+  return -(originalTranslation);
+}
+
 void main()
 {
   mat3 normalMat = mat3(transpose(inverse(ubo.model))); // TODO: only necessary for non-uniform scaling
@@ -22,6 +29,6 @@ void main()
   outNormal = normalize(normalMat * inNormal);
   outTexCoord = inTexCoord;
   outFragmentWorldPos = worldPos.xyz / worldPos.w; // TODO: Since no projection has occurred is dividing by w necessary?
-  outCameraWorldPos = -1.0 * transpose(mat3(ubo.view)) * ubo.view[3].xyz;
+  outCameraWorldPos = pullCameraPositionFromViewMat();
   gl_Position = ubo.projection * ubo.view * worldPos;
 }

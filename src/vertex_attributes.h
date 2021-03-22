@@ -10,68 +10,87 @@ struct VertexAtt {
   u32 indexTypeSizeInBytes;
 };
 
-const u32 cubePositionSizeInBytes = 3 * sizeof(f32);
-const f32 cubePositionAttributes[] = {
+const u32 cubePosAttStrideInBytes = 3 * sizeof(f32);
+const f32 cubePosAtts[] = {
         // positions
-        // face #1
+        // face #1 (negative x)
         -0.5f,  0.5f,  0.5f,
         -0.5f,  0.5f, -0.5f,
         -0.5f, -0.5f, -0.5f,
         -0.5f, -0.5f,  0.5f,
-        // face #2
+        // face #2 (positive x)
         0.5f,  0.5f,  0.5f,
         0.5f,  0.5f, -0.5f,
         0.5f, -0.5f, -0.5f,
         0.5f, -0.5f,  0.5f,
-        // face #3
+        // face #3 (negative z)
         -0.5f, -0.5f, -0.5f,
         0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f,  0.5f,
-        -0.5f, -0.5f,  0.5f,
-        // face #4
-        -0.5f,  0.5f, -0.5f,
         0.5f,  0.5f, -0.5f,
+        -0.5f,  0.5f, -0.5f,
+        // face #4 (positive z)
+        -0.5f, -0.5f,  0.5f,
+        0.5f, -0.5f,  0.5f,
         0.5f,  0.5f,  0.5f,
         -0.5f,  0.5f,  0.5f,
-        // face #5
+        // face #5 (negative y)
         -0.5f, -0.5f, -0.5f,
         0.5f, -0.5f, -0.5f,
-        0.5f,  0.5f, -0.5f,
-        -0.5f,  0.5f, -0.5f,
-        // face #6
-        -0.5f, -0.5f,  0.5f,
         0.5f, -0.5f,  0.5f,
+        -0.5f, -0.5f,  0.5f,
+        // face #6 (positive y)
+        -0.5f,  0.5f, -0.5f,
+        0.5f,  0.5f, -0.5f,
         0.5f,  0.5f,  0.5f,
         -0.5f,  0.5f,  0.5f,
 };
-const u8 cubePositionIndices[]{
-        0, 1, 2, // 0
-        2, 3, 0,
-        4, 6, 5, // 1
-        6, 4, 7,
-        8, 9, 10, // 2
-        10, 11, 8,
-        12, 14, 13, // 3
-        14, 12, 15,
-        16, 18, 17, // 4
-        18, 16, 19,
-        20, 21, 22, // 5
-        22, 23, 20,
-};
-const u8 invertedWindingCubePositionIndices[]{
-        0, 2, 1, // 0
-        2, 0, 3,
-        4, 5, 6, // 1
-        6, 7, 4,
-        8, 10, 9, // 2
-        10, 8, 11,
-        12, 13, 14, // 3
+const u8 cubePosAttsIndices[]{
+        // face #1 (negative x)
+        0,  1,  2,
+        2,  3,  0,
+        // face #2 (positive x)
+        4,  6,  5,
+        6,  4,  7,
+        // face #3 (negative z)
+        8,  10, 9,
+        10, 8,  11,
+        // face #4 (positive z)
+        12, 13, 14,
         14, 15, 12,
-        16, 17, 18, // 4
+        // face #5 (negative y)
+        16, 17, 18,
         18, 19, 16,
-        20, 22, 21, // 5
+        // face #6 (positive y)
+        20, 22, 21,
         22, 20, 23,
 };
+const u8 invertedWindingCubePosAttsIndices[]{
+        // face #1 (negative x)
+        0,  2,  1,
+        2,  0,  3,
+        // face #2 (positive x)
+        4,  5,  6,
+        6,  7,  4,
+        // face #3 (negative z)
+        8,  9,  10,
+        10, 11, 8,
+        // face #4 (positive z)
+        12, 14, 13,
+        14, 12, 15,
+        // face #5 (negative y)
+        16, 18, 17,
+        18, 16, 19,
+        // face #6 (positive y)
+        20, 21, 22,
+        22, 23, 20,
+};
+const u32 cubeFaceNegativeXIndicesOffset = 0;
+const u32 cubeFacePositiveXIndicesOffset = 6;
+const u32 cubeFaceNegativeZIndicesOffset = 12;
+const u32 cubeFacePositiveZIndicesOffset = 18;
+const u32 cubeFaceNegativeYIndicesOffset = 24;
+const u32 cubeFacePositiveYIndicesOffset = 30;
+
 
 
 // ===== Quad values (vec3 position, vec2 tex) =====
@@ -105,9 +124,9 @@ u32 convertSizeInBytesToOpenGLUIntType(u8 sizeInBytes) {
 
 VertexAtt initializeCubePositionVertexAttBuffers(bool invertedWindingOrder = false) {
   VertexAtt vertexAtt;
-  vertexAtt.indexCount = ArrayCount(cubePositionIndices);
-  vertexAtt.indexTypeSizeInBytes = sizeof(cubePositionIndices) / vertexAtt.indexCount;
-  const u8* indexData = invertedWindingOrder ? invertedWindingCubePositionIndices : cubePositionIndices;
+  vertexAtt.indexCount = ArrayCount(cubePosAttsIndices);
+  vertexAtt.indexTypeSizeInBytes = sizeof(cubePosAttsIndices) / vertexAtt.indexCount;
+  const u8* indexData = invertedWindingOrder ? invertedWindingCubePosAttsIndices : cubePosAttsIndices;
 
   const u32 positionAttributeIndex = 0;
 
@@ -117,7 +136,7 @@ VertexAtt initializeCubePositionVertexAttBuffers(bool invertedWindingOrder = fal
 
   glBindVertexArray(vertexAtt.arrayObject);
   glBindBuffer(GL_ARRAY_BUFFER, vertexAtt.bufferObject);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(cubePositionAttributes), cubePositionAttributes, GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(cubePosAtts), cubePosAtts, GL_STATIC_DRAW);
 
   // set the vertex attributes
   // position attribute
@@ -125,7 +144,7 @@ VertexAtt initializeCubePositionVertexAttBuffers(bool invertedWindingOrder = fal
                         3, // size
                         GL_FLOAT, // type of data
                         GL_FALSE, // whether the data needs to be normalized
-                        cubePositionSizeInBytes, // stride
+                        cubePosAttStrideInBytes, // stride
                         (void*)0); // offset
   glEnableVertexAttribArray(positionAttributeIndex);
 

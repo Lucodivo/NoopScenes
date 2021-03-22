@@ -18,25 +18,31 @@ struct Player {
   // assume "eyes" (FPS camera) is positioned on front Z, top Y, middle X
 };
 
+void changeNearFarProjection(glm::mat4* projectionMatrix, f32 zNear, f32 zFar) {
+  // Note: logic pulled straight from glm::perspective -> perspectiveRH_NO
+  (*projectionMatrix)[2][2] = - (zFar + zNear) / (zFar - zNear);
+  (*projectionMatrix)[3][2] = - (2.0f * zFar * zNear) / (zFar - zNear);
+}
+
 void portalScene(GLFWwindow* window) {
   Extent2D windowExtent = getWindowExtent();
   const Extent2D initWindowExtent = windowExtent;
   f32 aspectRatio = f32(windowExtent.width) / windowExtent.height;
 
-  ShaderProgram gateShader = createShaderProgram(portalVertexShaderFileLoc, portalFragmentShaderFileLoc);
+  ShaderProgram gateShader = createShaderProgram(gateVertexShaderFileLoc, gateFragmentShaderFileLoc);
   ShaderProgram shapeShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
   ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
 
   ProjectionViewModelUBO projectionViewModelUbo;
   Player player;
-  player.minBoxPosition = glm::vec3(0.0f, 0.0f, 10.0f);
   player.dimensionInMeters = defaultPlayerDimensionInMeters;
+  player.minBoxPosition = glm::vec3(-(player.dimensionInMeters.x * 0.5f), 0.0f, 10.0f - (player.dimensionInMeters.z * 0.5f));
 
   Model gateModel = loadModel(gateModelLoc);
 
-  VertexAtt pyramidVertAtt, crystalModelVertAtt, icosphereModelVertAtt, torusPentagonModelVertAtt;
-  VertexAtt* shapeModelPtrs[] = {&pyramidVertAtt, &crystalModelVertAtt, &icosphereModelVertAtt, &torusPentagonModelVertAtt };
-  const char* shapeModelLocs[] = {pyramidModelLoc, crystalModelLoc, icosphere1ModelLoc, torusPentagonModelLoc };
+  VertexAtt tetrahedronVertAtt, octahedronModelVertAtt, cubeModelVertAtt, icosahedronModelVertAtt;
+  VertexAtt* shapeModelPtrs[] = {&tetrahedronVertAtt, &octahedronModelVertAtt, &cubeModelVertAtt, &icosahedronModelVertAtt };
+  const char* shapeModelLocs[] = { tetrahedronModelLoc, octahedronModelLoc, cubeModelLoc, icosahedronModelLoc };
   loadModelsVertexAtt(shapeModelLocs, shapeModelPtrs, ArrayCount(shapeModelPtrs));
 
   const f32 portalScale = 3.0f;
@@ -50,14 +56,17 @@ void portalScene(GLFWwindow* window) {
   glm::vec3 wireFrameColor = glm::vec3(0.1f, 0.1f, 0.1f);
 
   glm::vec3 cameraPosition = player.minBoxPosition + (player.dimensionInMeters * glm::vec3(0.5f, 1.0f, 1.0f));
-  Camera firstPersonCamera = lookAt(cameraPosition, gatePosition);
+  glm::vec3 cameraFocus = glm::vec3(gatePosition.x, cameraPosition.y, gatePosition.z);
+  Camera firstPersonCamera = lookAt(cameraPosition, cameraFocus);
   VertexAtt cubePosVertexAtt = initializeCubePositionVertexAttBuffers();
   VertexAtt invertedCubePosVertexAtt = initializeCubePositionVertexAttBuffers(true);
 
   glm::mat4 shapeModelMatrix = glm::translate(glm::mat4(glm::mat3(1.0f)), shapePosition) * glm::mat4(glm::mat3(shapeScale));
   glm::mat4 portalModelMatrix = glm::translate(glm::mat4(glm::mat3(1.0f)), portalPosition) * glm::mat4(glm::mat3(portalScale));
   glm::mat4 gateModelMatrix = glm::translate(glm::mat4(glm::mat3(1.0f)), gatePosition) * glm::mat4(glm::mat3(gateScale));
-  projectionViewModelUbo.projection = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, 0.1f, 100.0f);
+  const f32 originalProjectionZNear = 0.1f;
+  const f32 originalProjectionZFar = 200.0f;
+  projectionViewModelUbo.projection = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, originalProjectionZNear, originalProjectionZFar);
 
   GLuint mainSkyboxTextureId, portal1SkyboxTextureId, portal2SkyboxTextureId, portal3SkyboxTextureId, portal4SkyboxTextureId;
   loadCubeMapTexture(caveFaceLocations, &mainSkyboxTextureId);
@@ -84,16 +93,11 @@ void portalScene(GLFWwindow* window) {
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LEQUAL);
-
-  glEnable(GL_STENCIL_TEST);
-
   glLineWidth(3.0f);
-
   glEnable(GL_CULL_FACE);
   glFrontFace(GL_CCW);
   glCullFace(GL_BACK);
   glEnable(GL_STENCIL_TEST);
-
   glViewport(0, 0, windowExtent.width, windowExtent.height);
 
   u32 portalFragUBOBindingIndex = 1;
@@ -111,24 +115,40 @@ void portalScene(GLFWwindow* window) {
   portalFragUbo.directionalLightDirToSource = glm::vec3(1.0f, 1.0f, 1.0f);
 
   // UBOs
-  GLuint projViewModelUBOid;
-  glGenBuffers(1, &projViewModelUBOid);
-  // allocate size for buffer
-  glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
-  glBufferData(GL_UNIFORM_BUFFER, sizeof(ProjectionViewModelUBO), NULL, GL_STREAM_DRAW);
-  glBindBuffer(GL_UNIFORM_BUFFER, 0);
-  // attach buffer to ubo binding point
-  glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, projViewModelUBOid, 0, sizeof(ProjectionViewModelUBO));
+  GLuint projViewModelUBOid, portalFragUBOid;
+  {
+    glGenBuffers(1, &projViewModelUBOid);
+    // allocate size for buffer
+    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(ProjectionViewModelUBO), NULL, GL_STREAM_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    // attach buffer to ubo binding point
+    glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, projViewModelUBOid, 0, sizeof(ProjectionViewModelUBO));
 
-  GLuint portalFragUBOid;
-  glGenBuffers(1, &portalFragUBOid);
-  // allocate size for buffer
-  glBindBuffer(GL_UNIFORM_BUFFER, portalFragUBOid);
-  glBufferData(GL_UNIFORM_BUFFER, sizeof(PortalFragUBO), &portalFragUbo, GL_STATIC_DRAW);
-  glBindBuffer(GL_UNIFORM_BUFFER, 0);
-  // attach buffer to ubo binding point
-  glBindBufferRange(GL_UNIFORM_BUFFER, portalFragUBOBindingIndex, portalFragUBOid, 0, sizeof(PortalFragUBO));
+    glGenBuffers(1, &portalFragUBOid);
+    // allocate size for buffer
+    glBindBuffer(GL_UNIFORM_BUFFER, portalFragUBOid);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(PortalFragUBO), &portalFragUbo, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    // attach buffer to ubo binding point
+    glBindBufferRange(GL_UNIFORM_BUFFER, portalFragUBOBindingIndex, portalFragUBOid, 0, sizeof(PortalFragUBO));
+  }
 
+  const u32 portal1StencilMask = 0x01;
+  const u32 portal2StencilMask = 0x02;
+  const u32 portal3StencilMask = 0x03;
+  const u32 portal4StencilMask = 0x04;
+
+  auto drawWireframe = [wireFrameColor](GLuint shaderProgramId, VertexAtt* vertAtt) -> void {
+    glDisable(GL_DEPTH_TEST);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glDisable(GL_CULL_FACE);
+    setUniform(shaderProgramId, "color", wireFrameColor);
+    drawTriangles(*vertAtt);
+    glEnable(GL_CULL_FACE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glEnable(GL_DEPTH_TEST);
+  };
 
   StopWatch stopWatch = createStopWatch();
   while(glfwWindowShouldClose(window) == GL_FALSE)
@@ -195,7 +215,6 @@ void portalScene(GLFWwindow* window) {
 
     // universal matrices in UBO
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
-    // TODO: We don't need to copy over projection but will have to for each portal soon
     glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &projectionViewModelUbo);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
@@ -242,17 +261,17 @@ void portalScene(GLFWwindow* window) {
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4), glm::value_ptr(portalModelMatrix));
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-      glStencilMask(0x01);
-      drawTriangles(cubePosVertexAtt, 6, 0);
+      glStencilMask(portal1StencilMask);
+      drawTriangles(cubePosVertexAtt, 6, cubeFaceNegativeXIndicesOffset);
 
-      glStencilMask(0x02);
-      drawTriangles(cubePosVertexAtt, 6, 6);
+      glStencilMask(portal2StencilMask);
+      drawTriangles(cubePosVertexAtt, 6, cubeFacePositiveXIndicesOffset);
 
-      glStencilMask(0x03);
-      drawTriangles(cubePosVertexAtt, 6, 24);
+      glStencilMask(portal3StencilMask);
+      drawTriangles(cubePosVertexAtt, 6, cubeFaceNegativeZIndicesOffset);
 
-      glStencilMask(0x04);
-      drawTriangles(cubePosVertexAtt, 6, 30);
+      glStencilMask(portal4StencilMask);
+      drawTriangles(cubePosVertexAtt, 6, cubeFacePositiveZIndicesOffset);
     }
 
     // turn off writes to the stencil
@@ -274,7 +293,7 @@ void portalScene(GLFWwindow* window) {
       // portal 1
       {
         glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                      0x01, // ref
+                      portal1StencilMask, // ref
                       0xFF); // enable which bits in reference and stored value are compared
 
         glUseProgram(skyboxShader.id);
@@ -284,23 +303,16 @@ void portalScene(GLFWwindow* window) {
         // draw cube
         glUseProgram(shapeShader.id);
         setUniform(shapeShader.id, "color", glm::vec3(0.4, 0.4, 1.0));
-        drawTriangles(torusPentagonModelVertAtt);
+        drawTriangles(cubeModelVertAtt);
 
         // draw wireframe
-        glDisable(GL_DEPTH_TEST);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glDisable(GL_CULL_FACE);
-        setUniform(shapeShader.id, "color", wireFrameColor);
-        drawTriangles(torusPentagonModelVertAtt);
-        glEnable(GL_CULL_FACE);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glEnable(GL_DEPTH_TEST);
+        drawWireframe(shapeShader.id, &cubeModelVertAtt);
       }
 
       // portal 2
       {
         glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                      0x02, // ref
+                      portal2StencilMask, // ref
                       0xFF); // enable which bits in reference and stored value are compared
 
         glUseProgram(skyboxShader.id);
@@ -310,23 +322,16 @@ void portalScene(GLFWwindow* window) {
         // draw cube
         glUseProgram(shapeShader.id);
         setUniform(shapeShader.id, "color", glm::vec3(0.4, 1.0, 0.4));
-        drawTriangles(crystalModelVertAtt);
+        drawTriangles(octahedronModelVertAtt);
 
         // draw wireframe
-        glDisable(GL_DEPTH_TEST);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glDisable(GL_CULL_FACE);
-        setUniform(shapeShader.id, "color", wireFrameColor);
-        drawTriangles(crystalModelVertAtt);
-        glEnable(GL_CULL_FACE);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glEnable(GL_DEPTH_TEST);
+        drawWireframe(shapeShader.id, &octahedronModelVertAtt);
       }
 
       // portal 3
       {
         glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                      0x03, // ref
+                      portal3StencilMask, // ref
                       0xFF); // enable which bits in reference and stored value are compared
 
         glUseProgram(skyboxShader.id);
@@ -336,23 +341,16 @@ void portalScene(GLFWwindow* window) {
         // draw cube
         glUseProgram(shapeShader.id);
         setUniform(shapeShader.id, "color", glm::vec3(0.9, 0.9, 0.9));
-        drawTriangles(icosphereModelVertAtt);
+        drawTriangles(icosahedronModelVertAtt);
 
         // draw wireframe
-        glDisable(GL_DEPTH_TEST);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glDisable(GL_CULL_FACE);
-        setUniform(shapeShader.id, "color", wireFrameColor);
-        drawTriangles(icosphereModelVertAtt);
-        glEnable(GL_CULL_FACE);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glEnable(GL_DEPTH_TEST);
+        drawWireframe(shapeShader.id, &icosahedronModelVertAtt);
       }
 
       // portal 4
       {
         glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                      0x04, // ref
+                      portal4StencilMask, // ref
                       0xFF); // enable which bits in reference and stored value are compared
 
         glUseProgram(skyboxShader.id);
@@ -362,17 +360,10 @@ void portalScene(GLFWwindow* window) {
         // draw cube
         glUseProgram(shapeShader.id);
         setUniform(shapeShader.id, "color", glm::vec3(1.0, 0.4, 0.4));
-        drawTriangles(pyramidVertAtt);
+        drawTriangles(tetrahedronVertAtt);
 
         // draw wireframe
-        glDisable(GL_DEPTH_TEST);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glDisable(GL_CULL_FACE);
-        setUniform(shapeShader.id, "color", wireFrameColor);
-        drawTriangles(pyramidVertAtt);
-        glEnable(GL_CULL_FACE);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glEnable(GL_DEPTH_TEST);
+        drawWireframe(shapeShader.id, &tetrahedronVertAtt);
       }
     }
 
