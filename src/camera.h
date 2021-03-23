@@ -38,8 +38,10 @@ Camera lookAt(glm::vec3 origin, glm::vec3 focus) {
   return camera;
 }
 
-void rotateCamera(Camera* camera, f32 pitchOffset, f32 yawOffset) {
+void updateCameraFirstPerson(Camera* camera, glm::vec3 posOffset, f32 pitchOffset, f32 yawOffset) {
   const f32 maxMinPitch = RadiansPerDegree * 85.0f;
+
+  camera->origin += posOffset;
 
   camera->pitch += pitchOffset;
   if(camera->pitch > maxMinPitch) {
