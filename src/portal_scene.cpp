@@ -76,17 +76,17 @@ void portalScene(GLFWwindow* window) {
   loadCubeMapTexture(skyboxYellowCloudFaceLocations, &portal4SkyboxTextureId);
 
   s32 mainSkyboxTextureIndex = 0;
-  s32 portal1SkyboxTextureIndex = 1;
-  s32 portal2SkyboxTextureIndex = 2;
-  s32 portal3SkyboxTextureIndex = 3;
-  s32 portal4SkyboxTextureIndex = 4;
+  s32 portalNegativeXSkyboxTextureIndex = 1;
+  s32 portalPositiveXSkyboxTextureIndex = 2;
+  s32 portalNegativeZSkyboxTextureIndex = 3;
+  s32 portalPositiveZSkyboxTextureIndex = 4;
   s32 modelAlbedoTextureIndex = 5;
   s32 modelNormalTextureIndex = 6;
   bindActiveTextureCubeMap(mainSkyboxTextureIndex, mainSkyboxTextureId);
-  bindActiveTextureCubeMap(portal1SkyboxTextureIndex, portal1SkyboxTextureId);
-  bindActiveTextureCubeMap(portal2SkyboxTextureIndex, portal2SkyboxTextureId);
-  bindActiveTextureCubeMap(portal3SkyboxTextureIndex, portal3SkyboxTextureId);
-  bindActiveTextureCubeMap(portal4SkyboxTextureIndex, portal4SkyboxTextureId);
+  bindActiveTextureCubeMap(portalNegativeXSkyboxTextureIndex, portal1SkyboxTextureId);
+  bindActiveTextureCubeMap(portalPositiveXSkyboxTextureIndex, portal2SkyboxTextureId);
+  bindActiveTextureCubeMap(portalNegativeZSkyboxTextureIndex, portal3SkyboxTextureId);
+  bindActiveTextureCubeMap(portalPositiveZSkyboxTextureIndex, portal4SkyboxTextureId);
   bindActiveTextureSampler2d(modelAlbedoTextureIndex, gateModel.textureData.albedoTextureId);
   bindActiveTextureSampler2d(modelNormalTextureIndex, gateModel.textureData.normalTextureId);
 
@@ -134,10 +134,10 @@ void portalScene(GLFWwindow* window) {
     glBindBufferRange(GL_UNIFORM_BUFFER, portalFragUBOBindingIndex, portalFragUBOid, 0, sizeof(PortalFragUBO));
   }
 
-  const u32 portal1StencilMask = 0x01;
-  const u32 portal2StencilMask = 0x02;
-  const u32 portal3StencilMask = 0x03;
-  const u32 portal4StencilMask = 0x04;
+  const u32 portalNegativeXStencilMask = 0x01;
+  const u32 portalPositiveXStencilMask = 0x02;
+  const u32 portalNegativeZStencilMask = 0x03;
+  const u32 portalPositiveZStencilMask = 0x04;
 
   auto drawWireframe = [wireFrameColor](GLuint shaderProgramId, VertexAtt* vertAtt) -> void {
     glDisable(GL_DEPTH_TEST);
@@ -218,152 +218,184 @@ void portalScene(GLFWwindow* window) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &projectionViewModelUbo);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    b32 gateIsInFront = glm::dot(firstPersonCamera.forward, glm::normalize(gatePosition - firstPersonCamera.origin)) > 0;
+    glm::vec3 negativeViewDir = -firstPersonCamera.forward;
+    b32 portalNegativeXVisible = (glm::dot(negativeViewDir, cubeFaceNegativeXNormal) > 0.0f) && gateIsInFront;
+    b32 portalPositiveXVisible = (glm::dot(negativeViewDir, cubeFacePositiveXNormal) > 0.0f) && gateIsInFront;
+    b32 portalNegativeZVisible = (glm::dot(negativeViewDir, cubeFaceNegativeZNormal) > 0.0f) && gateIsInFront;
+    b32 portalPositiveZVisible = (glm::dot(negativeViewDir, cubeFacePositiveZNormal) > 0.0f) && gateIsInFront;
+
     // draw gate
+    if(gateIsInFront)
     {
-      // universal matrices in UBO
-      glBindBuffer(GL_UNIFORM_BUFFER, portalFragUBOid);
-      portalFragUbo.directionalLightDirToSource = glm::vec3(sinTime, 1.0f, cosTime);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(PortalFragUBO, directionalLightDirToSource), sizeof(glm::vec4), &portalFragUbo.directionalLightDirToSource);
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
+      { // draw gate
+        glBindBuffer(GL_UNIFORM_BUFFER, portalFragUBOid);
+        portalFragUbo.directionalLightDirToSource = glm::vec3(sinTime, 1.0f, cosTime);
+        glBufferSubData(GL_UNIFORM_BUFFER, offsetof(PortalFragUBO, directionalLightDirToSource), sizeof(glm::vec4),
+                        &portalFragUbo.directionalLightDirToSource);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-      glStencilFunc(GL_ALWAYS, // stencil function always passes
-                    0x00, // reference
-                    0x00); // mask
+        glStencilFunc(GL_ALWAYS, // stencil function always passes
+                      0x00, // reference
+                      0x00); // mask
 
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4), glm::value_ptr(gateModelMatrix));
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+        glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4),
+                        glm::value_ptr(gateModelMatrix));
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-      // draw gate
-      glUseProgram(gateShader.id);
-      setUniform(gateShader.id, "albedoTex", modelAlbedoTextureIndex);
-      setUniform(gateShader.id, "normalTex", modelNormalTextureIndex);
-      drawTriangles(gateModel.vertexAtt);
-
-      glUseProgram(skyboxShader.id);
-      setUniform(skyboxShader.id, "skybox", mainSkyboxTextureIndex);
-      drawTriangles(invertedCubePosVertexAtt);
-    }
-
-    { // draw out stencils
-      // GL_EQUAL
-      // Passes if ( ref & mask ) == ( stencil & mask )
-      // Only draw portals where the stencil is cleared
-      glStencilFunc(GL_EQUAL, // func
-                    0xFF, // ref
-                    0x00); // mask
-      glStencilOp(GL_KEEP, // action when stencil fails
-                  GL_KEEP, // action when stencil passes but depth fails
-                  GL_REPLACE); // action when both stencil and depth pass
-
-      glUseProgram(shapeShader.id);
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4), glm::value_ptr(portalModelMatrix));
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-      glStencilMask(portal1StencilMask);
-      drawTriangles(cubePosVertexAtt, 6, cubeFaceNegativeXIndicesOffset);
-
-      glStencilMask(portal2StencilMask);
-      drawTriangles(cubePosVertexAtt, 6, cubeFacePositiveXIndicesOffset);
-
-      glStencilMask(portal3StencilMask);
-      drawTriangles(cubePosVertexAtt, 6, cubeFaceNegativeZIndicesOffset);
-
-      glStencilMask(portal4StencilMask);
-      drawTriangles(cubePosVertexAtt, 6, cubeFacePositiveZIndicesOffset);
-    }
-
-    // turn off writes to the stencil
-    glStencilMask(0x00);
-
-    // We need to clear disable depth values so distant objects through the "portals" still get drawn
-    // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
-    glClear(GL_DEPTH_BUFFER_BIT);
-    { // use stencils to draw portals
-      shapeModelMatrix = glm::rotate(shapeModelMatrix,
-                                     30.0f * RadiansPerDegree * stopWatch.delta,
-                                     glm::vec3(0.0f, 1.0f, 0.0f));
-
-      // all shapes use the same model matrix
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4), glm::value_ptr(shapeModelMatrix));
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-      // portal 1
-      {
-        glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                      portal1StencilMask, // ref
-                      0xFF); // enable which bits in reference and stored value are compared
+        glUseProgram(gateShader.id);
+        setUniform(gateShader.id, "albedoTex", modelAlbedoTextureIndex);
+        setUniform(gateShader.id, "normalTex", modelNormalTextureIndex);
+        drawTriangles(gateModel.vertexAtt);
 
         glUseProgram(skyboxShader.id);
-        setUniform(skyboxShader.id, "skybox", portal1SkyboxTextureIndex);
+        setUniform(skyboxShader.id, "skybox", mainSkyboxTextureIndex);
         drawTriangles(invertedCubePosVertexAtt);
-
-        // draw cube
-        glUseProgram(shapeShader.id);
-        setUniform(shapeShader.id, "color", glm::vec3(0.4, 0.4, 1.0));
-        drawTriangles(cubeModelVertAtt);
-
-        // draw wireframe
-        drawWireframe(shapeShader.id, &cubeModelVertAtt);
       }
 
-      // portal 2
-      {
-        glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                      portal2StencilMask, // ref
-                      0xFF); // enable which bits in reference and stored value are compared
+      { // draw out stencils
+        // NOTE: Stencil function Example
+        // GL_LEQUAL
+        // Passes if ( ref & mask ) <= ( stencil & mask )
+        glStencilFunc(GL_EQUAL, // func
+                      0xFF, // ref
+                      0x00); // mask // Only draw portals where the stencil is cleared
+        glStencilOp(GL_KEEP, // action when stencil fails
+                    GL_KEEP, // action when stencil passes but depth fails
+                    GL_REPLACE); // action when both stencil and depth pass
 
-        glUseProgram(skyboxShader.id);
-        setUniform(skyboxShader.id, "skybox", portal2SkyboxTextureIndex);
-        drawTriangles(invertedCubePosVertexAtt);
-
-        // draw cube
         glUseProgram(shapeShader.id);
-        setUniform(shapeShader.id, "color", glm::vec3(0.4, 1.0, 0.4));
-        drawTriangles(octahedronModelVertAtt);
+        glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+        glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4),
+                        glm::value_ptr(portalModelMatrix));
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-        // draw wireframe
-        drawWireframe(shapeShader.id, &octahedronModelVertAtt);
+        if (portalNegativeXVisible)
+        {
+          glStencilMask(portalNegativeXStencilMask);
+          drawTriangles(cubePosVertexAtt, 6, cubeFaceNegativeXIndicesOffset);
+        }
+
+        if (portalPositiveXVisible)
+        {
+          glStencilMask(portalPositiveXStencilMask);
+          drawTriangles(cubePosVertexAtt, 6, cubeFacePositiveXIndicesOffset);
+        }
+
+        if (portalNegativeZVisible)
+        {
+          glStencilMask(portalNegativeZStencilMask);
+          drawTriangles(cubePosVertexAtt, 6, cubeFaceNegativeZIndicesOffset);
+        }
+
+        if (portalPositiveZVisible)
+        {
+          glStencilMask(portalPositiveZStencilMask);
+          drawTriangles(cubePosVertexAtt, 6, cubeFacePositiveZIndicesOffset);
+        }
       }
 
-      // portal 3
-      {
-        glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                      portal3StencilMask, // ref
-                      0xFF); // enable which bits in reference and stored value are compared
+      // turn off writes to the stencil
+      glStencilMask(0x00);
 
-        glUseProgram(skyboxShader.id);
-        setUniform(skyboxShader.id, "skybox", portal3SkyboxTextureIndex);
-        drawTriangles(invertedCubePosVertexAtt);
+      // We need to clear disable depth values so distant objects through the "portals" still get drawn
+      // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
+      glClear(GL_DEPTH_BUFFER_BIT);
+      { // use stencils to draw portals
+        shapeModelMatrix = glm::rotate(shapeModelMatrix,
+                                       30.0f * RadiansPerDegree * stopWatch.delta,
+                                       glm::vec3(0.0f, 1.0f, 0.0f));
 
-        // draw cube
-        glUseProgram(shapeShader.id);
-        setUniform(shapeShader.id, "color", glm::vec3(0.9, 0.9, 0.9));
-        drawTriangles(icosahedronModelVertAtt);
+        // all shapes use the same model matrix
+        glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+        glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(glm::mat4),
+                        glm::value_ptr(shapeModelMatrix));
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-        // draw wireframe
-        drawWireframe(shapeShader.id, &icosahedronModelVertAtt);
-      }
+        // portal negative x
+        if (portalNegativeXVisible)
+        {
+          glStencilFunc(
+                  GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                  portalNegativeXStencilMask, // ref
+                  0xFF); // enable which bits in reference and stored value are compared
 
-      // portal 4
-      {
-        glStencilFunc(GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                      portal4StencilMask, // ref
-                      0xFF); // enable which bits in reference and stored value are compared
+          glUseProgram(skyboxShader.id);
+          setUniform(skyboxShader.id, "skybox", portalNegativeXSkyboxTextureIndex);
+          drawTriangles(invertedCubePosVertexAtt);
 
-        glUseProgram(skyboxShader.id);
-        setUniform(skyboxShader.id, "skybox", portal4SkyboxTextureIndex);
-        drawTriangles(invertedCubePosVertexAtt);
+          // draw cube
+          glUseProgram(shapeShader.id);
+          setUniform(shapeShader.id, "color", glm::vec3(0.4, 0.4, 1.0));
+          drawTriangles(cubeModelVertAtt);
 
-        // draw cube
-        glUseProgram(shapeShader.id);
-        setUniform(shapeShader.id, "color", glm::vec3(1.0, 0.4, 0.4));
-        drawTriangles(tetrahedronVertAtt);
+          // draw wireframe
+          drawWireframe(shapeShader.id, &cubeModelVertAtt);
+        }
 
-        // draw wireframe
-        drawWireframe(shapeShader.id, &tetrahedronVertAtt);
+        // portal positive x
+        if (portalPositiveXVisible)
+        {
+          glStencilFunc(
+                  GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                  portalPositiveXStencilMask, // ref
+                  0xFF); // enable which bits in reference and stored value are compared
+
+          glUseProgram(skyboxShader.id);
+          setUniform(skyboxShader.id, "skybox", portalPositiveXSkyboxTextureIndex);
+          drawTriangles(invertedCubePosVertexAtt);
+
+          // draw cube
+          glUseProgram(shapeShader.id);
+          setUniform(shapeShader.id, "color", glm::vec3(0.4, 1.0, 0.4));
+          drawTriangles(octahedronModelVertAtt);
+
+          // draw wireframe
+          drawWireframe(shapeShader.id, &octahedronModelVertAtt);
+        }
+
+        // portal negative z
+        if (portalNegativeZVisible)
+        {
+          glStencilFunc(
+                  GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                  portalNegativeZStencilMask, // ref
+                  0xFF); // enable which bits in reference and stored value are compared
+
+          glUseProgram(skyboxShader.id);
+          setUniform(skyboxShader.id, "skybox", portalNegativeZSkyboxTextureIndex);
+          drawTriangles(invertedCubePosVertexAtt);
+
+          // draw cube
+          glUseProgram(shapeShader.id);
+          setUniform(shapeShader.id, "color", glm::vec3(0.9, 0.9, 0.9));
+          drawTriangles(icosahedronModelVertAtt);
+
+          // draw wireframe
+          drawWireframe(shapeShader.id, &icosahedronModelVertAtt);
+        }
+
+        // portal positive z
+        if (portalPositiveZVisible)
+        {
+          glStencilFunc(
+                  GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
+                  portalPositiveZStencilMask, // ref
+                  0xFF); // enable which bits in reference and stored value are compared
+
+          glUseProgram(skyboxShader.id);
+          setUniform(skyboxShader.id, "skybox", portalPositiveZSkyboxTextureIndex);
+          drawTriangles(invertedCubePosVertexAtt);
+
+          // draw cube
+          glUseProgram(shapeShader.id);
+          setUniform(shapeShader.id, "color", glm::vec3(1.0, 0.4, 0.4));
+          drawTriangles(tetrahedronVertAtt);
+
+          // draw wireframe
+          drawWireframe(shapeShader.id, &tetrahedronVertAtt);
+        }
       }
     }
 

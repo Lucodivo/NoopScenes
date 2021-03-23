@@ -90,6 +90,12 @@ const u32 cubeFaceNegativeZIndicesOffset = 12;
 const u32 cubeFacePositiveZIndicesOffset = 18;
 const u32 cubeFaceNegativeYIndicesOffset = 24;
 const u32 cubeFacePositiveYIndicesOffset = 30;
+const glm::vec3 cubeFaceNegativeXNormal = glm::vec3(-1.0f, 0.0f, 0.0f);
+const glm::vec3 cubeFacePositiveXNormal = glm::vec3(1.0f, 0.0f, 0.0f);
+const glm::vec3 cubeFaceNegativeZNormal = glm::vec3(0.0f, 0.0f, -1.0f);
+const glm::vec3 cubeFacePositiveZNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+const glm::vec3 cubeFaceNegativeYNormal = glm::vec3(0.0f, -1.0f, 0.0f);
+const glm::vec3 cubeFacePositiveYNormal = glm::vec3(0.0f, 1.0f, 0.0f);
 
 
 
