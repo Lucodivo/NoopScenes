@@ -20,7 +20,7 @@ const char* gateVertexShaderFileLoc = COMMON_SHADER_BASE"Gate.vert";
 "src/data/skybox/"#folder"/right."#extension,              \
 "src/data/skybox/"#folder"/left."#extension                \
 }
-const char* skyboxYellowCloudFaceLocations[6] = skybox(yellow_cloud, jpg);
+const char* yellowCloudFaceLocations[6] = skybox(yellow_cloud, jpg);
 const char* calmSeaFaceLocations[6] = skybox(calm_sea, jpg);
 const char* skyboxInterstellarFaceLocations[6] = skybox(interstellar, png);
 const char* skyboxSpaceLightBlueFaceLocations[6] = skybox(space_light_blue, png);

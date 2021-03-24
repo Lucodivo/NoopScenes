@@ -45,7 +45,7 @@ void portalScene(GLFWwindow* window) {
   ProjectionViewModelUBO projectionViewModelUbo;
   Player player;
   player.dimensionInMeters = defaultPlayerDimensionInMeters;
-  player.minBoxPosition = glm::vec3(-(player.dimensionInMeters.x * 0.5f), 0.0f, 10.0f - (player.dimensionInMeters.z * 0.5f));
+  player.minBoxPosition = glm::vec3(-(player.dimensionInMeters.x * 0.5f), 0.0f, -10.0f - (player.dimensionInMeters.z * 0.5f));
 
   Model gateModel = loadModel(gateModelLoc);
 
@@ -79,12 +79,12 @@ void portalScene(GLFWwindow* window) {
   const f32 originalProjectionZFar = 200.0f;
   projectionViewModelUbo.projection = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, originalProjectionZNear, originalProjectionZFar);
 
-  GLuint mainSkyboxTextureId, portal1SkyboxTextureId, portal2SkyboxTextureId, portal3SkyboxTextureId, portal4SkyboxTextureId;
+  GLuint mainSkyboxTextureId, calmSeaSkyboxTextureId, interstellarSkyboxTextureId, pollutedEarthSkyboxTextureId, yellowCloudSkyboxTextureId;
   loadCubeMapTexture(caveFaceLocations, &mainSkyboxTextureId);
-  loadCubeMapTexture(calmSeaFaceLocations, &portal1SkyboxTextureId);
-  loadCubeMapTexture(skyboxInterstellarFaceLocations, &portal2SkyboxTextureId);
-  loadCubeMapTexture(pollutedEarthFaceLocations , &portal3SkyboxTextureId);
-  loadCubeMapTexture(skyboxYellowCloudFaceLocations, &portal4SkyboxTextureId);
+  loadCubeMapTexture(calmSeaFaceLocations, &calmSeaSkyboxTextureId);
+  loadCubeMapTexture(skyboxInterstellarFaceLocations, &interstellarSkyboxTextureId);
+  loadCubeMapTexture(pollutedEarthFaceLocations , &pollutedEarthSkyboxTextureId);
+  loadCubeMapTexture(yellowCloudFaceLocations, &yellowCloudSkyboxTextureId);
 
   s32 mainSkyboxTextureIndex = 0;
   s32 portalNegativeXSkyboxTextureIndex = 1;
@@ -94,10 +94,10 @@ void portalScene(GLFWwindow* window) {
   s32 modelAlbedoTextureIndex = 5;
   s32 modelNormalTextureIndex = 6;
   bindActiveTextureCubeMap(mainSkyboxTextureIndex, mainSkyboxTextureId);
-  bindActiveTextureCubeMap(portalNegativeXSkyboxTextureIndex, portal1SkyboxTextureId);
-  bindActiveTextureCubeMap(portalPositiveXSkyboxTextureIndex, portal2SkyboxTextureId);
-  bindActiveTextureCubeMap(portalNegativeZSkyboxTextureIndex, portal3SkyboxTextureId);
-  bindActiveTextureCubeMap(portalPositiveZSkyboxTextureIndex, portal4SkyboxTextureId);
+  bindActiveTextureCubeMap(portalNegativeXSkyboxTextureIndex, calmSeaSkyboxTextureId);
+  bindActiveTextureCubeMap(portalPositiveXSkyboxTextureIndex, interstellarSkyboxTextureId);
+  bindActiveTextureCubeMap(portalNegativeZSkyboxTextureIndex, yellowCloudSkyboxTextureId);
+  bindActiveTextureCubeMap(portalPositiveZSkyboxTextureIndex, pollutedEarthSkyboxTextureId);
   bindActiveTextureSampler2d(modelAlbedoTextureIndex, gateModel.textureData.albedoTextureId);
   bindActiveTextureSampler2d(modelNormalTextureIndex, gateModel.textureData.normalTextureId);
 
@@ -160,6 +160,11 @@ void portalScene(GLFWwindow* window) {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glEnable(GL_DEPTH_TEST);
   };
+
+  glm::vec3 portalNegativeXCenter = cubeFaceNegativeXCenter * portalScale;
+  glm::vec3 portalPositiveXCenter = cubeFacePositiveXCenter * portalScale;
+  glm::vec3 portalNegativeZCenter = cubeFaceNegativeZCenter * portalScale;
+  glm::vec3 portalPositiveZCenter = cubeFacePositiveZCenter * portalScale;
 
   b32 cameraIsThirdPerson = false;
   StopWatch stopWatch = createStopWatch();
@@ -251,10 +256,10 @@ void portalScene(GLFWwindow* window) {
 
     b32 gateIsInFront = glm::dot(camera.forward, glm::normalize(gatePosition - camera.origin)) > 0;
     glm::vec3 negativeViewDir = -camera.forward;
-    b32 portalNegativeXVisible = (glm::dot(negativeViewDir, cubeFaceNegativeXNormal) > 0.0f) && gateIsInFront;
-    b32 portalPositiveXVisible = (glm::dot(negativeViewDir, cubeFacePositiveXNormal) > 0.0f) && gateIsInFront;
-    b32 portalNegativeZVisible = (glm::dot(negativeViewDir, cubeFaceNegativeZNormal) > 0.0f) && gateIsInFront;
-    b32 portalPositiveZVisible = (glm::dot(negativeViewDir, cubeFacePositiveZNormal) > 0.0f) && gateIsInFront;
+    b32 portalNegativeXVisible = (glm::dot(camera.origin - portalNegativeXCenter, cubeFaceNegativeXNormal) > 0.0f) && gateIsInFront;
+    b32 portalPositiveXVisible = (glm::dot(camera.origin - portalPositiveXCenter, cubeFacePositiveXNormal) > 0.0f) && gateIsInFront;
+    b32 portalNegativeZVisible = (glm::dot(camera.origin - portalNegativeZCenter, cubeFaceNegativeZNormal) > 0.0f) && gateIsInFront;
+    b32 portalPositiveZVisible = (glm::dot(camera.origin - portalPositiveZCenter, cubeFacePositiveZNormal) > 0.0f) && gateIsInFront;
 
     glStencilFunc(GL_ALWAYS, // stencil function always passes
                   0x00, // reference
@@ -263,7 +268,7 @@ void portalScene(GLFWwindow* window) {
     glUseProgram(skyboxShader.id);
     setUniform(skyboxShader.id, "skybox", mainSkyboxTextureIndex);
     drawTriangles(invertedCubePosVertexAtt);
-    
+
     if(cameraIsThirdPerson) { // draw player if third person
       glm::vec3 playerCenter = calcPlayerCenterPosition(&player);
       glm::vec3 playerViewCenter = calcPlayerViewingPosition(&player);
@@ -435,11 +440,11 @@ void portalScene(GLFWwindow* window) {
 
           // draw cube
           glUseProgram(shapeShader.id);
-          setUniform(shapeShader.id, "color", glm::vec3(0.9, 0.9, 0.9));
-          drawTriangles(icosahedronModelVertAtt);
+          setUniform(shapeShader.id, "color", glm::vec3(1.0, 0.4, 0.4));
+          drawTriangles(tetrahedronVertAtt);
 
           // draw wireframe
-          drawShapeWireframe(&icosahedronModelVertAtt);
+          drawShapeWireframe(&tetrahedronVertAtt);
         }
 
         // portal positive z
@@ -456,11 +461,11 @@ void portalScene(GLFWwindow* window) {
 
           // draw cube
           glUseProgram(shapeShader.id);
-          setUniform(shapeShader.id, "color", glm::vec3(1.0, 0.4, 0.4));
-          drawTriangles(tetrahedronVertAtt);
+          setUniform(shapeShader.id, "color", glm::vec3(0.9, 0.9, 0.9));
+          drawTriangles(icosahedronModelVertAtt);
 
           // draw wireframe
-          drawShapeWireframe(&tetrahedronVertAtt);
+          drawShapeWireframe(&icosahedronModelVertAtt);
         }
       }
     }

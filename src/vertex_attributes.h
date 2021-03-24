@@ -90,12 +90,19 @@ const u32 cubeFaceNegativeZIndicesOffset = 12;
 const u32 cubeFacePositiveZIndicesOffset = 18;
 const u32 cubeFaceNegativeYIndicesOffset = 24;
 const u32 cubeFacePositiveYIndicesOffset = 30;
-const glm::vec3 cubeFaceNegativeXNormal = glm::vec3(-1.0f, 0.0f, 0.0f);
-const glm::vec3 cubeFacePositiveXNormal = glm::vec3(1.0f, 0.0f, 0.0f);
-const glm::vec3 cubeFaceNegativeZNormal = glm::vec3(0.0f, 0.0f, -1.0f);
-const glm::vec3 cubeFacePositiveZNormal = glm::vec3(0.0f, 0.0f, 1.0f);
-const glm::vec3 cubeFaceNegativeYNormal = glm::vec3(0.0f, -1.0f, 0.0f);
-const glm::vec3 cubeFacePositiveYNormal = glm::vec3(0.0f, 1.0f, 0.0f);
+const glm::vec3 cubeFaceNegativeXCenter = glm::vec3(-0.5f, 0.0f, 0.0f);
+const glm::vec3 cubeFacePositiveXCenter = glm::vec3(0.5f, 0.0f, 0.0f);
+const glm::vec3 cubeFaceNegativeZCenter = glm::vec3(0.0f, 0.0f, -0.5f);
+const glm::vec3 cubeFacePositiveZCenter = glm::vec3(0.0f, 0.0f, 0.5f);
+const glm::vec3 cubeFaceNegativeYCenter = glm::vec3(0.0f, -0.5f, 0.0f);
+const glm::vec3 cubeFacePositiveYCenter = glm::vec3(0.0f, 0.5f, 0.0f);
+// center values are simply doubled to get a normalized vector
+const glm::vec3 cubeFaceNegativeXNormal = cubeFaceNegativeXCenter * 2.0f;
+const glm::vec3 cubeFacePositiveXNormal = cubeFacePositiveXCenter * 2.0f;
+const glm::vec3 cubeFaceNegativeZNormal = cubeFaceNegativeZCenter * 2.0f;
+const glm::vec3 cubeFacePositiveZNormal = cubeFacePositiveZCenter * 2.0f;
+const glm::vec3 cubeFaceNegativeYNormal = cubeFaceNegativeYCenter * 2.0f;
+const glm::vec3 cubeFacePositiveYNormal = cubeFacePositiveYCenter * 2.0f;
 
 
 
