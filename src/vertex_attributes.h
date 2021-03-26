@@ -1,5 +1,7 @@
 #pragma once
 
+#include "noop_math.h"
+
 #define VERTEX_ATT_NO_INDEX_OBJECT -1
 
 struct VertexAtt {
@@ -90,19 +92,19 @@ const u32 cubeFaceNegativeZIndicesOffset = 12;
 const u32 cubeFacePositiveZIndicesOffset = 18;
 const u32 cubeFaceNegativeYIndicesOffset = 24;
 const u32 cubeFacePositiveYIndicesOffset = 30;
-const glm::vec3 cubeFaceNegativeXCenter = glm::vec3(-0.5f, 0.0f, 0.0f);
-const glm::vec3 cubeFacePositiveXCenter = glm::vec3(0.5f, 0.0f, 0.0f);
-const glm::vec3 cubeFaceNegativeZCenter = glm::vec3(0.0f, 0.0f, -0.5f);
-const glm::vec3 cubeFacePositiveZCenter = glm::vec3(0.0f, 0.0f, 0.5f);
-const glm::vec3 cubeFaceNegativeYCenter = glm::vec3(0.0f, -0.5f, 0.0f);
-const glm::vec3 cubeFacePositiveYCenter = glm::vec3(0.0f, 0.5f, 0.0f);
+const Vec3 cubeFaceNegativeXCenter = Vec3(-0.5f, 0.0f, 0.0f);
+const Vec3 cubeFacePositiveXCenter = Vec3(0.5f, 0.0f, 0.0f);
+const Vec3 cubeFaceNegativeZCenter = Vec3(0.0f, 0.0f, -0.5f);
+const Vec3 cubeFacePositiveZCenter = Vec3(0.0f, 0.0f, 0.5f);
+const Vec3 cubeFaceNegativeYCenter = Vec3(0.0f, -0.5f, 0.0f);
+const Vec3 cubeFacePositiveYCenter = Vec3(0.0f, 0.5f, 0.0f);
 // center values are simply doubled to get a normalized vector
-const glm::vec3 cubeFaceNegativeXNormal = cubeFaceNegativeXCenter * 2.0f;
-const glm::vec3 cubeFacePositiveXNormal = cubeFacePositiveXCenter * 2.0f;
-const glm::vec3 cubeFaceNegativeZNormal = cubeFaceNegativeZCenter * 2.0f;
-const glm::vec3 cubeFacePositiveZNormal = cubeFacePositiveZCenter * 2.0f;
-const glm::vec3 cubeFaceNegativeYNormal = cubeFaceNegativeYCenter * 2.0f;
-const glm::vec3 cubeFacePositiveYNormal = cubeFacePositiveYCenter * 2.0f;
+const Vec3 cubeFaceNegativeXNormal = cubeFaceNegativeXCenter * 2.0f;
+const Vec3 cubeFacePositiveXNormal = cubeFacePositiveXCenter * 2.0f;
+const Vec3 cubeFaceNegativeZNormal = cubeFaceNegativeZCenter * 2.0f;
+const Vec3 cubeFacePositiveZNormal = cubeFacePositiveZCenter * 2.0f;
+const Vec3 cubeFaceNegativeYNormal = cubeFaceNegativeYCenter * 2.0f;
+const Vec3 cubeFacePositiveYNormal = cubeFacePositiveYCenter * 2.0f;
 
 
 
