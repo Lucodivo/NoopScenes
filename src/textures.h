@@ -87,28 +87,33 @@ void loadCubeMapTexture(const char* const imgLocations[6], GLuint* textureId, bo
 {
   glGenTextures(1, textureId);
   glBindTexture(GL_TEXTURE_CUBE_MAP, *textureId);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
   s32 width, height, nrChannels;
   stbi_set_flip_vertically_on_load(flipImageVert);
-  for (u32 i = 0; i < 6; i++)
-  {
-    unsigned char* data = stbi_load(imgLocations[i], &width, &height, &nrChannels, 0);
+
+  auto loadCubeMapFace = [&width, &height, &nrChannels](GLenum faceTarget, const char* faceImageLoc){
+    unsigned char* data = stbi_load(faceImageLoc, &width, &height, &nrChannels, 0);
     if (data)
     {
-      glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-                   0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data
-      );
-      glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-      glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-      glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+      glTexImage2D(faceTarget, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
     } else
     {
-      std::cout << "Cubemap texture failed to load at path: " << imgLocations[i] << std::endl;
+      std::cout << "Cubemap texture failed to load at path: " << faceImageLoc << std::endl;
     }
     stbi_image_free(data);
-  }
+  };
+
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, imgLocations[SKYBOX_TEXTURE_LOCATION_INDEX_BACK]);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_POSITIVE_X, imgLocations[SKYBOX_TEXTURE_LOCATION_INDEX_FRONT]);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, imgLocations[SKYBOX_TEXTURE_LOCATION_INDEX_BOTTOM]);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, imgLocations[SKYBOX_TEXTURE_LOCATION_INDEX_TOP]);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, imgLocations[SKYBOX_TEXTURE_LOCATION_INDEX_LEFT]);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, imgLocations[SKYBOX_TEXTURE_LOCATION_INDEX_RIGHT]);
 }
 
 Framebuffer initializeFramebuffer(Extent2D framebufferExtent, FramebufferCreationFlags flags = FramebufferCreate_NoValue)

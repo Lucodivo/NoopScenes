@@ -7,5 +7,6 @@ layout (location = 0) out vec4 outColor;
 
 void main()
 {
-  outColor = texture(skybox, inTexCoord);
+  vec3 yIsUpTexCoord = vec3(inTexCoord.x, inTexCoord.z, -inTexCoord.y);
+  outColor = texture(skybox, yIsUpTexCoord);
 }

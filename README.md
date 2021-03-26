@@ -11,6 +11,16 @@ they are wonderful at and use a better tool for things they aren't.
 #### Dimensions
 - Any dimensions/positions in the code will always refer to length in meters
 
+#### Coordinate System
+- Everything will be right handed-coordinate system but z-axis will represent the upward/downward movement.
+  - Justifications include:
+    - Right-handed system is used in both OpenGL & Blender (tools used for this project)
+    - Z is up is used in Blender (tool used for this project)
+    - Shortening a vec3 to a vec2 by cutting off the third value (z) to acquire "ground coordinates" is appealing 
+    - [*disclaimer: mostly preference*] When a viewing angle shows the positive X-axis pointing right (a mostly universal 
+      concept, in my experience), I would like the remaining positive axes to point forward and up. Since I am using a 
+      right-handed system, my only solution is that the positive Y-axis points forward and the positive Z-axis points up.
+
 #### Vertex & Fragment Shaders
 - Using binding points for uniform buffer objects requires us to use at least GLSL #version 420
 
@@ -47,10 +57,10 @@ layout (binding = 0, std140) uniform UBO { // base alignment   // aligned offset
 ```
 // cpp
 struct UBO {              // base alignment   // aligned offset
-  glm::mat4 projection;   // 4                // 0
-  glm::mat4 view;         // 4                // 64
-  glm::mat4 model;        // 4                // 128
-  glm::uvec2 resolution;  // 4                // 192
+  Mat4 projection;        // 4                // 0
+  Mat4 view;              // 4                // 64
+  Mat4 model;             // 4                // 128
+  uVec2 resolution;       // 4                // 192
   f32 time;               // 4                // 200
   f32 delta;              // 4                // 204
 }

@@ -14,5 +14,6 @@ void main()
   outTexCoord = inPos;
   mat4 skyboxViewMat = mat4(mat3(ubo.view)); // remove translation
   vec4 pos = ubo.projection * skyboxViewMat * vec4(inPos, 1.0);
+  // NOTE: z = w effectively sets depth to furthest away
   gl_Position = pos.xyww;
 }  
