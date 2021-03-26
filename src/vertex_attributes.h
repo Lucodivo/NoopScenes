@@ -22,27 +22,27 @@ const f32 cubePosAtts[] = {
         -0.5f, -0.5f,  0.5f,
         // face #2 (positive x)
         0.5f,  0.5f,  0.5f,
-        0.5f,  0.5f, -0.5f,
-        0.5f, -0.5f, -0.5f,
         0.5f, -0.5f,  0.5f,
-        // face #3 (negative z)
+        0.5f, -0.5f, -0.5f,
+        0.5f,  0.5f, -0.5f,
+        // face #3 (negative y)
         -0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f, -0.5f,
-        0.5f,  0.5f, -0.5f,
-        -0.5f,  0.5f, -0.5f,
-        // face #4 (positive z)
+        0.5f,  -0.5f,  -0.5f,
+        0.5f,  -0.5f,   0.5f,
         -0.5f, -0.5f,  0.5f,
-        0.5f, -0.5f,  0.5f,
-        0.5f,  0.5f,  0.5f,
+        // face #4 (positive y)
+        -0.5f,  0.5f, -0.5f,
         -0.5f,  0.5f,  0.5f,
-        // face #5 (negative y)
+        0.5f,  0.5f,  0.5f,
+        0.5f,  0.5f, -0.5f,
+        // face #5 (negative z)
         -0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f,  0.5f,
-        -0.5f, -0.5f,  0.5f,
-        // face #6 (positive y)
         -0.5f,  0.5f, -0.5f,
         0.5f,  0.5f, -0.5f,
+        0.5f, -0.5f, -0.5f,
+        // face #6 (positive z)
+        -0.5f, -0.5f,  0.5f,
+        0.5f, -0.5f,  0.5f,
         0.5f,  0.5f,  0.5f,
         -0.5f,  0.5f,  0.5f,
 };
@@ -51,53 +51,53 @@ const u8 cubePosAttsIndices[]{
         0,  1,  2,
         2,  3,  0,
         // face #2 (positive x)
-        4,  6,  5,
-        6,  4,  7,
-        // face #3 (negative z)
-        8,  10, 9,
-        10, 8,  11,
-        // face #4 (positive z)
+        4,  5,  6,
+        6,  7,  4,
+        // face #3 (negative y)
+        8,  9, 10,
+        10, 11,  8,
+        // face #4 (positive y)
         12, 13, 14,
         14, 15, 12,
-        // face #5 (negative y)
+        // face #5 (negative z)
         16, 17, 18,
         18, 19, 16,
-        // face #6 (positive y)
-        20, 22, 21,
-        22, 20, 23,
+        // face #6 (positive z)
+        20, 21, 22,
+        22, 23, 20,
 };
 const u8 invertedWindingCubePosAttsIndices[]{
         // face #1 (negative x)
         0,  2,  1,
         2,  0,  3,
         // face #2 (positive x)
-        4,  5,  6,
-        6,  7,  4,
-        // face #3 (negative z)
-        8,  9,  10,
-        10, 11, 8,
-        // face #4 (positive z)
-        12, 14, 13,
-        14, 12, 15,
-        // face #5 (negative y)
-        16, 18, 17,
-        18, 16, 19,
-        // face #6 (positive y)
-        20, 21, 22,
-        22, 23, 20,
+        4,  6,  5,
+        6,  4,  7,
+        // face #3 (negative y)
+        8,  10, 9,
+        10, 8, 11,
+        // face #4 (positive y)
+        12, 14,13,
+        14, 12,15,
+        // face #5 (negative z)
+        16, 18,17,
+        18, 16,19,
+        // face #6 (positive z)
+        20, 22,21,
+        22, 20,23,
 };
 const u32 cubeFaceNegativeXIndicesOffset = 0;
 const u32 cubeFacePositiveXIndicesOffset = 6;
-const u32 cubeFaceNegativeZIndicesOffset = 12;
-const u32 cubeFacePositiveZIndicesOffset = 18;
-const u32 cubeFaceNegativeYIndicesOffset = 24;
-const u32 cubeFacePositiveYIndicesOffset = 30;
+const u32 cubeFaceNegativeYIndicesOffset = 12;
+const u32 cubeFacePositiveYIndicesOffset = 18;
+const u32 cubeFaceNegativeZIndicesOffset = 24;
+const u32 cubeFacePositiveZIndicesOffset = 30;
 const Vec3 cubeFaceNegativeXCenter = Vec3(-0.5f, 0.0f, 0.0f);
 const Vec3 cubeFacePositiveXCenter = Vec3(0.5f, 0.0f, 0.0f);
-const Vec3 cubeFaceNegativeZCenter = Vec3(0.0f, 0.0f, -0.5f);
-const Vec3 cubeFacePositiveZCenter = Vec3(0.0f, 0.0f, 0.5f);
 const Vec3 cubeFaceNegativeYCenter = Vec3(0.0f, -0.5f, 0.0f);
 const Vec3 cubeFacePositiveYCenter = Vec3(0.0f, 0.5f, 0.0f);
+const Vec3 cubeFaceNegativeZCenter = Vec3(0.0f, 0.0f, -0.5f);
+const Vec3 cubeFacePositiveZCenter = Vec3(0.0f, 0.0f, 0.5f);
 // center values are simply doubled to get a normalized vector
 const Vec3 cubeFaceNegativeXNormal = cubeFaceNegativeXCenter * 2.0f;
 const Vec3 cubeFacePositiveXNormal = cubeFacePositiveXCenter * 2.0f;

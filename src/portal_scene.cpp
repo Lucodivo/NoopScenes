@@ -87,15 +87,15 @@ void portalScene(GLFWwindow* window) {
   s32 mainSkyboxTextureIndex = 0;
   s32 portalNegativeXSkyboxTextureIndex = 1;
   s32 portalPositiveXSkyboxTextureIndex = 2;
-  s32 portalNegativeZSkyboxTextureIndex = 3;
-  s32 portalPositiveZSkyboxTextureIndex = 4;
+  s32 portalNegativeYSkyboxTextureIndex = 3;
+  s32 portalPositiveYSkyboxTextureIndex = 4;
   s32 modelAlbedoTextureIndex = 5;
   s32 modelNormalTextureIndex = 6;
   bindActiveTextureCubeMap(mainSkyboxTextureIndex, mainSkyboxTextureId);
   bindActiveTextureCubeMap(portalNegativeXSkyboxTextureIndex, calmSeaSkyboxTextureId);
   bindActiveTextureCubeMap(portalPositiveXSkyboxTextureIndex, interstellarSkyboxTextureId);
-  bindActiveTextureCubeMap(portalNegativeZSkyboxTextureIndex, yellowCloudSkyboxTextureId);
-  bindActiveTextureCubeMap(portalPositiveZSkyboxTextureIndex, pollutedEarthSkyboxTextureId);
+  bindActiveTextureCubeMap(portalNegativeYSkyboxTextureIndex, yellowCloudSkyboxTextureId);
+  bindActiveTextureCubeMap(portalPositiveYSkyboxTextureIndex, pollutedEarthSkyboxTextureId);
   bindActiveTextureSampler2d(modelAlbedoTextureIndex, gateModel.textureData.albedoTextureId);
   bindActiveTextureSampler2d(modelNormalTextureIndex, gateModel.textureData.normalTextureId);
 
@@ -145,8 +145,8 @@ void portalScene(GLFWwindow* window) {
 
   const u32 portalNegativeXStencilMask = 0x01;
   const u32 portalPositiveXStencilMask = 0x02;
-  const u32 portalNegativeZStencilMask = 0x03;
-  const u32 portalPositiveZStencilMask = 0x04;
+  const u32 portalNegativeYStencilMask = 0x03;
+  const u32 portalPositiveYStencilMask = 0x04;
 
   auto drawShapeWireframe = [shapeShader, shapesWireFrameColor](VertexAtt* vertAtt) -> void {
     glDisable(GL_DEPTH_TEST);
@@ -161,8 +161,8 @@ void portalScene(GLFWwindow* window) {
 
   Vec3 portalNegativeXCenter = cubeFaceNegativeXCenter * portalScale;
   Vec3 portalPositiveXCenter = cubeFacePositiveXCenter * portalScale;
-  Vec3 portalNegativeZCenter = cubeFaceNegativeZCenter * portalScale;
-  Vec3 portalPositiveZCenter = cubeFacePositiveZCenter * portalScale;
+  Vec3 portalNegativeYCenter = cubeFaceNegativeYCenter * portalScale;
+  Vec3 portalPositiveYCenter = cubeFacePositiveYCenter * portalScale;
 
   b32 cameraIsThirdPerson = false;
   StopWatch stopWatch = createStopWatch();
@@ -257,8 +257,8 @@ void portalScene(GLFWwindow* window) {
     b32 gateIsInFront = glm::dot(camera.forward, glm::normalize(gatePosition - camera.origin)) > 0;
     b32 portalNegativeXVisible = (glm::dot(camera.origin - portalNegativeXCenter, cubeFaceNegativeXNormal) > 0.0f) && gateIsInFront;
     b32 portalPositiveXVisible = (glm::dot(camera.origin - portalPositiveXCenter, cubeFacePositiveXNormal) > 0.0f) && gateIsInFront;
-    b32 portalNegativeZVisible = (glm::dot(camera.origin - portalNegativeZCenter, cubeFaceNegativeZNormal) > 0.0f) && gateIsInFront;
-    b32 portalPositiveZVisible = (glm::dot(camera.origin - portalPositiveZCenter, cubeFacePositiveZNormal) > 0.0f) && gateIsInFront;
+    b32 portalNegativeYVisible = (glm::dot(camera.origin - portalNegativeYCenter, cubeFaceNegativeYNormal) > 0.0f) && gateIsInFront;
+    b32 portalPositiveYVisible = (glm::dot(camera.origin - portalPositiveYCenter, cubeFacePositiveYNormal) > 0.0f) && gateIsInFront;
 
     glStencilFunc(GL_ALWAYS, // stencil function always passes
                   0x00, // reference
@@ -352,16 +352,16 @@ void portalScene(GLFWwindow* window) {
           drawTriangles(cubePosVertexAtt, 6, cubeFacePositiveXIndicesOffset);
         }
 
-        if (portalNegativeZVisible)
+        if (portalNegativeYVisible)
         {
-          glStencilMask(portalNegativeZStencilMask);
-          drawTriangles(cubePosVertexAtt, 6, cubeFaceNegativeZIndicesOffset);
+          glStencilMask(portalNegativeYStencilMask);
+          drawTriangles(cubePosVertexAtt, 6, cubeFaceNegativeYIndicesOffset);
         }
 
-        if (portalPositiveZVisible)
+        if (portalPositiveYVisible)
         {
-          glStencilMask(portalPositiveZStencilMask);
-          drawTriangles(cubePosVertexAtt, 6, cubeFacePositiveZIndicesOffset);
+          glStencilMask(portalPositiveYStencilMask);
+          drawTriangles(cubePosVertexAtt, 6, cubeFacePositiveYIndicesOffset);
         }
       }
 
@@ -421,16 +421,16 @@ void portalScene(GLFWwindow* window) {
           drawShapeWireframe(&octahedronModelVertAtt);
         }
 
-        // portal negative z
-        if (portalNegativeZVisible)
+        // portal negative y
+        if (portalNegativeYVisible)
         {
           glStencilFunc(
                   GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                  portalNegativeZStencilMask, // ref
+                  portalNegativeYStencilMask, // ref
                   0xFF); // enable which bits in reference and stored value are compared
 
           glUseProgram(skyboxShader.id);
-          setUniform(skyboxShader.id, "skybox", portalNegativeZSkyboxTextureIndex);
+          setUniform(skyboxShader.id, "skybox", portalNegativeYSkyboxTextureIndex);
           drawTriangles(invertedCubePosVertexAtt);
 
           // draw cube
@@ -442,16 +442,16 @@ void portalScene(GLFWwindow* window) {
           drawShapeWireframe(&tetrahedronVertAtt);
         }
 
-        // portal positive z
-        if (portalPositiveZVisible)
+        // portal positive y
+        if (portalPositiveYVisible)
         {
           glStencilFunc(
                   GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                  portalPositiveZStencilMask, // ref
+                  portalPositiveYStencilMask, // ref
                   0xFF); // enable which bits in reference and stored value are compared
 
           glUseProgram(skyboxShader.id);
-          setUniform(skyboxShader.id, "skybox", portalPositiveZSkyboxTextureIndex);
+          setUniform(skyboxShader.id, "skybox", portalPositiveYSkyboxTextureIndex);
           drawTriangles(invertedCubePosVertexAtt);
 
           // draw cube

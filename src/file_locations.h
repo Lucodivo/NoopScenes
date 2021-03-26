@@ -7,7 +7,7 @@ const char* posNormTexVertexShaderFileLoc = COMMON_SHADER_BASE"PosNormTex.vert";
 const char* texVertexShaderFileLoc = COMMON_SHADER_BASE"Tex.vert";
 const char* skyboxVertexShaderFileLoc = COMMON_SHADER_BASE"Skybox.vert";
 const char* singleColorFragmentShaderFileLoc = COMMON_SHADER_BASE"SingleColor.frag";
-const char* skyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"Skybox.frag";
+const char* skyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"SkyboxYIsUp.frag";
 const char* gateFragmentShaderFileLoc = COMMON_SHADER_BASE"Gate.frag";
 const char* gateVertexShaderFileLoc = COMMON_SHADER_BASE"Gate.vert";
 
@@ -20,6 +20,12 @@ const char* gateVertexShaderFileLoc = COMMON_SHADER_BASE"Gate.vert";
 "src/data/skybox/"#folder"/right."#extension,              \
 "src/data/skybox/"#folder"/left."#extension                \
 }
+#define SKYBOX_TEXTURE_LOCATION_INDEX_FRONT 0
+#define SKYBOX_TEXTURE_LOCATION_INDEX_BACK 1
+#define SKYBOX_TEXTURE_LOCATION_INDEX_TOP 2
+#define SKYBOX_TEXTURE_LOCATION_INDEX_BOTTOM 3
+#define SKYBOX_TEXTURE_LOCATION_INDEX_RIGHT 4
+#define SKYBOX_TEXTURE_LOCATION_INDEX_LEFT 5
 const char* yellowCloudFaceLocations[6] = skybox(yellow_cloud, jpg);
 const char* calmSeaFaceLocations[6] = skybox(calm_sea, jpg);
 const char* skyboxInterstellarFaceLocations[6] = skybox(interstellar, png);
