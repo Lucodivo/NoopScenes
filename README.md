@@ -28,7 +28,7 @@ they are wonderful at and use a better tool for things they aren't.
     directory of this repository.
       ```
         # These next three lines are what you need to edit to build this project
-        set(GLFW_HEADER_LOCATIONS "C:/directory/that_contains/glfw3.h/and/glfw3native.h")
+        set(GLFW_HEADER_LOCATIONS "C:/directory/that_contains/glfw3.h")
         set(GLFW_LIB_LOCATION "C:/directory/that_contains/glfw3.lib")
         set(GLFW_LIB actual-name-of-glfw3-static-library) # ex: glfw3-x64-d
       ```

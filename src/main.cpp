@@ -1,3 +1,5 @@
+#include <windows.h>
+
 #include <iostream>
 #define GLFW_INCLUDE_NONE // ensure GLFW doesn't load OpenGL headers
 #include <glfw3.h>

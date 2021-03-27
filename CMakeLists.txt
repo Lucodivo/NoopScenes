@@ -3,6 +3,17 @@ project(NoopScenes)
 
 set(CMAKE_CXX_STANDARD 14)
 
+if (NOT WIN32)
+    message([FATAL_ERROR] "This project currently requires Windows and has not been ported to any other platform.")
+endif()
+
+if(MSVC)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    add_compile_options(/W3)
+else ()
+    #add_compile_options(-Wall -Wall -Wpedantic)
+endif()
+
 # These next three lines are what you need to edit to build this project
 set(GLFW_HEADER_LOCATIONS "C:/developer/dependencies/include/GLFW") # Directory that contains
 set(GLFW_LIB_LOCATION "C:/developer/dependencies/libs") # Directory that contains GLFW3 static library
@@ -16,13 +27,6 @@ link_directories(${LIB_DIR})
 include_directories(${INCL_DIR} ${EXT_DIR} "${EXT_DIR}/stb" "${EXT_DIR}/glm" "${EXT_DIR}/glad")
 
 add_library(glad STATIC "${EXT_DIR}/glad/glad.c" )
-
-if(MSVC)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-    add_compile_options(/W3)
-else ()
-    add_compile_options(-Wall -Wall -Wpedantic)
-endif()
 
 add_executable(NoopScenes src/main.cpp)
 

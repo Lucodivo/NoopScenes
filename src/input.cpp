@@ -7,9 +7,9 @@
 #include <vector>
 #include <unordered_map>
 
-file_access void setKeyState(GLFWwindow* window, u32 glfwKey, InputType keyboardInput);
-file_access void setMouseState(GLFWwindow* window, u32 glfwKey, InputType mouseInput);
-file_access void setControllerState(s16 gamepadFlags, u32 xInputButtonFlag, InputType controllerInput);
+file_access void setKeyState(GLFWwindow* window, s32 glfwKey, InputType keyboardInput);
+file_access void setMouseState(GLFWwindow* window, s32 glfwKey, InputType mouseInput);
+file_access void setControllerState(s16 gamepadFlags, u16 xInputButtonFlag, InputType controllerInput);
 file_access void loadXInput();
 
 file_access void glfw_mouse_scroll_callback(GLFWwindow* window, f64 xOffset, f64 yOffset);
@@ -96,7 +96,7 @@ ControllerAnalogStick getControllerAnalogStickRight() {
   return analogStickRight;
 }
 
-void setKeyState(GLFWwindow* window, u32 glfwKey, InputType keyboardInput)
+void setKeyState(GLFWwindow* window, s32 glfwKey, InputType keyboardInput)
 {
   auto keyIterator = inputState->find(keyboardInput);
   InputState oldKeyState = keyIterator != inputState->end() ? keyIterator->second : INPUT_INACTIVE;
@@ -114,7 +114,7 @@ void setKeyState(GLFWwindow* window, u32 glfwKey, InputType keyboardInput)
   }
 }
 
-void setMouseState(GLFWwindow* window, u32 glfwKey, InputType mouseInput)
+void setMouseState(GLFWwindow* window, s32 glfwKey, InputType mouseInput)
 {
   auto mouseInputIterator = inputState->find(mouseInput);
   InputState oldMouseInputState = mouseInputIterator != inputState->end() ? mouseInputIterator->second : INPUT_INACTIVE;
@@ -132,7 +132,7 @@ void setMouseState(GLFWwindow* window, u32 glfwKey, InputType mouseInput)
   }
 }
 
-void setControllerState(s16 gamepadFlags, u32 xInputButtonFlag, InputType controllerInput)
+void setControllerState(s16 gamepadFlags, u16 xInputButtonFlag, InputType controllerInput)
 {
   auto controllerInputIterator = inputState->find(controllerInput);
   InputState oldControllerInputState = controllerInputIterator != inputState->end() ? controllerInputIterator->second : INPUT_INACTIVE;
@@ -148,8 +148,7 @@ void setControllerState(s16 gamepadFlags, u32 xInputButtonFlag, InputType contro
   } else if (oldControllerInputState & (INPUT_HOT_PRESS | INPUT_ACTIVE))
   {
     (*inputState)[controllerInput] = INPUT_HOT_RELEASE;
-  } else if (oldControllerInputState & INPUT_HOT_RELEASE)
-  { // only erase if there is something to be erased
+  } else if (oldControllerInputState & INPUT_HOT_RELEASE) { // only erase if there is something to be erased
     inputState->erase(controllerInputIterator);
   }
 }
