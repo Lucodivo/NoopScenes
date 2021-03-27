@@ -5,6 +5,35 @@ the OOP mindset where I have control. This is not due to a belief that objects o
 not limit my thought process to a single way of creating software. In the future, I ideally use classes for things I know
 they are wonderful at and use a better tool for things they aren't.
 
+### Building
+1) Cloning the project will include most dependencies: [glm](https://github.com/g-truc/glm), [tinygltf](https://github.com/syoyo/tinygltf), [stb](https://github.com/nothings/stb), [glad](https://github.com/Dav1dde/glad), [json](https://github.com/nlohmann/json#examples)
+  ```
+  git clone https://github.com/Lucodivo/NoopScenes
+  ```
+  - If you are having problems with the glad dependency, use David Herberth's [website](https://glad.dav1d.de/) to 
+    generate the files suitable for your system. [Link to [glad repository](https://github.com/Dav1dde/glad) too for 
+    good measure]
+  - If you downloaded the project directly from github or are missing the glm submodule somehow, run the following git 
+    commands in the root directory of the project.
+    ```
+    git submodule init
+    git submodule update
+    ```
+2) You will also need to acquire a compiled static library and header files for [GLFW](https://www.glfw.org/)
+  - This can be accomplished by a [direct download of pre-compiled binaries](https://www.glfw.org/download.html) or by
+    cloning the [GLFW repository](https://github.com/glfw/glfw) and 
+    [compiling GLFW on your machine](https://www.glfw.org/docs/3.3/compile.html).
+  - After you have the necessary [header files](https://github.com/glfw/glfw/tree/master/include/GLFW) and a compiled
+    static library (ex: glfw3.lib), you will need to make edits to three lines in *CMakeList.txt* in the root
+    directory of this repository.
+      ```
+        # These next three lines are what you need to edit to build this project
+        set(GLFW_HEADER_LOCATIONS "C:/directory/that_contains/glfw3.h/and/glfw3native.h")
+        set(GLFW_LIB_LOCATION "C:/directory/that_contains/glfw3.lib")
+        set(GLFW_LIB actual-name-of-glfw3-static-library) # ex: glfw3-x64-d
+      ```
+3) Finally, build using *CMakeList.txt* in the root directory of this repository.     
+
 ### Standards
 *In this project, consistency is often valued over absolute best convention.*
 

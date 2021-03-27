@@ -1,5 +1,7 @@
 #pragma once
 
+#include <time.h>
+
 f32 getTime() {
   clock_t time = clock();
   return (f32)time / CLOCKS_PER_SEC;

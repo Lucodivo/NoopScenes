@@ -1,6 +1,6 @@
 #include <iostream>
 #define GLFW_INCLUDE_NONE // ensure GLFW doesn't load OpenGL headers
-#include <GLFW/glfw3.h>
+#include <glfw3.h>
 #include <glad/glad.h>
 
 #include "noop_types.h"
