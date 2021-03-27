@@ -1,5 +1,3 @@
 /.idea
-/external
+/external/glm
 /cmake*
-/src/data/skybox
-/src/data/models
