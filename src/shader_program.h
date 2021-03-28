@@ -9,7 +9,7 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-#include "noop_math.h"
+#include "noop_3d_math.h"
 
 struct ShaderProgram {
   GLuint id;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "noop_math.h"
+#include "noop_3d_math.h"
 
 #define VERTEX_ATT_NO_INDEX_OBJECT -1
 

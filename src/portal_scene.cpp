@@ -7,28 +7,26 @@
 #include "camera.h"
 #include "uniform_buffer_object_structs.h"
 #include "model.h"
-#include "noop_math.h"
+#include "noop_3d_math.h"
 
 const Vec3 defaultPlayerDimensionInMeters = Vec3(0.5f, 0.25f, 1.75f); // NOTE: ~1'7"w, 9"d, 6'h
 
-struct Player {
-  Vec3 minBoxPosition;
+struct BoundingBox {
+  Vec3 min;
   Vec3 dimensionInMeters;
-  // assume "eyes" (FPS camera) is positioned on front Z, top Y, middle X
 };
 
-inline Vec3 calcPlayerCenterPosition(Player* player) {
-  return player->minBoxPosition + (player->dimensionInMeters * 0.5f);
+struct Player {
+  BoundingBox boundingBox;
+};
+
+inline Vec3 calcBoundingBoxCenterPosition(BoundingBox box) {
+  return box.min + (box.dimensionInMeters * 0.5f);
 }
 
+// assume "eyes" (FPS camera) is positioned on middle X, max Y, max Z
 inline Vec3 calcPlayerViewingPosition(Player* player) {
-  return player->minBoxPosition + (player->dimensionInMeters * Vec3(0.5f, 1.0f, 1.0f));
-}
-
-void changeNearFarProjection(Mat4* projectionMatrix, f32 zNear, f32 zFar) {
-  // Note: logic pulled straight from glm::perspective -> perspectiveRH_NO
-  (*projectionMatrix)[2][2] = - (zFar + zNear) / (zFar - zNear);
-  (*projectionMatrix)[3][2] = - (2.0f * zFar * zNear) / (zFar - zNear);
+  return player->boundingBox.min + (player->boundingBox.dimensionInMeters * Vec3(0.5f, 1.0f, 1.0f));
 }
 
 void portalScene(GLFWwindow* window) {
@@ -42,8 +40,8 @@ void portalScene(GLFWwindow* window) {
 
   ProjectionViewModelUBO projectionViewModelUbo;
   Player player;
-  player.dimensionInMeters = defaultPlayerDimensionInMeters;
-  player.minBoxPosition = Vec3(-(player.dimensionInMeters.x * 0.5f), -10.0f - (player.dimensionInMeters.y * 0.5f), 0.0f );
+  player.boundingBox.dimensionInMeters = defaultPlayerDimensionInMeters;
+  player.boundingBox.min = Vec3(-(player.boundingBox.dimensionInMeters.x * 0.5f), -10.0f - (player.boundingBox.dimensionInMeters.y * 0.5f), 0.0f );
 
   Model gateModel = loadModel(gateModelLoc);
 
@@ -64,7 +62,7 @@ void portalScene(GLFWwindow* window) {
 
   Vec3 firstPersonCameraInitPosition = calcPlayerViewingPosition(&player);
   Vec3 firstPersonCameraInitFocus = Vec3(gatePosition.x, gatePosition.y, firstPersonCameraInitPosition.z);
-  Camera camera = lookAt(firstPersonCameraInitPosition, firstPersonCameraInitFocus);
+  Camera camera = lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus);
 
   VertexAtt cubePosVertexAtt = initializeCubePositionVertexAttBuffers();
   VertexAtt invertedCubePosVertexAtt = initializeCubePositionVertexAttBuffers(true);
@@ -72,7 +70,7 @@ void portalScene(GLFWwindow* window) {
   Mat4 shapeModelMatrix = glm::translate(mat4_identity, shapePosition) * Mat4(Mat3(shapeScale));
   Mat4 portalModelMatrix = glm::translate(mat4_identity, portalPosition) * Mat4(Mat3(portalScale));
   Mat4 gateModelMatrix = glm::translate(mat4_identity, gatePosition) * Mat4(Mat3(gateScale));
-  Mat4 playerScaleModelMatrix = glm::scale(mat4_identity, player.dimensionInMeters);
+  Mat4 playerScaleModelMatrix = glm::scale(mat4_identity, player.boundingBox.dimensionInMeters);
   const f32 originalProjectionDepthNear = 0.1f;
   const f32 originalProjectionDepthFar = 200.0f;
   projectionViewModelUbo.projection = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, originalProjectionDepthNear, originalProjectionDepthFar);
@@ -174,6 +172,9 @@ void portalScene(GLFWwindow* window) {
     f32 sinTime = sin(stopWatch.lastFrame);
     f32 cosTime = cos(stopWatch.lastFrame);
 
+    Vec3 playerCenter = calcBoundingBoxCenterPosition(player.boundingBox);
+    Vec3 playerViewPosition = calcPlayerViewingPosition(&player);
+
     if (isActive(KeyboardInput_Esc))
     {
       glfwSetWindowShouldClose(window, true);
@@ -224,22 +225,23 @@ void portalScene(GLFWwindow* window) {
 
       if(tabHotPress) {
         cameraIsThirdPerson = !cameraIsThirdPerson;
-        Vec3 newCameraOrigin, newCameraLookAtPos;
-        Vec3 playerCenter = calcPlayerCenterPosition(&player);
         Vec3 xyForward = glm::normalize(Vec3(gatePosition.x - playerCenter.x, gatePosition.y - playerCenter.y, 0.0f));
 
         if(cameraIsThirdPerson) {
-          newCameraLookAtPos = playerCenter;
-          newCameraOrigin = newCameraLookAtPos - (8.0f * xyForward); // move back
-          newCameraOrigin.z += 4.0f; // move up
+          camera = lookAt_ThirdPerson(playerCenter, xyForward);
         } else { // camera is first person now
-          newCameraOrigin = calcPlayerViewingPosition(&player);
-          newCameraLookAtPos = newCameraOrigin + xyForward;
+          Vec3 focus = playerViewPosition + xyForward;
+          camera = lookAt_FirstPerson(playerViewPosition, camera.forward);
         }
-        camera = lookAt(newCameraOrigin, newCameraLookAtPos);
       }
 
-      updateCameraFirstPerson(&camera, cameraDelta, f32(-mouseDelta.y * 0.001), f32(-mouseDelta.x * 0.001));
+      const f32 mouseDeltaMultConst = 0.001f;
+      if(cameraIsThirdPerson) {
+        updateCamera_ThirdPerson(&camera, playerCenter, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * 0.001f));
+      } else {
+        updateCamera_FirstPerson(&camera, cameraDelta, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * 0.001f));
+      }
+      player.boundingBox.min += cameraDelta;
 
       projectionViewModelUbo.view = getViewMatrix(camera);
     }
@@ -269,7 +271,7 @@ void portalScene(GLFWwindow* window) {
     drawTriangles(invertedCubePosVertexAtt);
 
     if(cameraIsThirdPerson) { // draw player if third person
-      Vec3 playerCenter = calcPlayerCenterPosition(&player);
+      Vec3 playerCenter = calcBoundingBoxCenterPosition(player.boundingBox);
       Vec3 playerViewCenter = calcPlayerViewingPosition(&player);
       Vec3 playerBoundingBoxColor_Red = Vec3(1.0f, 0.0f, 0.0f);
       Vec3 playerViewBoxColor_White = Vec3(1.0f, 1.0f, 1.0f);
@@ -289,7 +291,7 @@ void portalScene(GLFWwindow* window) {
       drawTriangles(cubePosVertexAtt);
 
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
-      thirdPersonPlayerBoxesMatrix = glm::translate(mat4_identity, player.minBoxPosition) * Mat4(Mat3(0.1f));
+      thirdPersonPlayerBoxesMatrix = glm::translate(mat4_identity, player.boundingBox.min) * Mat4(Mat3(0.1f));
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(Mat4), glm::value_ptr(thirdPersonPlayerBoxesMatrix));
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
       setUniform(shapeShader.id, "color", playerMinCoordBoxColor_Green);
@@ -310,7 +312,7 @@ void portalScene(GLFWwindow* window) {
     {
       { // draw gate
         glBindBuffer(GL_UNIFORM_BUFFER, portalFragUBOid);
-        portalFragUbo.directionalLightDirToSource = Vec3(sinTime, cosTime, 1.0f);
+        portalFragUbo.directionalLightDirToSource = glm::normalize(Vec3(cosTime, sinTime, cosTime)); // orbit xyplane (ground), oscillate up and down
         glBufferSubData(GL_UNIFORM_BUFFER, offsetof(PortalFragUBO, directionalLightDirToSource), sizeof(Vec4), &portalFragUbo.directionalLightDirToSource);
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
 

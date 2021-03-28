@@ -1,8 +1,14 @@
 #pragma once
 
-#include "noop_math.h"
+#include "noop_3d_math.h"
 
-const Vec3 worldUp = Vec3(0.0f, 0.0f, 1.0f);
+const Vec3 WORLD_UP = Vec3(0.0f, 0.0f, 1.0f);
+
+const f32 MAX_MIN_PITCH_FIRST_PERSON= RadiansPerDegree * 85.0f;
+const f32 MIN_PITCH_THIRD_PERSON = -25.0f * RadiansPerDegree;
+const f32 MAX_PITCH_THIRD_PERSON = 65.0f * RadiansPerDegree;
+const f32 DIST_FROM_PIVOT_THIRD_PERSON = 8.0f;
+
 
 struct Camera {
   Vec3 origin;
@@ -11,18 +17,20 @@ struct Camera {
   Vec3 forward;
   f32 pitch;
   f32 yaw;
+  b32 thirdPerson;
 };
 
 // NOTE: pitch and yaw are set to radians
-// NOTE: There is currently no support for lookAt where forward should point directly up
-Camera lookAt(Vec3 origin, Vec3 focus) {
+// NOTE: There is currently no support for lookAt_FirstPerson where forward should point directly up
+Camera lookAt_FirstPerson(Vec3 origin, Vec3 focus) {
   const f32 forwardDotUpThresholdMax = 0.996194f; // cos(5 degrees)
   const f32 forwardDotUpThresholdMin = -0.996194f; // cos(175 degrees)
 
   Camera camera;
+  camera.thirdPerson = false;
   camera.origin = origin;
   camera.forward = glm::normalize(focus - origin);
-  f32 forwardDotUp = glm::dot(camera.forward, worldUp);
+  f32 forwardDotUp = glm::dot(camera.forward, WORLD_UP);
   if (forwardDotUp > forwardDotUpThresholdMax || forwardDotUp < forwardDotUpThresholdMin)
   {
     std::cout << "Look At Camera Failed" << std::endl;
@@ -35,7 +43,7 @@ Camera lookAt(Vec3 origin, Vec3 focus) {
   f32 cameraFrontDotZeroYaw = glm::dot(cameraForwardXYPlane, Vec2(1.0f, 0.0f));
   camera.yaw = glm::acos(cameraFrontDotZeroYaw);
 
-  camera.right = glm::normalize(glm::cross(camera.forward, worldUp));
+  camera.right = glm::normalize(glm::cross(camera.forward, WORLD_UP));
   camera.up = glm::cross(camera.right, camera.forward);
   return camera;
 }
@@ -44,16 +52,14 @@ Camera lookAt(Vec3 origin, Vec3 focus) {
  * NOTE: Positive pitch offsets follows right hand rule (counter clockwise) with your thumb pointing in direction of X
  * NOTE: Positive yaw offsets follow right hand rule (counter clockwise) with your thumb pointing in direction of Z
  */
-void updateCameraFirstPerson(Camera* camera, Vec3 posOffset, f32 pitchOffset, f32 yawOffset) {
-  const f32 maxMinPitch = RadiansPerDegree * 85.0f;
-
+void updateCamera_FirstPerson(Camera* camera, Vec3 posOffset, f32 pitchOffset, f32 yawOffset) {
   camera->origin += posOffset;
 
   camera->pitch += pitchOffset;
-  if(camera->pitch > maxMinPitch) {
-    camera->pitch = maxMinPitch;
-  } else if(camera->pitch < -maxMinPitch){
-    camera->pitch = -maxMinPitch;
+  if(camera->pitch > MAX_MIN_PITCH_FIRST_PERSON) {
+    camera->pitch = MAX_MIN_PITCH_FIRST_PERSON;
+  } else if(camera->pitch < -MAX_MIN_PITCH_FIRST_PERSON){
+    camera->pitch = -MAX_MIN_PITCH_FIRST_PERSON;
   }
 
   camera->yaw += yawOffset;
@@ -70,9 +76,58 @@ void updateCameraFirstPerson(Camera* camera, Vec3 posOffset, f32 pitchOffset, f3
 
   camera->forward = glm::normalize(forward);
   // Also re-calculate the Right and Up vector
-  camera->right = glm::normalize(glm::cross(camera->forward, worldUp));  // Normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.
+  camera->right = glm::normalize(glm::cross(camera->forward, WORLD_UP));  // Normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.
   camera->up = glm::normalize(glm::cross(camera->right, camera->forward));
   camera->origin = camera->origin;
+}
+
+// NOTE: Yaw value of 0 degrees means we are looking in the direction of +x, 90=+y, 180=-x, 270=-y
+// NOTE: Pitch value represents the angle between the vector from camera to pivot and the xy plane
+Camera lookAt_ThirdPerson(Vec3 pivot, Vec3 forward) {
+  // Viewing angle measured between vector from pivot to camera and the xy plane
+  const f32 startingPitch = 33.0f * RadiansPerDegree;
+
+  Vec2 xyForward = glm::normalize(Vec2(forward.x, forward.y));
+
+  Camera camera;
+  camera.thirdPerson = true;
+  camera.pitch = startingPitch;
+  camera.yaw = asin(-xyForward.y);
+
+  const f32 distBackFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * cos(camera.pitch);
+  const f32 distAboveFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * sin(camera.pitch);
+
+  camera.origin = pivot + Vec3(-distBackFromPivot * xyForward, distAboveFromPivot);
+  camera.forward = glm::normalize(pivot - camera.origin);
+
+  camera.right = glm::normalize(glm::cross(camera.forward, WORLD_UP));
+  camera.up = glm::cross(camera.right, camera.forward);
+  return camera;
+}
+
+void updateCamera_ThirdPerson(Camera* camera, Vec3 pivotPoint, f32 pitchOffset, f32 yawOffset) {
+  camera->pitch += pitchOffset;
+  if(camera->pitch > MAX_PITCH_THIRD_PERSON) {
+    camera->pitch = MAX_PITCH_THIRD_PERSON;
+  } else if(camera->pitch < MIN_PITCH_THIRD_PERSON){
+    camera->pitch = MIN_PITCH_THIRD_PERSON;
+  }
+
+  camera->yaw += yawOffset;
+  if(camera->yaw > Tau32) {
+    camera->yaw -= Tau32;
+  }
+
+  const f32 distXYFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * cos(camera->pitch);
+  const f32 distAboveFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * sin(camera->pitch);
+  const f32 distXFromPivot = distXYFromPivot * cos(camera->yaw);
+  const f32 distYFromPivot = distXYFromPivot * sin(camera->yaw);
+
+  camera->origin = pivotPoint + Vec3(distXFromPivot, distYFromPivot, distAboveFromPivot);
+  camera->forward = glm::normalize(pivotPoint - camera->origin);
+
+  camera->right = glm::normalize(glm::cross(camera->forward, WORLD_UP));
+  camera->up = glm::cross(camera->right, camera->forward);
 }
 
 // NOTE: offsetPitch and offsetYaw in radians
@@ -92,7 +147,7 @@ Mat4 getViewMatrix(Camera camera) {
           camera.right.z, camera.up.z, -camera.forward.z, 0.0f,
           0.0f,           0.0f,         0.0f,             1.0f);
 
-  // Return lookAt matrix as combination of translation and measureRotation matrix
+  // Return lookAt_FirstPerson matrix as combination of translation and measureRotation matrix
   // Since matrices should be read right to left we want to...
   //    - First center the camera at the origin by translating itself and the entire world
   //    - Then we measure how the world lines up with the camera at the origin

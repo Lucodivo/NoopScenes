@@ -41,14 +41,11 @@ they are wonderful at and use a better tool for things they aren't.
 - Any dimensions/positions in the code will always refer to length in meters
 
 #### Coordinate System
-- Everything will be right handed-coordinate system but z-axis will represent the upward/downward movement.
-  - Justifications include:
-    - Right-handed system is used in both OpenGL & Blender (tools used for this project)
-    - Z is up is used in Blender (tool used for this project)
-    - Shortening a vec3 to a vec2 by cutting off the third value (z) to acquire "ground coordinates" is appealing 
-    - [*disclaimer: mostly preference*] When a viewing angle shows the positive X-axis pointing right (a mostly universal 
-      concept, in my experience), I would like the remaining positive axes to point forward and up. Since I am using a 
-      right-handed system, my only solution is that the positive Y-axis points forward and the positive Z-axis points up.
+- Right handed-coordinate system with the z-axis representing the upward/downward movement.
+  - Justifications:
+    - Blender & GLM (by default) are right-handed systems and are tools used for this project
+    - Z is up is used in Blender and is a tool used for this project
+    - Shortening a 3D vector to a 2D by cutting off the third value (z) to acquire "ground coordinates" is appealing
 
 #### Vertex & Fragment Shaders
 - Using binding points for uniform buffer objects requires us to use at least GLSL #version 420
