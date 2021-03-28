@@ -34,14 +34,16 @@ Camera lookAt_FirstPerson(Vec3 origin, Vec3 focus) {
   if (forwardDotUp > forwardDotUpThresholdMax || forwardDotUp < forwardDotUpThresholdMin)
   {
     std::cout << "Look At Camera Failed" << std::endl;
-    camera.forward = Vec3(0.0f, 1.0f, 0.0f);
+    camera.forward = glm::normalize(Vec3(camera.forward.x, camera.forward.y + 0.01f, 0.0f));
   }
 
   camera.pitch = glm::asin(camera.forward.z);
 
   Vec2 cameraForwardXYPlane = glm::normalize(Vec2(camera.forward.x, camera.forward.y));
-  f32 cameraFrontDotZeroYaw = glm::dot(cameraForwardXYPlane, Vec2(1.0f, 0.0f));
-  camera.yaw = glm::acos(cameraFrontDotZeroYaw);
+  camera.yaw = glm::acos(cameraForwardXYPlane.x);
+  if(cameraForwardXYPlane.y < 0) {
+    camera.yaw = -camera.yaw;
+  }
 
   camera.right = glm::normalize(glm::cross(camera.forward, WORLD_UP));
   camera.up = glm::cross(camera.right, camera.forward);
@@ -53,6 +55,7 @@ Camera lookAt_FirstPerson(Vec3 origin, Vec3 focus) {
  * NOTE: Positive yaw offsets follow right hand rule (counter clockwise) with your thumb pointing in direction of Z
  */
 void updateCamera_FirstPerson(Camera* camera, Vec3 posOffset, f32 pitchOffset, f32 yawOffset) {
+  Assert(!camera->thirdPerson);
   camera->origin += posOffset;
 
   camera->pitch += pitchOffset;
@@ -88,11 +91,15 @@ Camera lookAt_ThirdPerson(Vec3 pivot, Vec3 forward) {
   const f32 startingPitch = 33.0f * RadiansPerDegree;
 
   Vec2 xyForward = glm::normalize(Vec2(forward.x, forward.y));
+  Vec2 xyPivotToCamera = -xyForward;
 
   Camera camera;
   camera.thirdPerson = true;
   camera.pitch = startingPitch;
-  camera.yaw = asin(-xyForward.y);
+  camera.yaw = acos(xyPivotToCamera.x);
+  if(xyPivotToCamera.y < 0) {
+    camera.yaw = -camera.yaw;
+  }
 
   const f32 distBackFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * cos(camera.pitch);
   const f32 distAboveFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * sin(camera.pitch);
@@ -106,6 +113,8 @@ Camera lookAt_ThirdPerson(Vec3 pivot, Vec3 forward) {
 }
 
 void updateCamera_ThirdPerson(Camera* camera, Vec3 pivotPoint, f32 pitchOffset, f32 yawOffset) {
+  Assert(camera->thirdPerson);
+
   camera->pitch += pitchOffset;
   if(camera->pitch > MAX_PITCH_THIRD_PERSON) {
     camera->pitch = MAX_PITCH_THIRD_PERSON;

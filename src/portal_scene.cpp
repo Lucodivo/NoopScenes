@@ -162,7 +162,6 @@ void portalScene(GLFWwindow* window) {
   Vec3 portalNegativeYCenter = cubeFaceNegativeYCenter * portalScale;
   Vec3 portalPositiveYCenter = cubeFacePositiveYCenter * portalScale;
 
-  b32 cameraIsThirdPerson = false;
   StopWatch stopWatch = createStopWatch();
   while(glfwWindowShouldClose(window) == GL_FALSE)
   {
@@ -223,20 +222,19 @@ void portalScene(GLFWwindow* window) {
         cameraDelta = cameraMovementDirection * cameraMovementSpeed * stopWatch.delta;
       }
 
-      if(tabHotPress) {
-        cameraIsThirdPerson = !cameraIsThirdPerson;
-        Vec3 xyForward = glm::normalize(Vec3(gatePosition.x - playerCenter.x, gatePosition.y - playerCenter.y, 0.0f));
+      if(tabHotPress) { // switch between third and first person
+        Vec3 xyForward = glm::normalize(Vec3(camera.forward.x, camera.forward.y, 0.0f));
 
-        if(cameraIsThirdPerson) {
+        if(!camera.thirdPerson) {
           camera = lookAt_ThirdPerson(playerCenter, xyForward);
         } else { // camera is first person now
           Vec3 focus = playerViewPosition + xyForward;
-          camera = lookAt_FirstPerson(playerViewPosition, camera.forward);
+          camera = lookAt_FirstPerson(playerViewPosition, focus);
         }
       }
 
       const f32 mouseDeltaMultConst = 0.001f;
-      if(cameraIsThirdPerson) {
+      if(camera.thirdPerson) {
         updateCamera_ThirdPerson(&camera, playerCenter, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * 0.001f));
       } else {
         updateCamera_FirstPerson(&camera, cameraDelta, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * 0.001f));
@@ -270,7 +268,7 @@ void portalScene(GLFWwindow* window) {
     setUniform(skyboxShader.id, "skybox", mainSkyboxTextureIndex);
     drawTriangles(invertedCubePosVertexAtt);
 
-    if(cameraIsThirdPerson) { // draw player if third person
+    if(camera.thirdPerson) { // draw player if third person
       Vec3 playerCenter = calcBoundingBoxCenterPosition(player.boundingBox);
       Vec3 playerViewCenter = calcPlayerViewingPosition(&player);
       Vec3 playerBoundingBoxColor_Red = Vec3(1.0f, 0.0f, 0.0f);
