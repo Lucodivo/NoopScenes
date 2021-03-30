@@ -5,7 +5,6 @@
 #include <Xinput.h>
 #include <iostream>
 #include <vector>
-#include <unordered_map>
 
 file_access void setKeyState(GLFWwindow* window, s32 glfwKey, InputType keyboardInput);
 file_access void setMouseState(GLFWwindow* window, s32 glfwKey, InputType mouseInput);
@@ -25,8 +24,12 @@ file_access ControllerAnalogStick analogStickRight = { 0, 0 };
 file_access f32 mouseScrollY = 0.0f;
 file_access s8 controller1TriggerLeftValue = 0;
 file_access s8 controller1TriggerRightValue = 0;
-file_access std::unordered_map<InputType, InputState>* inputState = NULL;
 file_access WindowSizeCallback windowSizeCallback = NULL;
+
+// initialized to zero is equivalent to InputState_Inactive
+// indices of this array will be accessed through InputType enums
+file_access InputState inputStates[InputType_NumTypes] = {};
+
 
 // NOTE: Casey Muratori's efficient way of handling function pointers, Handmade Hero episode 6 @ 22:06 & 1:00:21
 // NOTE: Allows us to quickly change the function parameters & return type in one place and cascade throughout the rest
@@ -45,8 +48,6 @@ void initializeInput(GLFWwindow* window)
   glfwSetScrollCallback(window, glfw_mouse_scroll_callback);
   glfwSetFramebufferSizeCallback(window, glfw_framebuffer_size_callback);
 
-  inputState = new std::unordered_map<InputType, InputState>();
-
   s32 framebufferWidth, framebufferHeight;
   glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
   framebufferWidth = max(0, framebufferWidth);
@@ -56,21 +57,20 @@ void initializeInput(GLFWwindow* window)
   loadXInput();
 }
 
-InputState getInputState(InputType key) {
-  auto inputSearch = inputState->find(key);
-  return inputSearch != inputState->end() ? inputSearch->second : INPUT_INACTIVE;
+inline InputState getInputState(InputType inputType) {
+    return inputStates[inputType];
 }
 
-b32 hotPress(InputType key) {
-  return getInputState(key) & INPUT_HOT_PRESS;
+b32 hotPress(InputType inputType) {
+  return inputStates[inputType] & INPUT_HOT_PRESS;
 }
 
-b32 hotRelease(InputType key) {
-  return getInputState(key) & INPUT_HOT_RELEASE;
+b32 hotRelease(InputType inputType) {
+  return inputStates[inputType] & INPUT_HOT_RELEASE;
 }
 
-b32 isActive(InputType key) {
-  return getInputState(key) & (INPUT_HOT_PRESS | INPUT_ACTIVE);
+b32 isActive(InputType inputType) {
+  return inputStates[inputType] & (INPUT_HOT_PRESS | INPUT_ACTIVE);
 }
 
 Vec2_f64 getMousePosition() {
@@ -96,61 +96,38 @@ ControllerAnalogStick getControllerAnalogStickRight() {
   return analogStickRight;
 }
 
+void setInputState(InputType inputType, b32 inputIsCurrentlyActive) {
+    if (inputIsCurrentlyActive)
+    {
+        if(inputStates[inputType] & INPUT_HOT_PRESS) {
+            inputStates[inputType] = INPUT_ACTIVE;
+        } else if(inputStates[inputType] ^ INPUT_ACTIVE) {
+            inputStates[inputType] = INPUT_HOT_PRESS;
+        }
+    } else if(inputStates[inputType] & (INPUT_HOT_PRESS | INPUT_ACTIVE)) {
+        inputStates[inputType] = INPUT_HOT_RELEASE;
+    } else if(inputStates[inputType] & INPUT_HOT_RELEASE) { // only erase if there is something to be erased
+        inputStates[inputType] = INPUT_INACTIVE;
+    }
+}
+
+
 void setKeyState(GLFWwindow* window, s32 glfwKey, InputType keyboardInput)
 {
-  auto keyIterator = inputState->find(keyboardInput);
-  InputState oldKeyState = keyIterator != inputState->end() ? keyIterator->second : INPUT_INACTIVE;
-  if (glfwGetKey(window, glfwKey) == GLFW_PRESS)
-  {
-    if(oldKeyState & INPUT_HOT_PRESS) {
-      (*inputState)[keyboardInput] = INPUT_ACTIVE;
-    } else if(oldKeyState ^ INPUT_ACTIVE) {
-      (*inputState)[keyboardInput] = INPUT_HOT_PRESS;
-    }
-  } else if(oldKeyState & (INPUT_HOT_PRESS | INPUT_ACTIVE)) {
-    (*inputState)[keyboardInput] = INPUT_HOT_RELEASE;
-  } else if(oldKeyState & INPUT_HOT_RELEASE) { // only erase if there is something to be erased
-    inputState->erase(keyIterator);
-  }
+    b32 keyIsCurrentlyActive = glfwGetKey(window, glfwKey) == GLFW_PRESS;
+    setInputState(keyboardInput, keyIsCurrentlyActive);
 }
 
 void setMouseState(GLFWwindow* window, s32 glfwKey, InputType mouseInput)
 {
-  auto mouseInputIterator = inputState->find(mouseInput);
-  InputState oldMouseInputState = mouseInputIterator != inputState->end() ? mouseInputIterator->second : INPUT_INACTIVE;
-  if (glfwGetMouseButton(window, glfwKey) == GLFW_PRESS)
-  {
-    if(oldMouseInputState & INPUT_HOT_PRESS) {
-      (*inputState)[mouseInput] = INPUT_ACTIVE;
-    } else if(oldMouseInputState ^ INPUT_ACTIVE) {
-      (*inputState)[mouseInput] = INPUT_HOT_PRESS;
-    }
-  } else if(oldMouseInputState & (INPUT_HOT_PRESS | INPUT_ACTIVE)) {
-    (*inputState)[mouseInput] = INPUT_HOT_RELEASE;
-  } else if(oldMouseInputState & INPUT_HOT_RELEASE) { // only erase if there is something to be erased
-    inputState->erase(mouseInputIterator);
-  }
+    b32 mouseInputIsCurrentlyActive = glfwGetMouseButton(window, glfwKey) == GLFW_PRESS;
+    setInputState(mouseInput, mouseInputIsCurrentlyActive);
 }
 
 void setControllerState(s16 gamepadFlags, u16 xInputButtonFlag, InputType controllerInput)
 {
-  auto controllerInputIterator = inputState->find(controllerInput);
-  InputState oldControllerInputState = controllerInputIterator != inputState->end() ? controllerInputIterator->second : INPUT_INACTIVE;
-  if (gamepadFlags & xInputButtonFlag)
-  {
-    if (oldControllerInputState & INPUT_HOT_PRESS)
-    {
-      (*inputState)[controllerInput] = INPUT_ACTIVE;
-    } else if (oldControllerInputState ^ INPUT_ACTIVE)
-    {
-      (*inputState)[controllerInput] = INPUT_HOT_PRESS;
-    }
-  } else if (oldControllerInputState & (INPUT_HOT_PRESS | INPUT_ACTIVE))
-  {
-    (*inputState)[controllerInput] = INPUT_HOT_RELEASE;
-  } else if (oldControllerInputState & INPUT_HOT_RELEASE) { // only erase if there is something to be erased
-    inputState->erase(controllerInputIterator);
-  }
+    b32 controllerInputIsCurrentlyActive = gamepadFlags & xInputButtonFlag;
+    setInputState(controllerInput, controllerInputIsCurrentlyActive);
 }
 
 void loadInputStateForFrame(GLFWwindow* window) {
@@ -199,39 +176,21 @@ void loadInputStateForFrame(GLFWwindow* window) {
     // mouse movement state management
     {
       Vec2_f64 newMouseCoord;
-
       glfwGetCursorPos(window, &newMouseCoord.x, &newMouseCoord.y);
 
       // NOTE: We do not consume mouse input on window size changes as it results in unwanted values
       mouseDelta = consumabool(&windowModeChangeTossNextInput) ? Vec2_f64{0.0f, 0.0f} : Vec2_f64{newMouseCoord.x - mousePosition.x, newMouseCoord.y - mousePosition.y};
       mousePosition = newMouseCoord;
-
-      auto movementIterator = inputState->find(MouseInput_Movement);
-      b32 movementWasActive = movementIterator != inputState->end();
-      if (mouseDelta.x != 0.0f || mouseDelta.y != 0.0f)
-      {
-        if(!movementWasActive) {
-          (*inputState)[MouseInput_Movement] = INPUT_ACTIVE;
-        }
-      } else if (movementWasActive) // scroll no longer active
-      {
-        inputState->erase(movementIterator);
-      }
+      b32 mouseMovementIsCurrentlyActive = mouseDelta.x != 0.0f || mouseDelta.y != 0.0f;
+      setInputState(MouseInput_Movement, mouseMovementIsCurrentlyActive);
     }
 
     // mouse scroll state management
     {
-      auto scrollIterator = inputState->find(MouseInput_Scroll);
-      b32 scrollWasActive = scrollIterator != inputState->end();
       mouseScrollY = (f32)globalMouseScroll.y;
       globalMouseScroll.y = 0.0f; // NOTE: Set to 0.0f to signify that the result has been consumed
-      if (mouseScrollY != 0.0f && !scrollWasActive)
-      {
-        (*inputState)[MouseInput_Scroll] = INPUT_ACTIVE;
-      } else if (scrollWasActive) // scroll no longer active
-      {
-        inputState->erase(scrollIterator);
-      }
+      b32 mouseScrollIsCurrentlyActive = mouseScrollY != 0.0f;
+      setInputState(MouseInput_Scroll, mouseScrollIsCurrentlyActive);
     }
   }
 
@@ -255,7 +214,6 @@ void loadInputStateForFrame(GLFWwindow* window) {
     setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_START, Controller1Input_Start);
     setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_BACK, Controller1Input_Select);
 
-    b32 analogStickLeftWasActive = analogStickLeft.x != 0 || analogStickLeft.y != 0;
     analogStickLeft = { controllerState.Gamepad.sThumbLX, controllerState.Gamepad.sThumbLY };
     if(analogStickLeft.x > -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE && analogStickLeft.x < XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
     {
@@ -265,16 +223,9 @@ void loadInputStateForFrame(GLFWwindow* window) {
     {
       analogStickLeft.y = 0; // deadzone
     }
-    b32 analogStickLeftIsActive = analogStickLeft.x != 0 || analogStickLeft.y != 0;
-    if (!analogStickLeftWasActive && analogStickLeftIsActive)
-    {
-      (*inputState)[Controller1Input_Analog_Left] = INPUT_ACTIVE;
-    } else if (analogStickLeftWasActive && !analogStickLeftIsActive)
-    {
-      inputState->erase(Controller1Input_Analog_Left);
-    }
+    b32 analogStickLeftIsCurrentlyActive = analogStickLeft.x != 0 || analogStickLeft.y != 0;
+    setInputState(Controller1Input_Analog_Left, analogStickLeftIsCurrentlyActive);
 
-    b32 analogStickRightWasActive = analogStickRight.x != 0 || analogStickRight.y != 0;
     analogStickRight = { controllerState.Gamepad.sThumbRX, controllerState.Gamepad.sThumbRY };
     if(analogStickRight.x > -XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE && analogStickRight.x < XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE)
     {
@@ -284,47 +235,23 @@ void loadInputStateForFrame(GLFWwindow* window) {
     {
       analogStickRight.y = 0; // deadzone
     }
-    b32 analogStickRightIsActive = analogStickRight.x != 0 || analogStickRight.y != 0;
-    if (!analogStickRightWasActive && analogStickRightIsActive)
-    {
-      (*inputState)[Controller1Input_Analog_Right] = INPUT_ACTIVE;
-    } else if (analogStickRightWasActive && !analogStickRightIsActive)
-    {
-      inputState->erase(Controller1Input_Analog_Right);
+    b32 analogStickRightIsCurrentlyActive = analogStickRight.x != 0 || analogStickRight.y != 0;
+    setInputState(Controller1Input_Analog_Right, analogStickRightIsCurrentlyActive);
+
+    b32 leftTriggerIsCurrentlyActive = controllerState.Gamepad.bLeftTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
+    setInputState(Controller1Input_Trigger_Left, leftTriggerIsCurrentlyActive);
+    if(leftTriggerIsCurrentlyActive) {
+        controller1TriggerLeftValue = controllerState.Gamepad.bLeftTrigger - XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
+    } else {
+        controller1TriggerLeftValue = 0;
     }
 
-    auto triggerLeftIterator = inputState->find(Controller1Input_Trigger_Left);
-    InputState oldTriggerLeftState = triggerLeftIterator != inputState->end() ? triggerLeftIterator->second : INPUT_INACTIVE;
-    if (controllerState.Gamepad.bLeftTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD)
-    {
-      if(oldTriggerLeftState & INPUT_HOT_PRESS) {
-        (*inputState)[Controller1Input_Trigger_Left] = INPUT_ACTIVE;
-      } else if(oldTriggerLeftState ^ INPUT_ACTIVE) {
-        (*inputState)[Controller1Input_Trigger_Left] = INPUT_HOT_PRESS;
-      }
-      controller1TriggerLeftValue = controllerState.Gamepad.bLeftTrigger - XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
-    } else if(oldTriggerLeftState & (INPUT_HOT_PRESS | INPUT_ACTIVE)) {
-      (*inputState)[Controller1Input_Trigger_Left] = INPUT_HOT_RELEASE;
-      controller1TriggerLeftValue = 0;
-    } else if(oldTriggerLeftState & INPUT_HOT_RELEASE) { // only erase if there is something to be erased
-      inputState->erase(triggerLeftIterator);
-    }
-
-    auto triggerRightIterator = inputState->find(Controller1Input_Trigger_Right);
-    InputState oldTriggerRightState = triggerRightIterator != inputState->end() ? triggerRightIterator->second : INPUT_INACTIVE;
-    if (controllerState.Gamepad.bRightTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD)
-    {
-      if(oldTriggerRightState & INPUT_HOT_PRESS) {
-        (*inputState)[Controller1Input_Trigger_Right] = INPUT_ACTIVE;
-      } else if(oldTriggerRightState ^ INPUT_ACTIVE) {
-        (*inputState)[Controller1Input_Trigger_Right] = INPUT_HOT_PRESS;
-      }
-      controller1TriggerRightValue = controllerState.Gamepad.bRightTrigger - XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
-    } else if(oldTriggerRightState & (INPUT_HOT_PRESS | INPUT_ACTIVE)) {
-      (*inputState)[Controller1Input_Trigger_Right] = INPUT_HOT_RELEASE;
-      controller1TriggerRightValue = 0;
-    } else if(oldTriggerRightState & INPUT_HOT_RELEASE) { // only erase if there is something to be erased
-      inputState->erase(triggerRightIterator);
+    b32 rightTriggerIsCurrentlyActive = controllerState.Gamepad.bRightTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
+    setInputState(Controller1Input_Trigger_Right, leftTriggerIsCurrentlyActive);
+    if(rightTriggerIsCurrentlyActive) {
+        controller1TriggerRightValue = controllerState.Gamepad.bRightTrigger - XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
+    } else {
+        controller1TriggerRightValue = 0;
     }
   }
 }
