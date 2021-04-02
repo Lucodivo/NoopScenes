@@ -7,7 +7,18 @@
 // #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
 #include "tinygltf/tiny_gltf.h"
 
-VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
+struct TextureData {
+  GLuint albedoTextureId;
+  GLuint normalTextureId;
+};
+
+struct Model {
+  VertexAtt vertexAtt;
+  TextureData textureData;
+  BoundingBox boundingBox;
+};
+
+void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
 {
   struct gltfAttributeMetadata {
     u32 accessorIndex;
@@ -22,13 +33,13 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   const char* normalIndexKeyString = "NORMAL";
   const char* texture0IndexKeyString = "TEXCOORD_0";
 
-  // TODO: Pull vertex  attributes for more then the first primitive of the first mesh of a model
-  Assert(!model->meshes.empty());
-  Assert(!model->meshes[0].primitives.empty());
-  tinygltf::Primitive primitive = model->meshes[0].primitives[0];
+  // TODO: Pull vertex  attributes for more then the first primitive of the first mesh of a gltfModel
+  Assert(!gltfModel->meshes.empty());
+  Assert(!gltfModel->meshes[0].primitives.empty());
+  tinygltf::Primitive primitive = gltfModel->meshes[0].primitives[0];
   Assert(primitive.indices > -1); // TODO: Should we deal with models that don't have indices?
-  std::vector<tinygltf::Accessor>* accessors = &model->accessors;
-  std::vector<tinygltf::BufferView>* bufferViews = &model->bufferViews;
+  std::vector<tinygltf::Accessor>* accessors = &gltfModel->accessors;
+  std::vector<tinygltf::BufferView>* bufferViews = &gltfModel->bufferViews;
 
   auto populateAttributeMetadata = [primitive, accessors, bufferViews](const char* keyString) -> gltfAttributeMetadata {
     gltfAttributeMetadata result;
@@ -44,6 +55,10 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   // TODO: Allow variability in attributes beyond POSITION, NORMAL, TEXCOORD_0?
   Assert(primitive.attributes.find(positionIndexKeyString) != primitive.attributes.end());
   gltfAttributeMetadata positionAttribute = populateAttributeMetadata(positionIndexKeyString);
+  f64* minValues = gltfModel->accessors[positionAttribute.accessorIndex].minValues.data();
+  f64* maxValues = gltfModel->accessors[positionAttribute.accessorIndex].maxValues.data();
+  model->boundingBox.min = Vec3(minValues[0], minValues[1], minValues[2]);
+  model->boundingBox.dimensionInMeters = Vec3(maxValues[0], maxValues[1], maxValues[2]) - model->boundingBox.min;
 
   b32 normalAttributesAvailable = primitive.attributes.find(normalIndexKeyString) != primitive.attributes.end();
   gltfAttributeMetadata normalAttribute{};
@@ -61,7 +76,7 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
 
   // TODO: Handle vertex attributes that don't share the same buffer?
   u32 vertexAttBufferIndex = positionAttribute.bufferIndex;
-  Assert(model->buffers.size() > vertexAttBufferIndex);
+  Assert(gltfModel->buffers.size() > vertexAttBufferIndex);
 
   u32 indicesAccessorIndex = primitive.indices;
   u32 indicesGLTFBufferViewIndex = accessors->at(indicesAccessorIndex).bufferView;
@@ -69,26 +84,25 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   u64 indicesGLTFBufferByteOffset = bufferViews->at(indicesGLTFBufferViewIndex).byteOffset;
   u64 indicesGLTFBufferByteLength = bufferViews->at(indicesGLTFBufferViewIndex).byteLength;
 
-  u8* dataOffset = model->buffers[indicesGLTFBufferIndex].data.data() + indicesGLTFBufferByteOffset;
+  u8* dataOffset = gltfModel->buffers[indicesGLTFBufferIndex].data.data() + indicesGLTFBufferByteOffset;
 
-  VertexAtt vertexAtt;
-  vertexAtt.indexCount = u32(accessors->at(indicesAccessorIndex).count);
-  vertexAtt.indexTypeSizeInBytes = tinygltf::GetComponentSizeInBytes(accessors->at(indicesAccessorIndex).componentType);
+  model->vertexAtt.indexCount = u32(accessors->at(indicesAccessorIndex).count);
+  model->vertexAtt.indexTypeSizeInBytes = tinygltf::GetComponentSizeInBytes(accessors->at(indicesAccessorIndex).componentType);
   u64 sizeOfAttributeData = positionAttribute.bufferByteLength + normalAttribute.bufferByteLength + texture0Attribute.bufferByteLength;
-  Assert(model->buffers[vertexAttBufferIndex].data.size() >= sizeOfAttributeData);
+  Assert(gltfModel->buffers[vertexAttBufferIndex].data.size() >= sizeOfAttributeData);
   const u32 positionAttributeIndex = 0;
   const u32 normalAttributeIndex = 1;
   const u32 texture0AttributeIndex = 2;
 
-  glGenVertexArrays(1, &vertexAtt.arrayObject);
-  glGenBuffers(1, &vertexAtt.bufferObject);
-  glGenBuffers(1, &vertexAtt.indexObject);
+  glGenVertexArrays(1, &model->vertexAtt.arrayObject);
+  glGenBuffers(1, &model->vertexAtt.bufferObject);
+  glGenBuffers(1, &model->vertexAtt.indexObject);
 
-  glBindVertexArray(vertexAtt.arrayObject);
-  glBindBuffer(GL_ARRAY_BUFFER, vertexAtt.bufferObject);
+  glBindVertexArray(model->vertexAtt.arrayObject);
+  glBindBuffer(GL_ARRAY_BUFFER, model->vertexAtt.bufferObject);
   glBufferData(GL_ARRAY_BUFFER,
                sizeOfAttributeData,
-               model->buffers[vertexAttBufferIndex].data.data(),
+               gltfModel->buffers[vertexAttBufferIndex].data.data(),
                GL_STATIC_DRAW);
 
   // set the vertex attributes (position and texture)
@@ -124,28 +138,14 @@ VertexAtt initializeModelVertexBuffer(tinygltf::Model* model)
   }
 
   // bind element buffer object to give indices
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertexAtt.indexObject);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->vertexAtt.indexObject);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesGLTFBufferByteLength, dataOffset, GL_STATIC_DRAW);
 
   // unbind VBO & VAO
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-  return vertexAtt;
 }
-
-struct TextureData {
-  GLuint albedoTextureId;
-  GLuint normalTextureId;
-};
-
-struct Model {
-  VertexAtt vertexAtt;
-  TextureData textureData;
-};
-
-
 
 void loadModelTexture(u32* textureId, tinygltf::Image* image, b32 inputSRGB = false)
 {
@@ -252,7 +252,7 @@ Model loadModel(const char* filePath) {
     printf("Failed to parse glTF\n");
   }
 
-  resultModel.vertexAtt = initializeModelVertexBuffer(&tinyGLTFModel);
+  initializeModelVertexData(&tinyGLTFModel, &resultModel);
   resultModel.textureData = initializeModelTextureData(&tinyGLTFModel);
 
   return resultModel;
@@ -286,7 +286,9 @@ void loadModelsVertexAtt(const char** filePaths, VertexAtt** returnVertAtts, u32
     models.push_back(model);
   }
 
+  Model vertexAttModel;
   for(u32 i = 0; i < modelCount; ++i) {
-    *(returnVertAtts[i]) = initializeModelVertexBuffer(&models[i]);
+    initializeModelVertexData(&models[i], &vertexAttModel);
+    *(returnVertAtts[i]) = vertexAttModel.vertexAtt;
   }
 }

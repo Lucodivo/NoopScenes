@@ -225,30 +225,30 @@ VertexAtt initializeQuadPosTexVertexAttBuffers() {
   return vertexAtt;
 }
 
-file_access void drawIndexedTriangles(VertexAtt vertexAtt, u32 indexCount, u32 indexOffset) {
-  glBindVertexArray(vertexAtt.arrayObject); // NOTE: Binding every time is unnecessary if the same vertexAtt is used for multiple calls in a row
+file_access void drawIndexedTriangles(VertexAtt* vertexAtt, u32 indexCount, u32 indexOffset) {
+  glBindVertexArray(vertexAtt->arrayObject); // NOTE: Binding every time is unnecessary if the same vertexAtt is used for multiple calls in a row
   glDrawElements(GL_TRIANGLES, // drawing mode
                  indexCount, // number of elements
-                 convertSizeInBytesToOpenGLUIntType(vertexAtt.indexTypeSizeInBytes), // type of the indices
-                 (void*)(u64(indexOffset * vertexAtt.indexTypeSizeInBytes))); // offset in the EBO
+                 convertSizeInBytesToOpenGLUIntType(vertexAtt->indexTypeSizeInBytes), // type of the indices
+                 (void*)(u64(indexOffset * vertexAtt->indexTypeSizeInBytes))); // offset in the EBO
 }
 
-void drawTriangles(VertexAtt vertexAtt, u32 count, u32 offset) {
-  Assert(vertexAtt.indexCount >= (offset + count));
+void drawTriangles(VertexAtt* vertexAtt, u32 count, u32 offset) {
+  Assert(vertexAtt->indexCount >= (offset + count));
   drawIndexedTriangles(vertexAtt, count, offset);
 }
 
-void drawTriangles(VertexAtt vertexAtt) {
-  drawTriangles(vertexAtt, vertexAtt.indexCount, 0);
+void drawTriangles(VertexAtt* vertexAtt) {
+  drawTriangles(vertexAtt, vertexAtt->indexCount, 0);
 }
 
-void deleteVertexAtt(VertexAtt vertexAtt) {
-  glDeleteBuffers(1, &vertexAtt.indexObject);
-  glDeleteVertexArrays(1, &vertexAtt.arrayObject);
-  glDeleteBuffers(1, &vertexAtt.bufferObject);
+void deleteVertexAtt(VertexAtt* vertexAtt) {
+  glDeleteBuffers(1, &vertexAtt->indexObject);
+  glDeleteVertexArrays(1, &vertexAtt->arrayObject);
+  glDeleteBuffers(1, &vertexAtt->bufferObject);
 }
 
-void deleteVertexAtts(u32 count, VertexAtt** vertexAtts)
+void deleteVertexAtts(VertexAtt** vertexAtts, u32 count)
 {
   u32* deleteBufferObjects = new u32[count * 3];
   u32* deleteIndexBufferObjects = deleteBufferObjects + count;

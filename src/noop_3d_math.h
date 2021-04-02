@@ -13,6 +13,11 @@
 
 const Mat4 mat4_identity = Mat4(1.0f);
 
+struct BoundingBox {
+  Vec3 min;
+  Vec3 dimensionInMeters;
+};
+
 void adjustNearFarProjection(Mat4* projectionMatrix, f32 zNear, f32 zFar) {
   // Note: logic pulled straight from glm::perspective -> perspectiveRH_NO
   (*projectionMatrix)[2][2] = - (zFar + zNear) / (zFar - zNear);
