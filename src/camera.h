@@ -22,32 +22,30 @@ struct Camera {
 
 // NOTE: pitch and yaw are set to radians
 // NOTE: There is currently no support for lookAt_FirstPerson where forward should point directly up
-Camera lookAt_FirstPerson(Vec3 origin, Vec3 focus) {
+void lookAt_FirstPerson(Vec3 origin, Vec3 focus, Camera* camera) {
   const f32 forwardDotUpThresholdMax = 0.996194f; // cos(5 degrees)
   const f32 forwardDotUpThresholdMin = -0.996194f; // cos(175 degrees)
 
-  Camera camera;
-  camera.thirdPerson = false;
-  camera.origin = origin;
-  camera.forward = glm::normalize(focus - origin);
-  f32 forwardDotUp = glm::dot(camera.forward, WORLD_UP);
+  camera->thirdPerson = false;
+  camera->origin = origin;
+  camera->forward = glm::normalize(focus - origin);
+  f32 forwardDotUp = glm::dot(camera->forward, WORLD_UP);
   if (forwardDotUp > forwardDotUpThresholdMax || forwardDotUp < forwardDotUpThresholdMin)
   {
     std::cout << "Look At Camera Failed" << std::endl;
-    camera.forward = glm::normalize(Vec3(camera.forward.x, camera.forward.y + 0.01f, 0.0f));
+    camera->forward = glm::normalize(Vec3(camera->forward.x, camera->forward.y + 0.01f, 0.0f));
   }
 
-  camera.pitch = glm::asin(camera.forward.z);
+  camera->pitch = glm::asin(camera->forward.z);
 
-  Vec2 cameraForwardXYPlane = glm::normalize(Vec2(camera.forward.x, camera.forward.y));
-  camera.yaw = glm::acos(cameraForwardXYPlane.x);
+  Vec2 cameraForwardXYPlane = glm::normalize(Vec2(camera->forward.x, camera->forward.y));
+  camera->yaw = glm::acos(cameraForwardXYPlane.x);
   if(cameraForwardXYPlane.y < 0) {
-    camera.yaw = -camera.yaw;
+    camera->yaw = -camera->yaw;
   }
 
-  camera.right = glm::normalize(glm::cross(camera.forward, WORLD_UP));
-  camera.up = glm::cross(camera.right, camera.forward);
-  return camera;
+  camera->right = glm::normalize(glm::cross(camera->forward, WORLD_UP));
+  camera->up = glm::cross(camera->right, camera->forward);
 }
 
 /*
@@ -86,30 +84,28 @@ void updateCamera_FirstPerson(Camera* camera, Vec3 posOffset, f32 pitchOffset, f
 
 // NOTE: Yaw value of 0 degrees means we are looking in the direction of +x, 90=+y, 180=-x, 270=-y
 // NOTE: Pitch value represents the angle between the vector from camera to pivot and the xy plane
-Camera lookAt_ThirdPerson(Vec3 pivot, Vec3 forward) {
+void lookAt_ThirdPerson(Vec3 pivot, Vec3 forward, Camera* camera) {
   // Viewing angle measured between vector from pivot to camera and the xy plane
   const f32 startingPitch = 33.0f * RadiansPerDegree;
 
   Vec2 xyForward = glm::normalize(Vec2(forward.x, forward.y));
   Vec2 xyPivotToCamera = -xyForward;
 
-  Camera camera;
-  camera.thirdPerson = true;
-  camera.pitch = startingPitch;
-  camera.yaw = acos(xyPivotToCamera.x);
+  camera->thirdPerson = true;
+  camera->pitch = startingPitch;
+  camera->yaw = acos(xyPivotToCamera.x);
   if(xyPivotToCamera.y < 0) {
-    camera.yaw = -camera.yaw;
+    camera->yaw = -camera->yaw;
   }
 
-  const f32 distBackFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * cos(camera.pitch);
-  const f32 distAboveFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * sin(camera.pitch);
+  const f32 distBackFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * cos(camera->pitch);
+  const f32 distAboveFromPivot = DIST_FROM_PIVOT_THIRD_PERSON * sin(camera->pitch);
 
-  camera.origin = pivot + Vec3(-distBackFromPivot * xyForward, distAboveFromPivot);
-  camera.forward = glm::normalize(pivot - camera.origin);
+  camera->origin = pivot + Vec3(-distBackFromPivot * xyForward, distAboveFromPivot);
+  camera->forward = glm::normalize(pivot - camera->origin);
 
-  camera.right = glm::normalize(glm::cross(camera.forward, WORLD_UP));
-  camera.up = glm::cross(camera.right, camera.forward);
-  return camera;
+  camera->right = glm::normalize(glm::cross(camera->forward, WORLD_UP));
+  camera->up = glm::cross(camera->right, camera->forward);
 }
 
 void updateCamera_ThirdPerson(Camera* camera, Vec3 pivotPoint, f32 pitchOffset, f32 yawOffset) {
@@ -140,7 +136,7 @@ void updateCamera_ThirdPerson(Camera* camera, Vec3 pivotPoint, f32 pitchOffset, 
 }
 
 // NOTE: offsetPitch and offsetYaw in radians
-Mat4 getViewMatrix(Camera camera) {
+Mat4 getViewMat(const Camera& camera) {
   // In glm we access elements as mat[col][row] due to column-major layout
   Mat4 translation = Mat4(
           1.0f, 0.0f, 0.0f, 0.0f,

@@ -25,8 +25,12 @@ typedef s32 b32;
 #define PiOverTwo32 (Pi32 / 2.0f)
 #define Tau32 6.28318530717958647692f
 #define RadiansPerDegree (Pi32 / 180.0f)
+#define U32_MAX ~0u
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+
+#define Min(x, y) (x < y ? x : y)
+#define Max(x, y) (x > y ? x : y)
 
 #ifdef NOT_DEBUG
 #define Assert(Expression)

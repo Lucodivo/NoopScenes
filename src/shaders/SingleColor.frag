@@ -1,10 +1,10 @@
 #version 420
 
-uniform vec3 color;
+uniform vec3 baseColor;
 
 layout (location = 0) out vec4 outColor;
 
 void main()
 {
-  outColor = vec4(color, 1.0);
+  outColor = vec4(baseColor, 1.0);
 }

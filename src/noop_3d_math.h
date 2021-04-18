@@ -23,3 +23,11 @@ void adjustNearFarProjection(Mat4* projectionMatrix, f32 zNear, f32 zFar) {
   (*projectionMatrix)[2][2] = - (zFar + zNear) / (zFar - zNear);
   (*projectionMatrix)[3][2] = - (2.0f * zFar * zNear) / (zFar - zNear);
 }
+
+inline f32 dot(Vec3 xyz1, Vec3 xyz2) {
+  return (xyz1.x * xyz2.x) + (xyz1.y * xyz2.y) + (xyz1.z * xyz2.z);
+}
+
+inline f32 distSquared(Vec3 xyz) {
+  return dot(xyz, xyz);
+}

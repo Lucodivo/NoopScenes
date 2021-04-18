@@ -163,8 +163,6 @@ file_access u32 loadShader(const char* shaderPath, GLenum shaderType) {
     shaderTypeStr = "VERTEX";
   } else if(shaderType == GL_FRAGMENT_SHADER){
     shaderTypeStr = "FRAGMENT";
-  } else if(shaderType == GL_GEOMETRY_SHADER) {
-    shaderTypeStr = "GEOMETRY";
   }
 
   std::string shaderCode;

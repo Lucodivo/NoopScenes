@@ -105,7 +105,10 @@ const Vec3 cubeFaceNegativeZNormal = cubeFaceNegativeZCenter * 2.0f;
 const Vec3 cubeFacePositiveZNormal = cubeFacePositiveZCenter * 2.0f;
 const Vec3 cubeFaceNegativeYNormal = cubeFaceNegativeYCenter * 2.0f;
 const Vec3 cubeFacePositiveYNormal = cubeFacePositiveYCenter * 2.0f;
-
+const BoundingBox cubeVertAttBoundingBox = {
+        Vec3(-0.5, -0.5, -0.5),
+        Vec3(1.0f, 1.0f, 1.0f)
+};
 
 
 // ===== Quad values (vec3 position, vec2 tex) =====
@@ -230,7 +233,7 @@ file_access void drawIndexedTriangles(VertexAtt* vertexAtt, u32 indexCount, u32 
   glDrawElements(GL_TRIANGLES, // drawing mode
                  indexCount, // number of elements
                  convertSizeInBytesToOpenGLUIntType(vertexAtt->indexTypeSizeInBytes), // type of the indices
-                 (void*)(u64(indexOffset * vertexAtt->indexTypeSizeInBytes))); // offset in the EBO
+                 (void*)(indexOffset * vertexAtt->indexTypeSizeInBytes)); // offset in the EBO
 }
 
 void drawTriangles(VertexAtt* vertexAtt, u32 count, u32 offset) {

@@ -2,8 +2,9 @@
 
 The spirit of the creation of this project is to experiment with creating 3D scenes while attempting to play outside of
 the OOP mindset where I have control. This is not due to a belief that objects or classes are bad, but as an attempt to
-not limit my thought process to a single way of creating software. In the future, I ideally use classes for things I know
-they are wonderful at and use a better tool for things they aren't.
+not limit my thought process to a single way of creating software. It is about personal experimentation and investigation.
+In the future, I ideally use classes for things I know they are wonderful at and use a better tool for things they aren't.
+At the time of starting this project I feel fairly tied down to the OOP way of thinking.
 
 ### Building
 1) Cloning the project will include most dependencies: [glm](https://github.com/g-truc/glm), [tinygltf](https://github.com/syoyo/tinygltf), [stb](https://github.com/nothings/stb), [glad](https://github.com/Dav1dde/glad), [json](https://github.com/nlohmann/json#examples)
@@ -44,8 +45,31 @@ they are wonderful at and use a better tool for things they aren't.
 - Right handed-coordinate system with the z-axis representing the upward/downward movement.
   - Justifications:
     - Blender & GLM (by default) are right-handed systems and are tools used for this project
-    - Z is up is used in Blender and is a tool used for this project
+    - ~~Z is up is used in Blender and is a tool used for this project~~ [Working in Blender uses Z-up but Blender exports Y-up by default]
     - Shortening a 3D vector to a 2D by cutting off the third value (z) to acquire "ground coordinates" is appealing
+    
+#### Etc.
+- If a function argument may be modified in the function, it will be passed in as a pointer type.
+- If a function argument may not be modified in the function, it will be passed as a constant reference.
+- Non-constant reference arguments will not be used as function arguments in this project.
+```
+// with non-const reference
+void someFunc(int& xArg);
+void main() {
+    ...
+    int x;
+    someFunc(x); // Without knowing the function header, how do I know x might change?
+    ...
+}
+
+// with pointer
+void someFunc(int* xArg);
+void main() {
+    ...
+    int x;
+    someFunc(&x); // explicit at call site that x might change
+}
+```
 
 #### Vertex & Fragment Shaders
 - Using binding points for uniform buffer objects requires us to use at least GLSL #version 420
