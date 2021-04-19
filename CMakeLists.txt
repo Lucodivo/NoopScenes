@@ -30,6 +30,8 @@ add_library(glad STATIC "${EXT_DIR}/glad/glad.c" )
 
 add_executable(NoopScenes src/main.cpp)
 
+add_executable(TestingGround src/testing_ground/testing_ground.cpp)
+
 # Put all libraries into a variable
 set(LIBS opengl32 glad ${GLFW_LIB})
 

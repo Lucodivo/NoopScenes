@@ -144,8 +144,7 @@ void portalScene(GLFWwindow* window) {
 
   Vec3 firstPersonCameraInitPosition = calcPlayerViewingPosition(&player);
   Vec3 firstPersonCameraInitFocus = Vec3(gatePosition.x, gatePosition.y, firstPersonCameraInitPosition.z);
-  Camera camera;
-  lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, &camera);
+  lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, &world.camera);
 
   VertexAtt cubePosVertexAtt = initializeCubePositionVertexAttBuffers();
   VertexAtt invertedCubePosVertexAtt = initializeCubePositionVertexAttBuffers(true);
@@ -289,12 +288,12 @@ void portalScene(GLFWwindow* window) {
         Vec3 playerMovementDirection{};
         if (lateralMovement)
         {
-          playerMovementDirection += rightIsActive ? camera.right : -camera.right;
+          playerMovementDirection += rightIsActive ? world.camera.right : -world.camera.right;
         }
 
         if (forwardMovement)
         {
-          playerMovementDirection += upIsActive ? camera.forward : -camera.forward;
+          playerMovementDirection += upIsActive ? world.camera.forward : -world.camera.forward;
         }
 
         playerMovementDirection = glm::normalize(Vec3(playerMovementDirection.x, playerMovementDirection.y, 0.0));
@@ -303,24 +302,24 @@ void portalScene(GLFWwindow* window) {
       player.boundingBox.min += playerDelta;
 
       if(tabHotPress) { // switch between third and first person
-        Vec3 xyForward = glm::normalize(Vec3(camera.forward.x, camera.forward.y, 0.0f));
+        Vec3 xyForward = glm::normalize(Vec3(world.camera.forward.x, world.camera.forward.y, 0.0f));
 
-        if(!camera.thirdPerson) {
-          lookAt_ThirdPerson(playerCenter, xyForward, &camera);
+        if(!world.camera.thirdPerson) {
+          lookAt_ThirdPerson(playerCenter, xyForward, &world.camera);
         } else { // camera is first person now
           Vec3 focus = playerViewPosition + xyForward;
-          lookAt_FirstPerson(playerViewPosition, focus, &camera);
+          lookAt_FirstPerson(playerViewPosition, focus, &world.camera);
         }
       }
 
       const f32 mouseDeltaMultConst = 0.001f;
-      if(camera.thirdPerson) {
-        updateCamera_ThirdPerson(&camera, playerCenter, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * 0.001f));
+      if(world.camera.thirdPerson) {
+        updateCamera_ThirdPerson(&world.camera, playerCenter, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * 0.001f));
       } else {
-        updateCamera_FirstPerson(&camera, playerDelta, f32(-mouseDelta.y * mouseDeltaMultConst), f32(-mouseDelta.x * 0.001f));
+        updateCamera_FirstPerson(&world.camera, playerDelta, f32(-mouseDelta.y * mouseDeltaMultConst), f32(-mouseDelta.x * 0.001f));
       }
 
-      projectionViewModelUbo.view = getViewMat(camera);
+      projectionViewModelUbo.view = getViewMat(world.camera);
     }
 
     // draw
@@ -334,7 +333,7 @@ void portalScene(GLFWwindow* window) {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     // TODO: This should ideally relate to the player view and direction, so a third-person camera can more easily act as a debug camera
-    b32 gateIsInFront = glm::dot(camera.forward, glm::normalize(gatePosition - camera.origin)) > 0;
+    b32 gateIsInFront = glm::dot(world.camera.forward, glm::normalize(gatePosition - world.camera.origin)) > 0;
     b32 insideGate = insideBox(gateModel.boundingBox, playerViewPosition);
     b32 gateIsVisible = gateIsInFront || insideGate;
 
@@ -342,10 +341,10 @@ void portalScene(GLFWwindow* window) {
     Vec3 portalPositiveXCenterToPlayerView = playerViewPosition - portalPositiveXCenter;
     Vec3 portalNegativeYCenterToPlayerView = playerViewPosition - portalNegativeYCenter;
     Vec3 portalPositiveYCenterToPlayerView = playerViewPosition - portalPositiveYCenter;
-    f32 distSquaredPortalNegativeXCenterToPlayerView = distSquared(portalNegativeXCenterToPlayerView);
-    f32 distSquaredPortalPositiveXCenterToPlayerView = distSquared(portalPositiveXCenterToPlayerView);
-    f32 distSquaredPortalNegativeYCenterToPlayerView = distSquared(portalNegativeYCenterToPlayerView);
-    f32 distSquaredPortalPositiveYCenterToPlayerView = distSquared(portalPositiveYCenterToPlayerView);
+    f32 distSquaredPortalNegativeXCenterToPlayerView = magnitudeSquared(portalNegativeXCenterToPlayerView);
+    f32 distSquaredPortalPositiveXCenterToPlayerView = magnitudeSquared(portalPositiveXCenterToPlayerView);
+    f32 distSquaredPortalNegativeYCenterToPlayerView = magnitudeSquared(portalNegativeYCenterToPlayerView);
+    f32 distSquaredPortalPositiveYCenterToPlayerView = magnitudeSquared(portalPositiveYCenterToPlayerView);
 
     if(portalInFocus != insideGate) { // If transitioning between inside and outside of gate boundaries
       if(insideGate) { // transitioning to inside
@@ -387,7 +386,7 @@ void portalScene(GLFWwindow* window) {
     setUniform(skyboxShader.id, "skybox", mainSkyboxTextureIndex);
     drawTriangles(&invertedCubePosVertexAtt);
 
-    if(camera.thirdPerson) { // draw player if third person
+    if(world.camera.thirdPerson) { // draw player if third person
       Vec3 playerCenter = calcBoundingBoxCenterPosition(player.boundingBox);
       Vec3 playerViewCenter = calcPlayerViewingPosition(&player);
       Vec3 playerBoundingBoxColor_Red = Vec3(1.0f, 0.0f, 0.0f);
