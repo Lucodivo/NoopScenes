@@ -1,6 +1,6 @@
 #pragma once
 
-#include "noop_3d_math.h"
+#include "noop_math.h"
 
 #define VERTEX_ATT_NO_INDEX_OBJECT -1
 
@@ -92,22 +92,22 @@ const u32 cubeFaceNegativeYIndicesOffset = 12;
 const u32 cubeFacePositiveYIndicesOffset = 18;
 const u32 cubeFaceNegativeZIndicesOffset = 24;
 const u32 cubeFacePositiveZIndicesOffset = 30;
-const Vec3 cubeFaceNegativeXCenter = Vec3(-0.5f, 0.0f, 0.0f);
-const Vec3 cubeFacePositiveXCenter = Vec3(0.5f, 0.0f, 0.0f);
-const Vec3 cubeFaceNegativeYCenter = Vec3(0.0f, -0.5f, 0.0f);
-const Vec3 cubeFacePositiveYCenter = Vec3(0.0f, 0.5f, 0.0f);
-const Vec3 cubeFaceNegativeZCenter = Vec3(0.0f, 0.0f, -0.5f);
-const Vec3 cubeFacePositiveZCenter = Vec3(0.0f, 0.0f, 0.5f);
+const vec3 cubeFaceNegativeXCenter{-0.5f, 0.0f, 0.0f};
+const vec3 cubeFacePositiveXCenter{0.5f, 0.0f, 0.0f};
+const vec3 cubeFaceNegativeYCenter{0.0f, -0.5f, 0.0f};
+const vec3 cubeFacePositiveYCenter{0.0f, 0.5f, 0.0f};
+const vec3 cubeFaceNegativeZCenter{0.0f, 0.0f, -0.5f};
+const vec3 cubeFacePositiveZCenter{0.0f, 0.0f, 0.5f};
 // center values are simply doubled to get a normalized vector
-const Vec3 cubeFaceNegativeXNormal = cubeFaceNegativeXCenter * 2.0f;
-const Vec3 cubeFacePositiveXNormal = cubeFacePositiveXCenter * 2.0f;
-const Vec3 cubeFaceNegativeZNormal = cubeFaceNegativeZCenter * 2.0f;
-const Vec3 cubeFacePositiveZNormal = cubeFacePositiveZCenter * 2.0f;
-const Vec3 cubeFaceNegativeYNormal = cubeFaceNegativeYCenter * 2.0f;
-const Vec3 cubeFacePositiveYNormal = cubeFacePositiveYCenter * 2.0f;
+const vec3 cubeFaceNegativeXNormal = cubeFaceNegativeXCenter * 2.0f;
+const vec3 cubeFacePositiveXNormal = cubeFacePositiveXCenter * 2.0f;
+const vec3 cubeFaceNegativeZNormal = cubeFaceNegativeZCenter * 2.0f;
+const vec3 cubeFacePositiveZNormal = cubeFacePositiveZCenter * 2.0f;
+const vec3 cubeFaceNegativeYNormal = cubeFaceNegativeYCenter * 2.0f;
+const vec3 cubeFacePositiveYNormal = cubeFacePositiveYCenter * 2.0f;
 const BoundingBox cubeVertAttBoundingBox = {
-        Vec3(-0.5, -0.5, -0.5),
-        Vec3(1.0f, 1.0f, 1.0f)
+        {-0.5, -0.5, -0.5},
+        {1.0f, 1.0f, 1.0f}
 };
 
 
@@ -228,7 +228,7 @@ VertexAtt initializeQuadPosTexVertexAttBuffers() {
   return vertexAtt;
 }
 
-file_access void drawIndexedTriangles(VertexAtt* vertexAtt, u32 indexCount, u32 indexOffset) {
+file_access void drawIndexedTriangles(VertexAtt* vertexAtt, u32 indexCount, u64 indexOffset) {
   glBindVertexArray(vertexAtt->arrayObject); // NOTE: Binding every time is unnecessary if the same vertexAtt is used for multiple calls in a row
   glDrawElements(GL_TRIANGLES, // drawing mode
                  indexCount, // number of elements

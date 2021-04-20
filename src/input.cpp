@@ -16,9 +16,9 @@ file_access void glfw_framebuffer_size_callback(GLFWwindow* window, s32 width, s
 
 file_access b32 windowModeChangeTossNextInput = false;
 file_access Extent2D globalWindowExtent = Extent2D{ 0, 0 };
-file_access Vec2_f64 globalMouseScroll = Vec2_f64{ 0.0, 0.0 };
-file_access Vec2_f64 mousePosition = { 0.0, 0.0 };
-file_access Vec2_f64 mouseDelta = { 0.0, 0.0 };
+file_access vec2_64 globalMouseScroll = vec2_64{ 0.0, 0.0 };
+file_access vec2_64 mousePosition = { 0.0, 0.0 };
+file_access vec2_64 mouseDelta = { 0.0, 0.0 };
 file_access ControllerAnalogStick analogStickLeft = { 0, 0 };
 file_access ControllerAnalogStick analogStickRight = { 0, 0 };
 file_access f32 mouseScrollY = 0.0f;
@@ -72,11 +72,11 @@ inline b32 isActive(InputType inputType) {
   return inputStates[inputType] & (INPUT_HOT_PRESS | INPUT_ACTIVE);
 }
 
-inline Vec2_f64 getMousePosition() {
+inline vec2_64 getMousePosition() {
   return mousePosition;
 }
 
-inline Vec2_f64 getMouseDelta() {
+inline vec2_64 getMouseDelta() {
   return mouseDelta;
 }
 
@@ -194,11 +194,11 @@ void loadInputStateForFrame(GLFWwindow* window) {
 
     // mouse movement state management
     {
-      Vec2_f64 newMouseCoord;
+      vec2_64 newMouseCoord;
       glfwGetCursorPos(window, &newMouseCoord.x, &newMouseCoord.y);
 
       // NOTE: We do not consume mouse input on window size changes as it results in unwanted values
-      mouseDelta = consumabool(&windowModeChangeTossNextInput) ? Vec2_f64{0.0f, 0.0f} : Vec2_f64{newMouseCoord.x - mousePosition.x, newMouseCoord.y - mousePosition.y};
+      mouseDelta = consumabool(&windowModeChangeTossNextInput) ? vec2_64{0.0f, 0.0f} : vec2_64{newMouseCoord.x - mousePosition.x, newMouseCoord.y - mousePosition.y};
       mousePosition = newMouseCoord;
       b32 mouseMovementIsCurrentlyActive = mouseDelta.x != 0.0f || mouseDelta.y != 0.0f;
       setInputState(MouseInput_Movement, mouseMovementIsCurrentlyActive);

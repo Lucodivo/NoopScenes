@@ -59,8 +59,8 @@ inline b32 hotRelease(InputType key); // returns true if input was just deactiva
 inline b32 isActive(InputType key); // returns true if key is pressed or held down
 inline InputState getInputState(InputType key); // Note: for special use cases (ex: double click), use hotPress/hotRelease/isActive in most cases
 
-inline Vec2_f64 getMousePosition();
-inline Vec2_f64 getMouseDelta();
+inline vec2_64 getMousePosition();
+inline vec2_64 getMouseDelta();
 inline f32 getMouseScrollY();
 inline s8 getControllerTriggerRaw_Left(); // NOTE: values range from 0 - 225 (255 minus trigger threshold)
 inline s8 getControllerTriggerRaw_Right(); // NOTE: values range from 0 - 225 (255 minus trigger threshold)

@@ -14,7 +14,7 @@
 struct TextureData {
   GLuint albedoTextureId;
   GLuint normalTextureId;
-  Vec4 baseColor;
+  vec4 baseColor;
 };
 
 struct Mesh {
@@ -105,7 +105,7 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
   const char* normalIndexKeyString = "NORMAL";
   const char* texture0IndexKeyString = "TEXCOORD_0";
 
-  model->meshCount = gltfModel->meshes.size();
+  model->meshCount = (u32)gltfModel->meshes.size();
   Assert(model->meshCount != 0);
   model->meshes = new Mesh[model->meshCount];
   std::vector<tinygltf::Accessor>* gltfAccessors = &gltfModel->accessors;
@@ -122,7 +122,7 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
     return result;
   };
 
-  for(int i = 0; i < model->meshCount; ++i) {
+  for(u32 i = 0; i < model->meshCount; ++i) {
     Mesh* mesh = &model->meshes[i];
 
     tinygltf::Mesh gltfMesh = gltfModel->meshes[i];
@@ -136,8 +136,8 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
     gltfAttributeMetadata positionAttribute = populateAttributeMetadata(positionIndexKeyString, gltfPrimitive);
     f64* minValues = gltfModel->accessors[positionAttribute.accessorIndex].minValues.data();
     f64* maxValues = gltfModel->accessors[positionAttribute.accessorIndex].maxValues.data();
-    model->boundingBox.min = Vec3(minValues[0], minValues[1], minValues[2]);
-    model->boundingBox.dimensionInMeters = Vec3(maxValues[0], maxValues[1], maxValues[2]) - model->boundingBox.min;
+    model->boundingBox.min = {(f32)minValues[0], (f32)minValues[1], (f32)minValues[2]};
+    model->boundingBox.dimensionInMeters = vec3{(f32)maxValues[0], (f32)maxValues[1], (f32)maxValues[2]} - model->boundingBox.min;
 
     b32 normalAttributesAvailable = gltfPrimitive.attributes.find(normalIndexKeyString) != gltfPrimitive.attributes.end();
     gltfAttributeMetadata normalAttribute{};
@@ -163,7 +163,7 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
     u64 indicesGLTFBufferByteOffset = indicesGLTFBufferView.byteOffset;
     u64 indicesGLTFBufferByteLength = indicesGLTFBufferView.byteLength;
 
-    u32 minOffset = Min(positionAttribute.bufferByteOffset, Min(texture0Attribute.bufferByteOffset, normalAttribute.bufferByteOffset));
+    u64 minOffset = Min(positionAttribute.bufferByteOffset, Min(texture0Attribute.bufferByteOffset, normalAttribute.bufferByteOffset));
     u8* vertexAttributeDataOffset = gltfModel->buffers[indicesGLTFBufferIndex].data.data() + minOffset;
     u8* indicesDataOffset = gltfModel->buffers[indicesGLTFBufferIndex].data.data() + indicesGLTFBufferByteOffset;
 
@@ -235,7 +235,7 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
       Assert(gltfMaterial.normalTexture.texCoord == 0 && gltfMaterial.pbrMetallicRoughness.baseColorTexture.texCoord == 0)
 
       f64* baseColor = gltfMaterial.pbrMetallicRoughness.baseColorFactor.data();
-      mesh->textureData.baseColor = Vec4{ baseColor[0], baseColor[1], baseColor[2], baseColor[3] };
+      mesh->textureData.baseColor = {(f32)baseColor[0], (f32)baseColor[1], (f32)baseColor[2], (f32)baseColor[3] };
 
       // NOTE: gltf.textures.samplers gives info about how to magnify/minify textures and how texture wrapping should work
       // TODO: Don't load the same texture multiple times if multiple meshes use the same texture
@@ -259,7 +259,7 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
     } else {
       mesh->textureData.normalTextureId = TEXTURE_ID_NO_TEXTURE;
       mesh->textureData.albedoTextureId = TEXTURE_ID_NO_TEXTURE;
-      mesh->textureData.baseColor = Vec4{ 0.0f };
+      mesh->textureData.baseColor = {};
     }
   }
 }
@@ -294,7 +294,7 @@ void loadModel(const char* filePath, Model* returnModel) {
 void loadModels(const char** filePaths, u32 count, Model** returnModels) {
   tinygltf::TinyGLTF loader;
 
-  for(int i = 0; i < count; i++) {
+  for(u32 i = 0; i < count; i++) {
     std::string err;
     std::string warn;
     tinygltf::Model tinyGLTFModel;
@@ -325,7 +325,7 @@ void drawModelPlus(const Model& model, GLuint shaderProgramId) {
   for(u32 i = 0; i < model.meshCount; ++i) {
     Mesh* meshPtr = model.meshes + i;
     if(baseColorValid(meshPtr->textureData)) {
-      Vec3 baseColor = {
+      vec3 baseColor = {
               meshPtr->textureData.baseColor.x,
               meshPtr->textureData.baseColor.y,
               meshPtr->textureData.baseColor.z
@@ -350,13 +350,13 @@ void deleteModels(Model** models, u32 count) {
   std::vector<VertexAtt*> vertexAtts;
   std::vector<TextureData> textureData;
 
-  for(int i = 0; i < count; ++i) {
+  for(u32 i = 0; i < count; ++i) {
     Model* modelPtr = models[i];
-    for(int i = 0; i < modelPtr->meshCount; ++i) {
+    for(u32 i = 0; i < modelPtr->meshCount; ++i) {
       Mesh* meshPtr = modelPtr->meshes;
       vertexAtts.push_back(&meshPtr->vertexAtt);
     }
   }
 
-  deleteVertexAtts(vertexAtts.data(), vertexAtts.size());
+  deleteVertexAtts(vertexAtts.data(), (u32)vertexAtts.size());
 }

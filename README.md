@@ -107,9 +107,9 @@ layout (binding = 0, std140) uniform UBO { // base alignment   // aligned offset
 ```
 // cpp
 struct UBO {              // base alignment   // aligned offset
-  Mat4 projection;        // 4                // 0
-  Mat4 view;              // 4                // 64
-  Mat4 model;             // 4                // 128
+  mat4 projection;        // 4                // 0
+  mat4 view;              // 4                // 64
+  mat4 model;             // 4                // 128
   uVec2 resolution;       // 4                // 192
   f32 time;               // 4                // 200
   f32 delta;              // 4                // 204

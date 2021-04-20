@@ -1,5 +1,3 @@
-#define max(a, b) (a > b) ? a : b
-
 void toWindowedMode(GLFWwindow* window, const u32 width, const u32 height) {
   GLFWmonitor* monitor = glfwGetPrimaryMonitor();
   const GLFWvidmode* mode = glfwGetVideoMode(monitor);
@@ -12,7 +10,7 @@ Extent2D toFullScreenMode(GLFWwindow* window) {
   GLFWmonitor* monitor = glfwGetPrimaryMonitor();
   const GLFWvidmode* mode = glfwGetVideoMode(monitor);
   glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, GLFW_DONT_CARE);
-  return Extent2D{ u32(max(0, mode->width)), u32(max(0, mode->height)) };
+  return Extent2D{ (u32)Max(0, mode->width), (u32)Max(0, mode->height) };
 }
 
 Extent2D toggleWindowSize(GLFWwindow* window, const u32 width, const u32 height)

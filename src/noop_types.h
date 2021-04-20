@@ -29,13 +29,10 @@ typedef s32 b32;
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
-#define Min(x, y) (x < y ? x : y)
-#define Max(x, y) (x > y ? x : y)
-
-#ifdef NOT_DEBUG
+#ifdef NDEBUG
 #define Assert(Expression)
 #else
-#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
+#define Assert(Expression) if(!(Expression)) {*(u8*)0 = 0;}
 #endif
 
 #define InvalidCodePath Assert(!"InvalidCodePath");
@@ -46,14 +43,8 @@ struct Extent2D
   u32 height;
 };
 
-struct Vec2
-{
-  f32 x;
-  f32 y;
-};
-
-struct Vec2_f64
-{
+// TODO: Bring this into noop_math if ever needed?
+struct vec2_64 {
   f64 x;
   f64 y;
 };

@@ -1,15 +1,11 @@
 #pragma once
 
-#pragma once
-
 #include <glad/glad.h> // include glad to get all the required OpenGL headers
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 
 #include <string>
 #include <fstream>
 #include <sstream>
-#include "noop_3d_math.h"
+#include "noop_math.h"
 
 struct ShaderProgram {
   GLuint id;
@@ -88,20 +84,20 @@ void setUniform(GLuint shaderId, const std::string& name, f32 value1, f32 value2
   glUniform4f(glGetUniformLocation(shaderId, name.c_str()), value1, value2, value3, value4);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const Mat4& mat)
+void setUniform(GLuint shaderId, const std::string& name, const mat4& mat)
 {
   glUniformMatrix4fv(glGetUniformLocation(shaderId, name.c_str()),
                      1, // count
                      GL_FALSE, // transpose: swap columns and rows (true or false)
-                     glm::value_ptr(mat)); // pointer to float values
+                     mat.values); // pointer to float values
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const Mat4* matArray, const u32 arraySize)
+void setUniform(GLuint shaderId, const std::string& name, const mat4* matArray, const u32 arraySize)
 {
   glUniformMatrix4fv(glGetUniformLocation(shaderId, name.c_str()),
                      arraySize, // count
                      GL_FALSE, // transpose: swap columns and rows (true or false)
-                     glm::value_ptr(*matArray)); // pointer to float values
+                     matArray->values); // pointer to float values
 }
 
 void setUniform(GLuint shaderId, const std::string& name, const float* floatArray, const u32 arraySize)
@@ -109,17 +105,17 @@ void setUniform(GLuint shaderId, const std::string& name, const float* floatArra
   glUniform1fv(glGetUniformLocation(shaderId, name.c_str()), arraySize, floatArray);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const Vec2& vector2)
+void setUniform(GLuint shaderId, const std::string& name, const vec2& vector2)
 {
   setUniform(shaderId, name, vector2.x, vector2.y);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const Vec3& vector3)
+void setUniform(GLuint shaderId, const std::string& name, const vec3& vector3)
 {
   setUniform(shaderId, name, vector3.x, vector3.y, vector3.z);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const Vec4& vector4)
+void setUniform(GLuint shaderId, const std::string& name, const vec4& vector4)
 {
   setUniform(shaderId, name, vector4.x, vector4.y, vector4.z, vector4.w);
 }
