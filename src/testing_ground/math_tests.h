@@ -17,15 +17,7 @@ void printMat4(const char* name, const mat4& M) {
   }
 }
 
-b32 equals(const vec4& v1, const vec4& v2) {
-  b32 pass = true;
-  for(u32 i = 0; i < 4; ++i) {
-    pass = pass && (v1.c[i] == v2.c[i]);
-  }
-  return pass;
-}
-
-b32 equals(const vec4& v1, const vec4& v2, f32 epsilon) {
+b32 equals(const vec4& v1, const vec4& v2, f32 epsilon = 0.001f) {
   b32 pass = true;
   for(u32 i = 0; i < 4; ++i) {
     f32 diff = (v1.c[i] - v2.c[i]);
@@ -34,7 +26,7 @@ b32 equals(const vec4& v1, const vec4& v2, f32 epsilon) {
   return pass;
 }
 
-b32 equals(const vec3& v1, const vec3& v2, f32 epsilon) {
+b32 equals(const vec3& v1, const vec3& v2, f32 epsilon = 0.001f) {
   b32 pass = true;
   for(u32 i = 0; i < 3; ++i) {
     f32 diff = (v1.c[i] - v2.c[i]);
@@ -124,7 +116,6 @@ void mat4MultTest() {
 }
 
 void mat4RotateTest() {
-  f32 epsilon = 0.01f;
   f32 angle = 120.f * RadiansPerDegree;
   vec3 rotationAxis{1.0f, 1.0f, 1.0f};
   vec4 x{1.0f, 0.0f, 0.0f, 1.0f};
@@ -138,14 +129,13 @@ void mat4RotateTest() {
   vec4 rotatedZ = rotationMat * z;
   vec4 rotatedAxis = rotationMat * vec4{rotationAxis.x, rotationAxis.y, rotationAxis.y, 1.0f};
 
-  Assert(equals(rotatedX, y, epsilon));
-  Assert(equals(rotatedY, z, epsilon));
-  Assert(equals(rotatedZ, x, epsilon));
-  Assert(equals(rotatedAxis.xyz, rotationAxis, epsilon));
+  Assert(equals(rotatedX, y));
+  Assert(equals(rotatedY, z));
+  Assert(equals(rotatedZ, x));
+  Assert(equals(rotatedAxis.xyz, rotationAxis));
 }
 
 void quaternionVec3RotationTest(){
-  f32 epsilon = 0.01f;
   f32 angle = 120.f * RadiansPerDegree;
   vec3 rotationAxis{1.0f, 1.0f, 1.0f};
   vec3 x{1.0f, 0.0f, 0.0f};
@@ -159,14 +149,13 @@ void quaternionVec3RotationTest(){
   vec3 rotatedZ = q * z;
   vec3 rotatedAxis = q * rotationAxis;
 
-  Assert(equals(rotatedX, y, epsilon));
-  Assert(equals(rotatedY, z, epsilon));
-  Assert(equals(rotatedZ, x, epsilon));
-  Assert(equals(rotatedAxis, rotationAxis, epsilon));
+  Assert(equals(rotatedX, y));
+  Assert(equals(rotatedY, z));
+  Assert(equals(rotatedZ, x));
+  Assert(equals(rotatedAxis, rotationAxis));
 }
 
 void crossProductTest() {
-  f32 epsilon = 0.01f;
   vec3 x{1.0f, 0.0f, 0.0f};
   vec3 y{0.0f, 1.0f, 0.0f};
   vec3 z{0.0f, 0.0f, 1.0f};
@@ -178,16 +167,15 @@ void crossProductTest() {
   vec3 zCrossX = cross(z, x);
   vec3 zCrossY = cross(z, y);
 
-  Assert(equals(xCrossY, z, epsilon));
-  Assert(equals(xCrossZ, -y, epsilon));
-  Assert(equals(yCrossZ, x, epsilon));
-  Assert(equals(yCrossX, -z, epsilon));
-  Assert(equals(zCrossX, y, epsilon));
-  Assert(equals(zCrossY, -x, epsilon));
+  Assert(equals(xCrossY, z));
+  Assert(equals(xCrossZ, -y));
+  Assert(equals(yCrossZ, x));
+  Assert(equals(yCrossX, -z));
+  Assert(equals(zCrossX, y));
+  Assert(equals(zCrossY, -x));
 }
 
 void slerpTest() {
-  f32 epsilon = 0.01f;
   vec3 rotationAxis{0.0f, 0.0f, 1.0f};
   quaternion q1 = identity_quaternion();
   quaternion q2 = Quaternion(RadiansPerDegree * 90, rotationAxis);
@@ -209,11 +197,11 @@ void slerpTest() {
   vec3 vectorSixetyOverNinety = qSixetyOverNinety * vector;
   vec3 vectorOne = qOne * vector;
 
-  Assert(equals(vectorZero, expectedVectorZero, epsilon));
-  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety, epsilon));
-  Assert(equals(vectorHalf, expectedVectorHalf, epsilon));
-  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety, epsilon));
-  Assert(equals(vectorOne, expectedVectorOne, epsilon));
+  Assert(equals(vectorZero, expectedVectorZero));
+  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety));
+  Assert(equals(vectorHalf, expectedVectorHalf));
+  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety));
+  Assert(equals(vectorOne, expectedVectorOne));
 
   // also test counter-clockwise slerp works as intended
   quaternion q3 = Quaternion(RadiansPerDegree * -90, rotationAxis);
@@ -221,7 +209,7 @@ void slerpTest() {
   expectedVectorThirtyOverNinety = {cos30, -sin30, 0.0f};
   expectedVectorHalf = {cos45, -sin45, 0.0f};
   expectedSixetyOverNinety = {cos60, -sin60, 0.0f};
-  expectedVectorOne = {0.0f, 1.0f, 0.0f};
+  expectedVectorOne = {0.0f, -1.0f, 0.0f};
 
   qZero = slerp(q1, q3, 0.0f);
   qThirtyOverNinety = slerp(q1, q3, 30.0f / 90.0f);
@@ -234,11 +222,35 @@ void slerpTest() {
   vectorSixetyOverNinety = qSixetyOverNinety * vector;
   vectorOne = qOne * vector;
 
-  Assert(equals(vectorZero, expectedVectorZero, epsilon));
-  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety, epsilon));
-  Assert(equals(vectorHalf, expectedVectorHalf, epsilon));
-  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety, epsilon));
-  Assert(equals(vectorOne, expectedVectorOne, epsilon));
+  Assert(equals(vectorZero, expectedVectorZero));
+  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety));
+  Assert(equals(vectorHalf, expectedVectorHalf));
+  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety));
+  Assert(equals(vectorOne, expectedVectorOne));
+}
+
+void orthographicTest() {
+  vec4 point{ 15.0f, 70.0f, 300.0f, 1.0f};
+  f32 l = -20.0f;
+  f32 r =  40.0f;
+  f32 b = 50.0f;
+  f32 t = 110.0f;
+  f32 n = 230.0f;
+  f32 f = 500.0f;
+  vec4 expectedCanonicalViewPoint{
+          (point.x - ((r + l) / 2.0f)) // move origin to center
+              * (2.0f / (r - l)), // scale desired dimens between -1 and 1
+          (point.y - ((t + b) / 2.0f)) // move origin to center
+              * (2.0f / (t - b)), // scale desired dimens between -1 and 1
+          (point.z - ((f + n) / 2.0f)) // move origin to center
+              * (2.0f / (f - n)), // scale desired dimens between -1 and 1
+          1.0f
+  };
+  mat4 ortho = orthographic(l, r, b, t, n, f);
+
+  vec4 transformedPoint = ortho * point;
+
+  Assert(equals(transformedPoint, expectedCanonicalViewPoint));
 }
 
 void runAllMathTests()
@@ -250,9 +262,9 @@ void runAllMathTests()
   quaternionVec3RotationTest();
   crossProductTest();
   slerpTest();
+  orthographicTest();
 }
 
 void runMathTests() {
 //  runAllMathTests();
-
 }

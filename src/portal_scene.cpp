@@ -9,10 +9,6 @@
 #include "model.h"
 #include "noop_math.h"
 
-// TODO: remove
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
 #define NO_STENCIL_MASK 0
 
 const vec3 defaultPlayerDimensionInMeters{0.5f, 0.25f, 1.75f}; // NOTE: ~1'7"w, 9"d, 6'h
@@ -159,15 +155,7 @@ void portalScene(GLFWwindow* window) {
   mat4 playerBoundingBoxScaleMatrix = scale_mat4(player.boundingBox.dimensionInMeters);
   const f32 originalProjectionDepthNear = 0.1f;
   const f32 originalProjectionDepthFar = 200.0f;
-  // TODO: BIG TIME
-  glm::mat4 p = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, originalProjectionDepthNear, originalProjectionDepthFar);
-  glm::mat4 o = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -10.0f, 10.0f);
-  projectionViewModelUbo.projection = {
-          p[0][0], p[0][1], p[0][2], p[0][3],
-          p[1][0], p[1][1], p[1][2], p[1][3],
-          p[2][0], p[2][1], p[2][2], p[2][3],
-          p[3][0], p[3][1], p[3][2], p[3][3],
-  };
+  projectionViewModelUbo.projection = perspective(fieldOfView(13.5f, 25.0f), aspectRatio, originalProjectionDepthNear, originalProjectionDepthFar);
 
   GLuint mainSkyboxTextureId, calmSeaSkyboxTextureId, interstellarSkyboxTextureId, pollutedEarthSkyboxTextureId, yellowCloudSkyboxTextureId;
   loadCubeMapTexture(caveFaceLocations, &mainSkyboxTextureId);

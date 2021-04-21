@@ -569,8 +569,19 @@ mat4 operator*(const mat4& A, const mat4& B) {
   return result;
 }
 
+// real-time rendering 4.7.2
+// ex: screenWidth = 20.0f, screenDist = 30.0f will provide the horizontal field of view
+// for a person sitting 30 inches away from a 20 inch screen, assuming the screen is
+// perpendicular to the line of sight.
+// NOTE: Any units work as long as they are the same. Works for vertical and horizontal.
+f32 fieldOfView(f32 screenWidth, f32 screenDist) {
+  f32 phi = 2.0f * atanf(screenWidth/(2.0f * screenDist));
+  return phi;
+}
+
 // real-time rendering 4.7.1
-mat4 orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
+// This projection is for a canonical view volume goes from <-1,1>
+inline mat4 orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
     // NOTE: Projection matrices are all about creating properly placing
     // objects in the canonical view volume, which in the case of OpenGL
     // is from <-1,-1,-1> to <1,1,1>.
@@ -580,19 +591,46 @@ mat4 orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
     // dimensions between the values of 0 and 2
     // The translation value is necessary in order to translate the values from
     // the range of 0 and 2 to the range of -1 and 1
+    // The translation may look odd and that is because this matrix is a
+    // combination of a Scale matrix, S, and a translation matrix, T, in
+    // which the translation must be performed first. Taking the x translation
+    // for example, we want to translate it by -(l + r) / 2. Which would
+    // effectively move the origin's x value in the center of l & r. However,
+    // the scaling changes that translation to [(2 / (r + l)) * (-(r + l) / 2)],
+    // which simplifies to what is seen below for the x translation.
     return {
              2 / (r - l),                0,                0, 0,
                        0,      2 / (t - b),                0, 0,
                        0,                0,      2 / (f - n), 0,
         -(r + l)/(r - l), -(t + b)/(t - b), -(f + n)/(f - n), 1
-    }
+    };
 }
 
-void adjustNearFarProjection(mat4* projectionMatrix, f32 zNear, f32 zFar) {
-  // TODO: logic should be based on new perspective
-  // Note: logic pulled straight from glm::perspective -> perspectiveRH_NO
-  projectionMatrix->c[2][2] = - (zFar + zNear) / (zFar - zNear);
-  projectionMatrix->c[3][2] = - (2.0f * zFar * zNear) / (zFar - zNear);
+// real-time rendering 4.7.2
+inline mat4 perspective(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
+  return {
+          (2.0f * n) / (r - l),                    0,      -(r + l) / (r - l),                         0,
+                             0, (2.0f * n) / (t - b),      -(t + b) / (t - b),                         0,
+                             0,                    0,      -(f + n) / (f - n), -(2.0f * f * n) / (f - n),
+                             0,                    0,                  -(1/n),                         0
+  };
+}
+
+// real-time rendering 4.7.2
+// aspect ratio is equivalent to width / height
+inline mat4 perspective(f32 fovVert, f32 aspect, f32 n, f32 f) {
+  const f32 c = 1.0f / tan(fovVert / 2.0f);
+  return {
+          (c / aspect), 0.0f,                      0.0f,                      0.0f,
+                  0.0f,    c,                      0.0f,                      0.0f,
+                  0.0f, 0.0f,        -(f + n) / (f - n),                     -1.0f,
+                  0.0f, 0.0f, -(2.0f * f * n) / (f - n),                      0.0f,
+  };
+}
+
+void adjustNearFarProjection(mat4* projectionMatrix, f32 n, f32 f) {
+  projectionMatrix->c[2][2] = -(f + n) / (f - n);
+  projectionMatrix->c[3][2] = -(2.0f * f * n) / (f - n);
 }
 
 // Quaternions
