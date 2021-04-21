@@ -186,6 +186,61 @@ void crossProductTest() {
   Assert(equals(zCrossY, -x, epsilon));
 }
 
+void slerpTest() {
+  f32 epsilon = 0.01f;
+  vec3 rotationAxis{0.0f, 0.0f, 1.0f};
+  quaternion q1 = identity_quaternion();
+  quaternion q2 = Quaternion(RadiansPerDegree * 90, rotationAxis);
+  vec3 vector{1.0f, 0.0f, 0.0f};
+  vec3 expectedVectorZero = vector;
+  vec3 expectedVectorThirtyOverNinety{cos30, sin30, 0.0f};
+  vec3 expectedVectorHalf{cos45, sin45, 0.0f};
+  vec3 expectedSixetyOverNinety{cos60, sin60, 0.0f};
+  vec3 expectedVectorOne{0.0f, 1.0f, 0.0f};
+
+  quaternion qZero = slerp(q1, q2, 0.0f);
+  quaternion qThirtyOverNinety = slerp(q1, q2, 30.0f / 90.0f);
+  quaternion qHalf = slerp(q1, q2, 0.5f);
+  quaternion qSixetyOverNinety = slerp(q1, q2, 60.0f / 90.0f);
+  quaternion qOne = slerp(q1, q2, 1.0f);
+  vec3 vectorZero = qZero * vector;
+  vec3 vectorThirtyOver90 = qThirtyOverNinety * vector;
+  vec3 vectorHalf = qHalf * vector;
+  vec3 vectorSixetyOverNinety = qSixetyOverNinety * vector;
+  vec3 vectorOne = qOne * vector;
+
+  Assert(equals(vectorZero, expectedVectorZero, epsilon));
+  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety, epsilon));
+  Assert(equals(vectorHalf, expectedVectorHalf, epsilon));
+  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety, epsilon));
+  Assert(equals(vectorOne, expectedVectorOne, epsilon));
+
+  // also test counter-clockwise slerp works as intended
+  quaternion q3 = Quaternion(RadiansPerDegree * -90, rotationAxis);
+  expectedVectorZero = vector;
+  expectedVectorThirtyOverNinety = {cos30, -sin30, 0.0f};
+  expectedVectorHalf = {cos45, -sin45, 0.0f};
+  expectedSixetyOverNinety = {cos60, -sin60, 0.0f};
+  expectedVectorOne = {0.0f, 1.0f, 0.0f};
+
+  qZero = slerp(q1, q3, 0.0f);
+  qThirtyOverNinety = slerp(q1, q3, 30.0f / 90.0f);
+  qHalf = slerp(q1, q3, 0.5f);
+  qSixetyOverNinety = slerp(q1, q3, 60.0f / 90.0f);
+  qOne = slerp(q1, q3, 1.0f);
+  vectorZero = qZero * vector;
+  vectorThirtyOver90 = qThirtyOverNinety * vector;
+  vectorHalf = qHalf * vector;
+  vectorSixetyOverNinety = qSixetyOverNinety * vector;
+  vectorOne = qOne * vector;
+
+  Assert(equals(vectorZero, expectedVectorZero, epsilon));
+  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety, epsilon));
+  Assert(equals(vectorHalf, expectedVectorHalf, epsilon));
+  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety, epsilon));
+  Assert(equals(vectorOne, expectedVectorOne, epsilon));
+}
+
 void runAllMathTests()
 {
   translateTest();
@@ -194,8 +249,10 @@ void runAllMathTests()
   mat4RotateTest();
   quaternionVec3RotationTest();
   crossProductTest();
+  slerpTest();
 }
 
 void runMathTests() {
-  runAllMathTests();
+//  runAllMathTests();
+  slerpTest();
 }

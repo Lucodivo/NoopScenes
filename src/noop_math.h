@@ -3,10 +3,18 @@
 #include "noop_types.h"
 
 // TODO: No optimizations have been made in this file. Ideas: intrinsics, sse, better usage of temporary memory.
-// TODO: mat4 perspective, lerp, smoothstep, step
+// TODO: mat4 perspective, smoothstep, step
 
 #define Min(x, y) (x < y ? x : y)
 #define Max(x, y) (x > y ? x : y)
+
+#define cos30 0.86602540f
+#define cos45 0.70710678f
+#define cos60 0.5f
+
+#define sin30 0.5f
+#define sin45 0.70710678f
+#define sin60 0.86602540f
 
 union vec2;
 union vec3;
@@ -115,6 +123,12 @@ struct BoundingBox {
   vec3 dimensionInMeters;
 };
 
+// floating point
+inline f32 lerp(f32 a, f32 b, f32 t) {
+  Assert(t >= 0.0f && t <= 1.0f)
+  return a - ((a + b) * t);
+}
+
 // vec2
 inline f32 dot(vec2 xy1, vec2 xy2) {
   return (xy1.x * xy2.x) + (xy1.y * xy2.y);
@@ -175,6 +189,16 @@ inline vec2 operator*(vec2 xy, f32 s) {
 inline void operator*=(vec2& xy, f32 s) {
   xy.x *= s;
   xy.y *= s;
+}
+
+inline vec2 operator/(const vec2& xy, const f32 s) {
+  f32 scaleInv = 1.0f / s;
+  return {xy.x * scaleInv, xy.y * scaleInv};
+}
+
+inline vec2 lerp(const vec2& a, const vec2& b, f32 t) {
+  Assert(t >= 0.0f && t <= 1.0f)
+  return a - ((a + b) * t);
 }
 
 // vec3
@@ -256,6 +280,16 @@ inline void operator*=(vec3& xyz, f32 s) {
   xyz.z *= s;
 }
 
+inline vec3 operator/(const vec3& xyz, const f32 s) {
+  f32 scaleInv = 1.0f / s;
+  return {xyz.x * scaleInv, xyz.y * scaleInv, xyz.z * scaleInv};
+}
+
+inline vec3 lerp(const vec3& a, const vec3& b, f32 t) {
+  Assert(t >= 0.0f && t <= 1.0f)
+  return a - ((a + b) * t);
+}
+
 // vec4
 inline vec4 Vec4(vec3 xyz, f32 w) {
   return vec4{xyz.x, xyz.y, xyz.z, w};
@@ -326,6 +360,16 @@ inline void operator*=(vec4& xyzw, f32 s) {
   xyzw.y *= s;
   xyzw.z *= s;
   xyzw.w *= s;
+}
+
+inline vec4 operator/(const vec4& xyzw, const f32 s) {
+  f32 scaleInv = 1.0f / s;
+  return {xyzw.x * scaleInv, xyzw.y * scaleInv, xyzw.z * scaleInv, xyzw.w * scaleInv};
+}
+
+inline vec4 lerp(const vec4& a, const vec4& b, f32 t) {
+  Assert(t >= 0.0f && t <= 1.0f)
+  return a - ((a + b) * t);
 }
 
 // mat3
@@ -547,6 +591,31 @@ quaternion Quaternion(f32 angle, vec3 v) {
   return result;
 }
 
+inline quaternion identity_quaternion() {
+  return {1.0f, 0.0f, 0.0f, 0.0f};
+}
+
+inline f32 magnitudeSquared(quaternion rijk) {
+  return (rijk.r * rijk.r) + (rijk.i * rijk.i) + (rijk.j * rijk.j) + (rijk.k * rijk.k);
+}
+
+// NOTE: Conjugate is equal to the inverse when the quaternion is unit length
+inline quaternion conjugate(quaternion q) {
+  return {q.r, -q.i, -q.j, -q.k};
+}
+
+inline f32 dot(const quaternion& q1, const quaternion& q2) {
+  return (q1.r * q2.r) + (q1.i * q2.i) + (q1.j * q2.j) + (q1.k * q2.k);
+}
+
+inline quaternion normalize(const quaternion& q) {
+  f32 mag = sqrtf((q.r * q.r) + (q.i * q.i) + (q.j * q.j) + (q.k * q.k));
+  Assert(mag != 0.0f);
+  f32 magInv = 1.0f / mag;
+  return {q.r * magInv, q.i * magInv, q.j * magInv, q.k * magInv};
+}
+
+// TODO: overloading star operator for this may lead to confusion
 /*
  * ii = jj = kk = ijk = -1
  * ij = -ji = k
@@ -555,24 +624,69 @@ quaternion Quaternion(f32 angle, vec3 v) {
  */
 vec3 operator*(const quaternion& q, vec3 v) {
 #ifndef NDEBUG
-  // Assert that we are only ever dealing with unit quaternions
+  // Assert that we are only ever dealing with unit quaternions when rotating a vector
   f32 qMagn = magnitudeSquared(vec4{q.r, q.i, q.j, q.k});
   Assert(qMagn < 1.001f && qMagn > .999f);
 #endif
 
   quaternion result;
   quaternion qv;
-  quaternion qInv = {q.real, -q.i, -q.j, -q.k};
+  quaternion qInv = conjugate(q);
 
   qv.r = -(q.i * v.i) + -(q.j * v.j) + -(q.k * v.k);
   qv.i =  (q.r * v.i) + -(q.k * v.j) +  (q.j * v.k);
   qv.j =  (q.k * v.i) +  (q.r * v.j) + -(q.i * v.k);
   qv.k = -(q.j * v.i) +  (q.i * v.j) +  (q.r * v.k);
 
-  // result.r = (qv.r * qInv.r) + -(qv.i * qInv.i) + -(qv.j * qInv.j) + -(qv.k * qInv.k);
+  // result.r = (qv.r * qInv.r) + -(qv.i * qInv.i) + -(qv.j * qInv.j) + -(qv.k * qInv.k); \\ equates to zero
   result.i = (qv.i * qInv.r) +  (qv.r * qInv.i) + -(qv.k * qInv.j) +  (qv.j * qInv.k);
   result.j = (qv.j * qInv.r) +  (qv.k * qInv.i) +  (qv.r * qInv.j) + -(qv.i * qInv.k);
   result.k = (qv.k * qInv.r) + -(qv.j * qInv.i) +  (qv.i * qInv.j) +  (qv.r * qInv.k);
 
   return result.ijk;
+}
+
+quaternion operator*(const quaternion& q1, quaternion q2) {
+  quaternion q1q2;
+  q1q2.r = -(q1.i * q2.i) + -(q1.j * q2.j) + -(q1.k * q2.k);
+  q1q2.i = (q1.r * q2.i) + -(q1.k * q2.j) + (q1.j * q2.k);
+  q1q2.j = (q1.k * q2.i) + (q1.r * q2.j) + -(q1.i * q2.k);
+  q1q2.k = -(q1.j * q2.i) + (q1.i * q2.j) + (q1.r * q2.k);
+  return q1q2;
+}
+
+inline quaternion operator+(const quaternion& q1, const quaternion& q2) {
+  return {q1.r + q2.r, q1.i + q2.i, q1.j + q2.j, q1.k + q2.k};
+}
+
+inline quaternion operator-(const quaternion& q1, const quaternion& q2) {
+  return {q1.r - q2.r, q1.i - q2.i, q1.j - q2.j, q1.k - q2.k};
+}
+
+inline quaternion operator*(const quaternion& q1, const f32 s) {
+  return {q1.r * s, q1.i * s, q1.j * s, q1.k * s};
+}
+
+inline quaternion operator*(const f32 s, const quaternion& q1) {
+  return {q1.r * s, q1.i * s, q1.j * s, q1.k * s};
+}
+
+inline quaternion operator/(const quaternion& q1, const f32 s) {
+  f32 scaleInv = 1.0f / s;
+  return {q1.r * scaleInv, q1.i * scaleInv, q1.j * scaleInv, q1.k * scaleInv};
+}
+
+quaternion lerp(quaternion a, quaternion b, f32 t) {
+  Assert(t >= 0.0f && t <= 1.0f)
+  return normalize(a - ((a + b) * t));
+}
+
+// spherical linear interpolation
+// this gives the shortest art on a 4d unit sphere
+// great for smooth animations between two orientations defined by two quaternions
+quaternion slerp(quaternion a, quaternion b, f32 t) {
+  Assert(t >= 0.0f && t <= 1.0f)
+  f32 theta = acosf(dot(a, b));
+
+  return ((sinf(theta * (1.0f - t)) * a) + (sinf(theta * t) * b)) / sinf(theta);
 }
