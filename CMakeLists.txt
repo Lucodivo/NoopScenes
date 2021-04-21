@@ -24,7 +24,7 @@ set(INCL_DIR ${GLFW_HEADER_LOCATIONS})
 set(EXT_DIR "${CMAKE_SOURCE_DIR}/external")
 
 link_directories(${LIB_DIR})
-include_directories(${INCL_DIR} ${EXT_DIR} "${EXT_DIR}/stb" "${EXT_DIR}/glm" "${EXT_DIR}/glad")
+include_directories(${INCL_DIR} ${EXT_DIR} "${EXT_DIR}/stb" "${EXT_DIR}/glad")
 
 add_library(glad STATIC "${EXT_DIR}/glad/glad.c" )
 
