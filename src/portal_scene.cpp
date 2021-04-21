@@ -161,6 +161,7 @@ void portalScene(GLFWwindow* window) {
   const f32 originalProjectionDepthFar = 200.0f;
   // TODO: BIG TIME
   glm::mat4 p = glm::perspective(45.0f * RadiansPerDegree, aspectRatio, originalProjectionDepthNear, originalProjectionDepthFar);
+  glm::mat4 o = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -10.0f, 10.0f);
   projectionViewModelUbo.projection = {
           p[0][0], p[0][1], p[0][2], p[0][3],
           p[1][0], p[1][1], p[1][2], p[1][3],

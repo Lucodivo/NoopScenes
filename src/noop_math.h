@@ -492,9 +492,9 @@ inline mat4 scale_mat4(vec3 scale) {
 
 inline mat4 translate_mat4(vec3 translation) {
   return mat4 {
-          1.0f, 0.0f, 0.0f, 0.0f,
-          0.0f, 1.0f, 0.0f, 0.0f,
-          0.0f, 0.0f, 1.0f, 0.0f,
+                   1.0f,          0.0f,          0.0f, 0.0f,
+                   0.0f,          1.0f,          0.0f, 0.0f,
+                   0.0f,          0.0f,          1.0f, 0.0f,
           translation.x, translation.y, translation.z, 1.0f,
   };
 }
@@ -567,6 +567,25 @@ mat4 operator*(const mat4& A, const mat4& B) {
   result.c[3][3] = dot(transposeA.col[3], B.col[3]);
 
   return result;
+}
+
+// real-time rendering 4.7.1
+mat4 orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
+    // NOTE: Projection matrices are all about creating properly placing
+    // objects in the canonical view volume, which in the case of OpenGL
+    // is from <-1,-1,-1> to <1,1,1>.
+    // The 3x3 matrix is dividing vectors/points by the specified dimensions
+    // and multiplying by two. That is because the the canonical view volume
+    // in our case actually has dimensions of <2,2,2>. So we map our specified
+    // dimensions between the values of 0 and 2
+    // The translation value is necessary in order to translate the values from
+    // the range of 0 and 2 to the range of -1 and 1
+    return {
+             2 / (r - l),                0,                0, 0,
+                       0,      2 / (t - b),                0, 0,
+                       0,                0,      2 / (f - n), 0,
+        -(r + l)/(r - l), -(t + b)/(t - b), -(f + n)/(f - n), 1
+    }
 }
 
 void adjustNearFarProjection(mat4* projectionMatrix, f32 zNear, f32 zFar) {

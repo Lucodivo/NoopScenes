@@ -254,5 +254,5 @@ void runAllMathTests()
 
 void runMathTests() {
 //  runAllMathTests();
-  slerpTest();
+
 }
