@@ -17,9 +17,9 @@ void printMat4(const char* name, const mat4& M) {
   }
 }
 
-b32 equals(const vec4& v1, const vec4& v2, f32 epsilon = 0.001f) {
+b32 equals(const vec2& v1, const vec2& v2, f32 epsilon = 0.001f) {
   b32 pass = true;
-  for(u32 i = 0; i < 4; ++i) {
+  for(u32 i = 0; i < 2; ++i) {
     f32 diff = (v1.c[i] - v2.c[i]);
     pass = pass && (diff <= epsilon && diff >= -epsilon);
   }
@@ -29,6 +29,15 @@ b32 equals(const vec4& v1, const vec4& v2, f32 epsilon = 0.001f) {
 b32 equals(const vec3& v1, const vec3& v2, f32 epsilon = 0.001f) {
   b32 pass = true;
   for(u32 i = 0; i < 3; ++i) {
+    f32 diff = (v1.c[i] - v2.c[i]);
+    pass = pass && (diff <= epsilon && diff >= -epsilon);
+  }
+  return pass;
+}
+
+b32 equals(const vec4& v1, const vec4& v2, f32 epsilon = 0.001f) {
+  b32 pass = true;
+  for(u32 i = 0; i < 4; ++i) {
     f32 diff = (v1.c[i] - v2.c[i]);
     pass = pass && (diff <= epsilon && diff >= -epsilon);
   }
@@ -133,6 +142,48 @@ void mat4RotateTest() {
   Assert(equals(rotatedY, z));
   Assert(equals(rotatedZ, x));
   Assert(equals(rotatedAxis.xyz, rotationAxis));
+}
+
+void complexVec2RotationTest(){
+  vec2 x{1.0f, 0.0f};
+  vec2 y{0.0f, 1.0f};
+  complex c0 = Complex(0.0f);
+  complex c30 = Complex(30.0f * RadiansPerDegree);
+  complex c45 = Complex(45.0f * RadiansPerDegree);
+  complex c60 = Complex(60.0f * RadiansPerDegree);
+  complex c90 = Complex(90.0f * RadiansPerDegree);
+  vec2 expectedRotatedX0 = x;
+  vec2 expectedRotatedX30 = {cos30, sin30};
+  vec2 expectedRotatedX45 = {cos45, sin45};
+  vec2 expectedRotatedX60 = {cos60, sin60};
+  vec2 expectedRotatedX90 = y;
+  vec2 expectedRotatedY0 = y;
+  vec2 expectedRotatedY30 = {-sin30, cos30};
+  vec2 expectedRotatedY45 = {-sin45, cos45};
+  vec2 expectedRotatedY60 = {-sin60, cos60};
+  vec2 expectedRotatedY90 = -x;
+
+  vec2 rotatedX0 = c0 * x;
+  vec2 rotatedX30 = c30 * x;
+  vec2 rotatedX45 = c45 * x;
+  vec2 rotatedX60 = c60 * x;
+  vec2 rotatedX90 = c90 * x;
+  vec2 rotatedY0 = c0 * y;
+  vec2 rotatedY30 = c30 * y;
+  vec2 rotatedY45 = c45 * y;
+  vec2 rotatedY60 = c60 * y;
+  vec2 rotatedY90 = c90 * y;
+
+  Assert(equals(rotatedX0, expectedRotatedX0));
+  Assert(equals(rotatedX30, expectedRotatedX30));
+  Assert(equals(rotatedX45, expectedRotatedX45));
+  Assert(equals(rotatedX60, expectedRotatedX60));
+  Assert(equals(rotatedX90, expectedRotatedX90));
+  Assert(equals(rotatedY0, expectedRotatedY0));
+  Assert(equals(rotatedY30, expectedRotatedY30));
+  Assert(equals(rotatedY45, expectedRotatedY45));
+  Assert(equals(rotatedY60, expectedRotatedY60));
+  Assert(equals(rotatedY90, expectedRotatedY90));
 }
 
 void quaternionVec3RotationTest(){
@@ -259,6 +310,7 @@ void runAllMathTests()
   mat4Vec4MultTest();
   mat4MultTest();
   mat4RotateTest();
+  complexVec2RotationTest();
   quaternionVec3RotationTest();
   crossProductTest();
   slerpTest();

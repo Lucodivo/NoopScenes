@@ -3,7 +3,6 @@
 #include "noop_types.h"
 
 // TODO: No optimizations have been made in this file. Ideas: intrinsics, sse, better usage of temporary memory.
-// TODO: mat4 perspective, smoothstep, step
 
 #define Min(x, y) (x < y ? x : y)
 #define Max(x, y) (x > y ? x : y)
@@ -118,12 +117,39 @@ union quaternion {
   };
 };
 
+union complex {
+  struct {
+    f32 r, i;
+  };
+  struct {
+    f32 real, _;
+  };
+};
+
+struct BoundingRect {
+  vec2 min;
+  vec2 diagonal;
+};
+
 struct BoundingBox {
   vec3 min;
-  vec3 dimensionInMeters;
+  vec3 diagonal;
 };
 
 // floating point
+inline f32 step(f32 edge, f32 x) {
+  return x < edge ? 0.0f : 1.0f;
+}
+
+inline f32 clamp(f32 minVal, f32 maxVal, f32 x) {
+  return Min(maxVal, Max(minVal, x));
+}
+
+inline f32 smoothStep(f32 edge1, f32 edge2, f32 x) {
+  f32 t = clamp((x - edge1) / (edge2 - edge1), 0.0f, 1.0f);
+  return t * t * (3.0f - 2.0f * t);
+}
+
 inline f32 lerp(f32 a, f32 b, f32 t) {
   Assert(t >= 0.0f && t <= 1.0f)
   return a - ((a + b) * t);
@@ -293,6 +319,14 @@ inline vec3 lerp(const vec3& a, const vec3& b, f32 t) {
 // vec4
 inline vec4 Vec4(vec3 xyz, f32 w) {
   return vec4{xyz.x, xyz.y, xyz.z, w};
+}
+
+inline vec4 Vec4(f32 x, vec3 yzw) {
+  return vec4{x, yzw.c[0], yzw.c[1], yzw.c[2]};
+}
+
+inline vec4 Vec4(vec2 xy, vec2 zw) {
+  return vec4{xy.x, xy.y, zw.c[0], zw.c[1]};
 }
 
 inline f32 dot(vec4 xyzw1, vec4 xyzw2) {
@@ -619,7 +653,7 @@ inline mat4 perspective(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
 // real-time rendering 4.7.2
 // aspect ratio is equivalent to width / height
 inline mat4 perspective(f32 fovVert, f32 aspect, f32 n, f32 f) {
-  const f32 c = 1.0f / tan(fovVert / 2.0f);
+  const f32 c = 1.0f / tanf(fovVert / 2.0f);
   return {
           (c / aspect), 0.0f,                      0.0f,                      0.0f,
                   0.0f,    c,                      0.0f,                      0.0f,
@@ -628,9 +662,55 @@ inline mat4 perspective(f32 fovVert, f32 aspect, f32 n, f32 f) {
   };
 }
 
-void adjustNearFarProjection(mat4* projectionMatrix, f32 n, f32 f) {
+void adjustAspectPerspProj(mat4* projectionMatrix, f32 fovVert, f32 aspect) {
+  const f32 c = 1.0f / tanf(fovVert / 2.0f);
+  projectionMatrix->c[0][0] = c / aspect;
+  projectionMatrix->c[1][1] = c;
+}
+
+void adjustNearFarPerspProj(mat4* projectionMatrix, f32 n, f32 f) {
   projectionMatrix->c[2][2] = -(f + n) / (f - n);
   projectionMatrix->c[3][2] = -(2.0f * f * n) / (f - n);
+}
+
+// Complex
+// This angle represents a counter-clockwise rotation
+complex Complex(f32 angle){
+  return { cosf(angle), sinf(angle) };
+}
+
+inline f32 magnitudeSquared(complex c) {
+  return (c.r * c.r) + (c.i * c.i);
+}
+
+inline f32 magnitude(complex c) {
+  return sqrtf(magnitudeSquared(c));
+}
+
+// ii = -1
+vec2 operator*(const complex& ri, vec2 xy) {
+#ifndef NDEBUG
+  // Assert that we are only ever dealing with unit quaternions when rotating a vector
+  f32 qMagn = magnitudeSquared(ri);
+  Assert(qMagn < 1.001f && qMagn > .999f);
+#endif
+
+  return {
+          (ri.r * xy.r) + -(ri.i * xy.i), // real
+          (ri.r * xy.i) + (ri.i * xy.r) // imaginary
+  };
+}
+
+void operator*=(vec2& xy, const complex& ri) {
+#ifndef NDEBUG
+  // Assert that we are only ever dealing with unit quaternions when rotating a vector
+  f32 qMagn = magnitudeSquared(ri);
+  Assert(qMagn < 1.001f && qMagn > .999f);
+#endif
+
+  f32 imaginaryTmp = (ri.i * xy.r);
+  xy.x = (ri.r * xy.r) + -(ri.i * xy.i);
+  xy.y = (ri.r * xy.i) + imaginaryTmp;
 }
 
 // Quaternions
@@ -654,6 +734,10 @@ inline quaternion identity_quaternion() {
 
 inline f32 magnitudeSquared(quaternion rijk) {
   return (rijk.r * rijk.r) + (rijk.i * rijk.i) + (rijk.j * rijk.j) + (rijk.k * rijk.k);
+}
+
+inline f32 magnitude(quaternion q) {
+  return sqrtf(magnitudeSquared(q));
 }
 
 // NOTE: Conjugate is equal to the inverse when the quaternion is unit length
@@ -682,7 +766,7 @@ inline quaternion normalize(const quaternion& q) {
 vec3 operator*(const quaternion& q, vec3 v) {
 #ifndef NDEBUG
   // Assert that we are only ever dealing with unit quaternions when rotating a vector
-  f32 qMagn = magnitudeSquared(vec4{q.r, q.i, q.j, q.k});
+  f32 qMagn = magnitudeSquared(q);
   Assert(qMagn < 1.001f && qMagn > .999f);
 #endif
 
@@ -746,4 +830,38 @@ quaternion slerp(quaternion a, quaternion b, f32 t) {
   f32 theta = acosf(dot(a, b));
 
   return ((sinf(theta * (1.0f - t)) * a) + (sinf(theta * t) * b)) / sinf(theta);
+}
+
+// etc
+bool insideRect(BoundingRect boundingRect, vec2 position) {
+  const vec2 boundingRectMax = boundingRect.min + boundingRect.diagonal;
+  return (position.x > boundingRect.min.x &&
+          position.x < boundingRectMax.x &&
+          position.y > boundingRect.min.y &&
+          position.y < boundingRectMax.y);
+}
+
+bool insideBox(BoundingBox boundingBox, vec3 position) {
+  const vec3 boundingBoxMax = boundingBox.min + boundingBox.diagonal;
+  return (position.x > boundingBox.min.x &&
+          position.x < boundingBoxMax.x &&
+          position.y > boundingBox.min.y &&
+          position.y < boundingBoxMax.y &&
+          position.z > boundingBox.min.z &&
+          position.z < boundingBoxMax.z);
+}
+
+bool overlap(BoundingRect bbA, BoundingRect bbB) {
+  const vec2 bbAMax = bbA.min + bbA.diagonal;
+  const vec2 bbBMax = bbB.min + bbB.diagonal;
+  return ((bbBMax.x > bbA.min.x && bbB.min.x < bbAMax.x)  && // overlap in X
+          (bbBMax.y > bbA.min.y && bbB.min.y < bbAMax.x));   // overlap in Y
+}
+
+bool overlap(BoundingBox bbA, BoundingBox bbB) {
+  const vec3 bbAMax = bbA.min + bbA.diagonal;
+  const vec3 bbBMax = bbB.min + bbB.diagonal;
+  return ((bbBMax.x > bbA.min.x && bbB.min.x < bbAMax.x)  && // overlap in X
+          (bbBMax.y > bbA.min.y && bbB.min.y < bbAMax.y)  && // overlap in X
+          (bbBMax.z > bbA.min.z && bbB.min.z < bbAMax.z));   // overlap in Z
 }

@@ -7,7 +7,7 @@ In the future, I ideally use classes for things I know they are wonderful at and
 At the time of starting this project I feel fairly tied down to the OOP way of thinking.
 
 ### Building
-1) Cloning the project will include most dependencies: [glm](https://github.com/g-truc/glm), [tinygltf](https://github.com/syoyo/tinygltf), [stb](https://github.com/nothings/stb), [glad](https://github.com/Dav1dde/glad), [json](https://github.com/nlohmann/json#examples)
+1) Cloning the project will include most dependencies: [tinygltf](https://github.com/syoyo/tinygltf), [stb](https://github.com/nothings/stb), [glad](https://github.com/Dav1dde/glad), [json](https://github.com/nlohmann/json#examples)
   ```
   git clone https://github.com/Lucodivo/NoopScenes
   ```
@@ -33,18 +33,25 @@ At the time of starting this project I feel fairly tied down to the OOP way of t
         set(GLFW_LIB_LOCATION "C:/directory/that_contains/glfw3.lib")
         set(GLFW_LIB actual-name-of-glfw3-static-library) # ex: glfw3-x64-d
       ```
-3) Finally, build using *CMakeList.txt* in the root directory of this repository.     
+3) Finally, build using *CMakeList.txt* in the root directory of this repository. When running the project, ensure that
+the working directory is at the root directory.
 
 ### Standards
 *In this project, consistency is often valued over absolute best convention.*
 
 #### Dimensions
-- Any dimensions/positions in the code will always refer to length in meters
+- Any dimensions/positions in the code will always refer to length in meters where a concrete unit matters.
+
+#### 3D Math
+- mat3/mat4 are all considered to be column major. (ex: aMat3.c[ i ][ j ] leads you to column i, row j)
+- vec2/vec3/vec4 are all considered to be column vectors.
+    - A consequence of this is that M * *v* is legal but *v* * M is not.
+
 
 #### Coordinate System
-- Right handed-coordinate system with the z-axis representing the upward/downward movement.
-  - Justifications:
-    - Blender & GLM (by default) are right-handed systems and are tools used for this project
+- Right handed-coordinate system with the z-axis representing the upward/downward movement. Although mostly
+  arbitrary, here are my justifications:
+    - Blender and the gltf file format use right-handed coordinate systems and are used for this project
     - ~~Z is up is used in Blender and is a tool used for this project~~ [Working in Blender uses Z-up but Blender exports Y-up by default]
     - Shortening a 3D vector to a 2D by cutting off the third value (z) to acquire "ground coordinates" is appealing
     

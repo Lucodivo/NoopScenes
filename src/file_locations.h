@@ -10,6 +10,7 @@ const char* singleColorFragmentShaderFileLoc = COMMON_SHADER_BASE"SingleColor.fr
 const char* skyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"SkyboxYIsUp.frag";
 const char* gateFragmentShaderFileLoc = COMMON_SHADER_BASE"Gate.frag";
 const char* gateVertexShaderFileLoc = COMMON_SHADER_BASE"Gate.vert";
+const char* blackFragmentShaderFileLoc = COMMON_SHADER_BASE"Black.frag";
 
 // Skybox Cube Map textures
 #define skybox(folder, extension) {  \

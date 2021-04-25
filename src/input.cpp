@@ -1,34 +1,31 @@
 #include <windows.h>
-
 #include "input.h"
 
 #include <Xinput.h>
-#include <iostream>
-#include <vector>
 
-file_access void setKeyState(GLFWwindow* window, s32 glfwKey, InputType keyboardInput);
-file_access void setMouseState(GLFWwindow* window, s32 glfwKey, InputType mouseInput);
-file_access void setControllerState(s16 gamepadFlags, u16 xInputButtonFlag, InputType controllerInput);
-file_access void loadXInput();
+internal_func void setKeyState(GLFWwindow* window, s32 glfwKey, InputType keyboardInput);
+internal_func void setMouseState(GLFWwindow* window, s32 glfwKey, InputType mouseInput);
+internal_func void setControllerState(s16 gamepadFlags, u16 xInputButtonFlag, InputType controllerInput);
+internal_func void loadXInput();
 
-file_access void glfw_mouse_scroll_callback(GLFWwindow* window, f64 xOffset, f64 yOffset);
-file_access void glfw_framebuffer_size_callback(GLFWwindow* window, s32 width, s32 height);
+internal_func void glfw_mouse_scroll_callback(GLFWwindow* window, f64 xOffset, f64 yOffset);
+internal_func void glfw_framebuffer_size_callback(GLFWwindow* window, s32 width, s32 height);
 
-file_access b32 windowModeChangeTossNextInput = false;
-file_access Extent2D globalWindowExtent = Extent2D{ 0, 0 };
-file_access vec2_64 globalMouseScroll = vec2_64{ 0.0, 0.0 };
-file_access vec2_64 mousePosition = { 0.0, 0.0 };
-file_access vec2_64 mouseDelta = { 0.0, 0.0 };
-file_access ControllerAnalogStick analogStickLeft = { 0, 0 };
-file_access ControllerAnalogStick analogStickRight = { 0, 0 };
-file_access f32 mouseScrollY = 0.0f;
-file_access s8 controller1TriggerLeftValue = 0;
-file_access s8 controller1TriggerRightValue = 0;
-file_access WindowSizeCallback windowSizeCallback = NULL;
+global_variable b32 windowModeChangeTossNextInput = false;
+global_variable vec2_u32 globalWindowExtent = vec2_u32{0, 0 };
+global_variable vec2_f64 globalMouseScroll = vec2_f64{0.0, 0.0 };
+global_variable vec2_f64 mousePosition = {0.0, 0.0 };
+global_variable vec2_f64 mouseDelta = {0.0, 0.0 };
+global_variable vec2_s16 analogStickLeft = {0, 0 };
+global_variable vec2_s16 analogStickRight = {0, 0 };
+global_variable f32 mouseScrollY = 0.0f;
+global_variable s8 controller1TriggerLeftValue = 0;
+global_variable s8 controller1TriggerRightValue = 0;
+global_variable windows_size_callback* windowSizeCallback = NULL;
 
 // initialized to zero is equivalent to InputState_Inactive
 // indices of this array will be accessed through InputType enums
-file_access InputState inputStates[InputType_NumTypes] = {};
+global_variable InputState inputStates[InputType_NumTypes] = {};
 
 // NOTE: Casey Muratori's efficient way of handling function pointers, Handmade Hero episode 6 @ 22:06 & 1:00:21
 // NOTE: Allows us to quickly change the function parameters & return type in one place and cascade throughout the rest
@@ -39,7 +36,7 @@ X_INPUT_GET_STATE(XInputGetStateStub) // Create a stub function of the type defi
 {
   return (ERROR_DEVICE_NOT_CONNECTED);
 }
-file_access x_input_get_state* XInputGetState_ = XInputGetStateStub; // Use the typedef to create a function pointer initialized to our stub function
+global_variable x_input_get_state* XInputGetState_ = XInputGetStateStub; // Use the typedef to create a function pointer initialized to our stub function
 #define XInputGetState XInputGetState_ // Enable the use of XInputGetState method name without conflicting with definition in Xinput.h
 
 void initializeInput(GLFWwindow* window)
@@ -51,68 +48,74 @@ void initializeInput(GLFWwindow* window)
   glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
   framebufferWidth = max(0, framebufferWidth);
   framebufferHeight = max(0, framebufferHeight);
-  globalWindowExtent = Extent2D{(u32)framebufferWidth, (u32)framebufferHeight};
+  globalWindowExtent = vec2_u32{(u32)framebufferWidth, (u32)framebufferHeight};
 
   loadXInput();
 }
 
-inline InputState getInputState(InputType inputType) {
+b32 consumabool(b32* boolPtr) {
+  b32 originalVal = *boolPtr;
+  *boolPtr = false;
+  return(originalVal);
+}
+
+InputState getInputState(InputType inputType) {
     return inputStates[inputType];
 }
 
-inline b32 hotPress(InputType inputType) {
+b32 hotPress(InputType inputType) {
   return inputStates[inputType] & INPUT_HOT_PRESS;
 }
 
-inline b32 hotRelease(InputType inputType) {
+b32 hotRelease(InputType inputType) {
   return inputStates[inputType] & INPUT_HOT_RELEASE;
 }
 
-inline b32 isActive(InputType inputType) {
+b32 isActive(InputType inputType) {
   return inputStates[inputType] & (INPUT_HOT_PRESS | INPUT_ACTIVE);
 }
 
-inline vec2_64 getMousePosition() {
+vec2_f64 getMousePosition() {
   return mousePosition;
 }
 
-inline vec2_64 getMouseDelta() {
+vec2_f64 getMouseDelta() {
   return mouseDelta;
 }
 
-inline f32 getMouseScrollY() {
+f32 getMouseScrollY() {
   return mouseScrollY;
 }
 
-inline Extent2D getWindowExtent() {
+vec2_u32 getWindowExtent() {
   return globalWindowExtent;
 }
 
-inline ControllerAnalogStick getControllerAnalogStickLeft(){
+vec2_s16 getControllerAnalogStickLeft(){
   return analogStickLeft;
 }
 
-inline ControllerAnalogStick getControllerAnalogStickRight() {
+vec2_s16 getControllerAnalogStickRight() {
   return analogStickRight;
 }
 
 // NOTE: values range from 0 to 225 (255 minus trigger threshold)
-inline s8 getControllerTriggerRaw_Right() {
+s8 getControllerTriggerRaw_Right() {
     return controller1TriggerRightValue;
 }
 
 // NOTE: values range from 0 to 225 (255 minus trigger threshold)
-inline s8 getControllerTriggerRaw_Left() {
+s8 getControllerTriggerRaw_Left() {
     return controller1TriggerLeftValue;
 }
 
 // NOTE: values range from 0.0 - 1.0
-inline f32 getControllerTrigger_Right() {
+f32 getControllerTrigger_Right() {
     return (f32)controller1TriggerRightValue / (255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
 }
 
 // NOTE: values range from 0.0 - 1.0
-inline f32 getControllerTrigger_Left() {
+f32 getControllerTrigger_Left() {
     return (f32)controller1TriggerLeftValue / (255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
 }
 
@@ -194,11 +197,11 @@ void loadInputStateForFrame(GLFWwindow* window) {
 
     // mouse movement state management
     {
-      vec2_64 newMouseCoord;
+      vec2_f64 newMouseCoord;
       glfwGetCursorPos(window, &newMouseCoord.x, &newMouseCoord.y);
 
       // NOTE: We do not consume mouse input on window size changes as it results in unwanted values
-      mouseDelta = consumabool(&windowModeChangeTossNextInput) ? vec2_64{0.0f, 0.0f} : vec2_64{newMouseCoord.x - mousePosition.x, newMouseCoord.y - mousePosition.y};
+      mouseDelta = consumabool(&windowModeChangeTossNextInput) ? vec2_f64{0.0f, 0.0f} : vec2_f64{newMouseCoord.x - mousePosition.x, newMouseCoord.y - mousePosition.y};
       mousePosition = newMouseCoord;
       b32 mouseMovementIsCurrentlyActive = mouseDelta.x != 0.0f || mouseDelta.y != 0.0f;
       setInputState(MouseInput_Movement, mouseMovementIsCurrentlyActive);
@@ -273,7 +276,7 @@ void glfw_mouse_scroll_callback(GLFWwindow* window, f64 xOffset, f64 yOffset)
   globalMouseScroll.y = yOffset;
 }
 
-void subscribeWindowSizeCallback(WindowSizeCallback callback)
+void subscribeWindowSizeCallback(windows_size_callback* callback)
 {
   windowSizeCallback = callback;
 }
@@ -281,7 +284,7 @@ void subscribeWindowSizeCallback(WindowSizeCallback callback)
 // NOTE: returns (0,0) when no longer on screen
 void glfw_framebuffer_size_callback(GLFWwindow* window, s32 width, s32 height)
 {
-  local_access b32 globalWindowMinimized = false;
+  func_persist b32 globalWindowMinimized = false;
   // NOTE: Currently just ignoring minimize.
   if(width <= 0 || height <= 0) {
     globalWindowMinimized = true;
@@ -314,7 +317,7 @@ b32 isCursorEnabled(GLFWwindow* window)
   return glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_NORMAL;
 }
 
-file_access void loadXInput()
+internal_func void loadXInput()
 {
   HMODULE XInputLibrary = LoadLibraryA("xinput1_4.dll");
   if (!XInputLibrary)

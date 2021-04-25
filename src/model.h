@@ -137,7 +137,7 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
     f64* minValues = gltfModel->accessors[positionAttribute.accessorIndex].minValues.data();
     f64* maxValues = gltfModel->accessors[positionAttribute.accessorIndex].maxValues.data();
     model->boundingBox.min = {(f32)minValues[0], (f32)minValues[1], (f32)minValues[2]};
-    model->boundingBox.dimensionInMeters = vec3{(f32)maxValues[0], (f32)maxValues[1], (f32)maxValues[2]} - model->boundingBox.min;
+    model->boundingBox.diagonal = vec3{(f32)maxValues[0], (f32)maxValues[1], (f32)maxValues[2]} - model->boundingBox.min;
 
     b32 normalAttributesAvailable = gltfPrimitive.attributes.find(normalIndexKeyString) != gltfPrimitive.attributes.end();
     gltfAttributeMetadata normalAttribute{};
@@ -325,12 +325,7 @@ void drawModelPlus(const Model& model, GLuint shaderProgramId) {
   for(u32 i = 0; i < model.meshCount; ++i) {
     Mesh* meshPtr = model.meshes + i;
     if(baseColorValid(meshPtr->textureData)) {
-      vec3 baseColor = {
-              meshPtr->textureData.baseColor.x,
-              meshPtr->textureData.baseColor.y,
-              meshPtr->textureData.baseColor.z
-      };
-      setUniform(shaderProgramId, "baseColor", baseColor);
+      setUniform(shaderProgramId, "baseColor", meshPtr->textureData.baseColor.xyz);
     }
     drawTriangles(&meshPtr->vertexAtt);
   }
@@ -339,9 +334,6 @@ void drawModelPlus(const Model& model, GLuint shaderProgramId) {
 void drawModel(const Model& model) {
   for(u32 i = 0; i < model.meshCount; ++i) {
     Mesh* meshPtr = model.meshes + i;
-    if(baseColorValid(meshPtr->textureData)) {
-
-    }
     drawTriangles(&meshPtr->vertexAtt);
   }
 }
@@ -359,4 +351,13 @@ void deleteModels(Model** models, u32 count) {
   }
 
   deleteVertexAtts(vertexAtts.data(), (u32)vertexAtts.size());
+}
+
+void skyBoxModel(const char* const imgLocations[6], Model* model) {
+  model->boundingBox = cubeVertAttBoundingBox;
+  model->meshes = new Mesh[1];
+  model->meshes[0].vertexAtt = initializeCubePositionVertexAttBuffers(true); // TODO: reuse this vert att
+  model->meshes[0].textureData = {};
+  loadCubeMapTexture(imgLocations, &model->meshes[0].textureData.albedoTextureId);
+  model->meshCount = 1;
 }

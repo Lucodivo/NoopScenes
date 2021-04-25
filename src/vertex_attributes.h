@@ -1,5 +1,6 @@
 #pragma once
 
+#include <glad/glad.h>
 #include "noop_math.h"
 
 #define VERTEX_ATT_NO_INDEX_OBJECT -1
@@ -228,7 +229,7 @@ VertexAtt initializeQuadPosTexVertexAttBuffers() {
   return vertexAtt;
 }
 
-file_access void drawIndexedTriangles(VertexAtt* vertexAtt, u32 indexCount, u64 indexOffset) {
+internal_func void drawIndexedTriangles(const VertexAtt* vertexAtt, u32 indexCount, u64 indexOffset) {
   glBindVertexArray(vertexAtt->arrayObject); // NOTE: Binding every time is unnecessary if the same vertexAtt is used for multiple calls in a row
   glDrawElements(GL_TRIANGLES, // drawing mode
                  indexCount, // number of elements
@@ -236,12 +237,12 @@ file_access void drawIndexedTriangles(VertexAtt* vertexAtt, u32 indexCount, u64 
                  (void*)(indexOffset * vertexAtt->indexTypeSizeInBytes)); // offset in the EBO
 }
 
-void drawTriangles(VertexAtt* vertexAtt, u32 count, u32 offset) {
+void drawTriangles(const VertexAtt* vertexAtt, u32 count, u32 offset) {
   Assert(vertexAtt->indexCount >= (offset + count));
   drawIndexedTriangles(vertexAtt, count, offset);
 }
 
-void drawTriangles(VertexAtt* vertexAtt) {
+void drawTriangles(const VertexAtt* vertexAtt) {
   drawTriangles(vertexAtt, vertexAtt->indexCount, 0);
 }
 

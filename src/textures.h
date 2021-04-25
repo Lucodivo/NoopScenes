@@ -9,7 +9,7 @@ struct Framebuffer {
   u32 id;
   u32 colorAttachment;
   u32 depthStencilAttachment;
-  Extent2D extent;
+  vec2_u32 extent;
 };
 
 enum FramebufferCreationFlags {
@@ -18,7 +18,7 @@ enum FramebufferCreationFlags {
   FramebufferCreate_color_sRGB = 1 << 1,
 };
 
-file_access inline void bindActiveTexture(s32 activeIndex, GLuint textureId, GLenum target) {
+internal_func inline void bindActiveTexture(s32 activeIndex, GLuint textureId, GLenum target) {
   glActiveTexture(GL_TEXTURE0 + activeIndex);
   glBindTexture(target, textureId);
 }
@@ -116,7 +116,7 @@ void loadCubeMapTexture(const char* const imgLocations[6], GLuint* textureId, bo
   loadCubeMapFace(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, imgLocations[SKYBOX_TEXTURE_LOCATION_INDEX_RIGHT]);
 }
 
-Framebuffer initializeFramebuffer(Extent2D framebufferExtent, FramebufferCreationFlags flags = FramebufferCreate_NoValue)
+Framebuffer initializeFramebuffer(vec2_u32 framebufferExtent, FramebufferCreationFlags flags = FramebufferCreate_NoValue)
 {
   Framebuffer resultBuffer;
   resultBuffer.extent = framebufferExtent;

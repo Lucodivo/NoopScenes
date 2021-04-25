@@ -13,7 +13,7 @@ struct ShaderProgram {
   GLuint fragmentShader;
 };
 
-file_access u32 loadShader(const char* shaderPath, GLenum shaderType);
+internal_func u32 loadShader(const char* shaderPath, GLenum shaderType);
 
 ShaderProgram createShaderProgram(const char* vertexPath, const char* fragmentPath) {
   ShaderProgram shaderProgram;
@@ -153,7 +153,7 @@ void readShaderCodeAsString(const char* shaderPath, std::string* shaderCode)
  * parameters:
  * shaderType can be GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, or GL_GEOMETRY_SHADER
  */
-file_access u32 loadShader(const char* shaderPath, GLenum shaderType) {
+internal_func u32 loadShader(const char* shaderPath, GLenum shaderType) {
   std::string shaderTypeStr;
   if(shaderType == GL_VERTEX_SHADER) {
     shaderTypeStr = "VERTEX";

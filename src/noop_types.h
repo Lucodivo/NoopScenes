@@ -17,12 +17,13 @@ typedef double f64;
 
 typedef s32 b32;
 
-#define local_access static
-#define file_access static
-#define class_access static
+#define global_variable static
+#define internal_func static // internal_func to translation unit
+#define func_persist static
+#define class_persist static
 
 #define Pi32 3.14159265359f
-#define PiOverTwo32 (Pi32 / 2.0f)
+#define PiOverTwo32 1.57079632679f
 #define Tau32 6.28318530717958647692f
 #define RadiansPerDegree (Pi32 / 180.0f)
 #define U32_MAX ~0u
@@ -37,20 +38,19 @@ typedef s32 b32;
 
 #define InvalidCodePath Assert(!"InvalidCodePath");
 
-struct Extent2D
+struct vec2_u32
 {
   u32 width;
   u32 height;
 };
 
-// TODO: Bring this into noop_math if ever needed?
-struct vec2_64 {
+struct vec2_s16
+{
+  s16 x;
+  s16 y;
+};
+
+struct vec2_f64 {
   f64 x;
   f64 y;
 };
-
-b32 consumabool(b32* boolPtr) {
-  b32 originalVal = *boolPtr;
-  *boolPtr = false;
-  return(originalVal);
-}
