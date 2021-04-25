@@ -175,10 +175,15 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
   const u32 portalPositiveYStencilMask = 0x04;
 
   vec3 playerViewPosition = calcPlayerViewingPosition(&world->player);
+  BoundingBox portalBoundingBox;
+  portalBoundingBox.min = vec3{-0.5f, -0.5, -0.5f} * portalScale;
+  portalBoundingBox.min += portalPosition;
+  portalBoundingBox.diagonal = vec3{1.0f, 1.0f, 1.0f} * portalScale;
 
   b32 gateIsInFront = dot(world->camera.forward, normalize(portalPosition - world->camera.origin)) > 0;
   b32 insideGate = insideBox(world->entities[gateEntityIndex].model.boundingBox, playerViewPosition);
   b32 gateIsVisible = gateIsInFront || insideGate;
+  b32 insidePortal = insideBox(portalBoundingBox, playerViewPosition);
 
   vec3 portalNegativeXCenterToPlayerView = playerViewPosition - portalNegativeXCenter;
   vec3 portalPositiveXCenterToPlayerView = playerViewPosition - portalPositiveXCenter;
@@ -212,6 +217,23 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
     }
   }
 
+  if(insidePortal && portalInFocus){
+    switch(portalOfFocus) {
+      case CubeSide_NegativeX:
+        world->sceneState = SceneState_1;
+        break;
+      case CubeSide_PositiveX:
+        world->sceneState = SceneState_2;
+        break;
+      case CubeSide_NegativeY:
+        world->sceneState = SceneState_3;
+        break;
+      case CubeSide_PositiveY:
+        world->sceneState = SceneState_4;
+        break;
+    }
+  }
+
   b32 portalNegativeXVisible = ((dot(portalNegativeXCenterToPlayerView, cubeFaceNegativeXNormal) > 0.0f) && gateIsVisible && !portalInFocus) ||
                                (portalInFocus && portalOfFocus == CubeSide_NegativeX);
   b32 portalPositiveXVisible = ((dot(portalPositiveXCenterToPlayerView, cubeFacePositiveXNormal) > 0.0f) && gateIsVisible && !portalInFocus) ||
@@ -224,10 +246,6 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
   if(gateIsVisible)
   {
     { // draw gate
-      glStencilFunc(GL_ALWAYS, // stencil function always passes
-                    0x00, // reference
-                    0x00); // mask
-
       drawScene(world, gateSceneIndex);
     }
 
@@ -614,6 +632,9 @@ void portalScene(GLFWwindow* window) {
 
     // draw
     glStencilMask(0xFF);
+    glStencilFunc(GL_ALWAYS, // stencil function always passes
+                  0x00, // reference
+                  0x00); // mask
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     // universal matrices in UBO
