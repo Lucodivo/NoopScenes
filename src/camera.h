@@ -1,7 +1,5 @@
 #pragma once
 
-#include "noop_math.h"
-
 const vec3 WORLD_UP{0.0f, 0.0f, 1.0f};
 
 const f32 MAX_MIN_PITCH_FIRST_PERSON= RadiansPerDegree * 85.0f;

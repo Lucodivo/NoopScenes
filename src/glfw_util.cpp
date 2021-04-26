@@ -1,6 +1,3 @@
-#define GLFW_INCLUDE_NONE // ensure GLFW doesn't load OpenGL headers
-#include <glfw3.h>
-
 void toWindowedMode(GLFWwindow* window, const u32 width, const u32 height) {
   GLFWmonitor* monitor = glfwGetPrimaryMonitor();
   const GLFWvidmode* mode = glfwGetVideoMode(monitor);

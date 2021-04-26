@@ -1,6 +1,4 @@
 #include <windows.h>
-#include "input.h"
-
 #include <Xinput.h>
 
 internal_func void setKeyState(GLFWwindow* window, s32 glfwKey, InputType keyboardInput);
@@ -46,8 +44,8 @@ void initializeInput(GLFWwindow* window)
 
   s32 framebufferWidth, framebufferHeight;
   glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
-  framebufferWidth = max(0, framebufferWidth);
-  framebufferHeight = max(0, framebufferHeight);
+  framebufferWidth = Max(0, framebufferWidth);
+  framebufferHeight = Max(0, framebufferHeight);
   globalWindowExtent = vec2_u32{(u32)framebufferWidth, (u32)framebufferHeight};
 
   loadXInput();

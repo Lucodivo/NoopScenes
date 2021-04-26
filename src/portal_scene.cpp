@@ -1,32 +1,13 @@
-#include "vertex_attributes.h"
-#include "shader_program.h"
-#include "file_locations.h"
-#include "glfw_util.cpp"
-#include "util.h"
-#include "textures.h"
-#include "camera.h"
-#include "uniform_buffer_object_structs.h"
-#include "model.h"
-
 const vec3 defaultPlayerDimensionInMeters{0.5f, 0.25f, 1.75f}; // NOTE: ~1'7"w, 9"d, 6'h
 
 const f32 portalScale = 3.0f;
 const f32 shapeScale = 1.0f;
 const vec3 portalPosition{0.0f, 0.0f, portalScale * 0.5f};
 global_variable GLuint projViewModelUBOid = 0;
-global_variable VertexAtt cubePosVertexAtt{};
-global_variable VertexAtt invertedCubePosVertexAtt{};
 global_variable ShaderProgram stencilShader;
 
 struct Player {
   BoundingBox boundingBox;
-};
-
-enum CubeSide {
-  CubeSide_NegativeX,
-  CubeSide_PositiveX,
-  CubeSide_NegativeY,
-  CubeSide_PositiveY,
 };
 
 enum SceneState {
@@ -41,6 +22,12 @@ enum EntityType {
   EntityType_Rotating = 1 << 0,
   EntityType_Wireframe = 1 << 1,
   EntityType_Skybox = 1 << 2,
+};
+
+struct Portal {
+  VertexAtt* vertexAtt;
+  b32 ccwWindingOrder;
+  BoundingBox boundingBox;
 };
 
 struct Entity {
@@ -112,6 +99,19 @@ void drawTrianglesWireframe(const VertexAtt* vertexAtt) {
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   glEnable(GL_DEPTH_TEST);
 }
+void drawPortal(const VertexAtt* portalVertexAtt, const u32 portalStencilMask) {
+  // NOTE: Stencil function Example
+  // GL_LEQUAL
+  // Passes if ( ref & mask ) <= ( stencil & mask )
+  glStencilFunc(GL_EQUAL, // func
+                0xFF, // ref
+                0x00); // mask // Only draw portals where the stencil is cleared
+  glStencilOp(GL_KEEP, // action when stencil fails
+              GL_KEEP, // action when stencil passes but depth fails
+              GL_REPLACE); // action when both stencil and depth pass
+
+  glStencilMask(portalStencilMask);
+}
 
 void drawScene(World* world, const u32 sceneIndex) {
   Scene* scene = world->scenes + sceneIndex;
@@ -162,12 +162,15 @@ void drawScene(World* world, const u32 sceneIndex) {
 }
 
 void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneIndex, const u32* fourSceneIndices) {
+  // TODO: Move this func_persist data somewhere reasonable
   func_persist b32 portalInFocus = false;
   func_persist CubeSide portalOfFocus;
   func_persist vec3 portalNegativeXCenter = cubeFaceNegativeXCenter * portalScale;
   func_persist vec3 portalPositiveXCenter = cubeFacePositiveXCenter * portalScale;
   func_persist vec3 portalNegativeYCenter = cubeFaceNegativeYCenter * portalScale;
   func_persist vec3 portalPositiveYCenter = cubeFacePositiveYCenter * portalScale;
+  func_persist VertexAtt cubePosVertexAtt = cubePositionVertexAttBuffers();
+  func_persist VertexAtt invertedCubePosVertexAtt = cubePositionVertexAttBuffers(true);
 
   const u32 portalNegativeXStencilMask = 0x01;
   const u32 portalPositiveXStencilMask = 0x02;
@@ -393,8 +396,8 @@ void portalScene(GLFWwindow* window) {
   vec3 firstPersonCameraInitFocus{gatePosition.x, gatePosition.y, firstPersonCameraInitPosition.z};
   lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, &world.camera);
 
-  cubePosVertexAtt = initializeCubePositionVertexAttBuffers();
-  invertedCubePosVertexAtt = initializeCubePositionVertexAttBuffers(true);
+  VertexAtt cubePosVertexAtt = cubePositionVertexAttBuffers();
+  VertexAtt invertedCubePosVertexAtt = cubePositionVertexAttBuffers(true);
 
   mat4 playerBoundingBoxScaleMatrix = scale_mat4(world.player.boundingBox.diagonal);
   const f32 originalProjectionDepthNear = 0.1f;

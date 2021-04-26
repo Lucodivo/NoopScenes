@@ -1,12 +1,5 @@
 #pragma once
 
-// Define these only in *one* .cc file.
-#define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define TINYGLTF_NO_INCLUDE_STB_IMAGE
-// #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
-#include "tinygltf/tiny_gltf.h"
-
 #define TEXTURE_ID_NO_TEXTURE U32_MAX
 
 // texture ids set to TEXTURE_ID_NO_TEXTURE when none exists
@@ -356,7 +349,7 @@ void deleteModels(Model** models, u32 count) {
 void skyBoxModel(const char* const imgLocations[6], Model* model) {
   model->boundingBox = cubeVertAttBoundingBox;
   model->meshes = new Mesh[1];
-  model->meshes[0].vertexAtt = initializeCubePositionVertexAttBuffers(true); // TODO: reuse this vert att
+  model->meshes[0].vertexAtt = cubePositionVertexAttBuffers(true); // TODO: reuse this vert att
   model->meshes[0].textureData = {};
   loadCubeMapTexture(imgLocations, &model->meshes[0].textureData.albedoTextureId);
   model->meshCount = 1;

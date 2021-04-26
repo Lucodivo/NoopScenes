@@ -1,11 +1,5 @@
 #pragma once
 
-#define GLFW_INCLUDE_NONE // ensure GLFW doesn't load OpenGL headers
-#include <glfw3.h>
-
-#include <iostream>
-#include "noop_types.h"
-
 #define WINDOW_SIZE_CALLBACK(name) void name(void)
 typedef WINDOW_SIZE_CALLBACK(windows_size_callback);
 

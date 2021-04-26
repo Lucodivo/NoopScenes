@@ -28,7 +28,7 @@ include_directories(${INCL_DIR} ${EXT_DIR} "${EXT_DIR}/stb" "${EXT_DIR}/glad")
 
 add_library(glad STATIC "${EXT_DIR}/glad/glad.c" )
 
-add_executable(${PROJECT_NAME} src/main.cpp src/input.cpp)
+add_executable(${PROJECT_NAME} src/noop_scenes.cpp)
 
 add_executable(TestingGround src/testing_ground/testing_ground.cpp)
 

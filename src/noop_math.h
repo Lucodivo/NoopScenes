@@ -1,6 +1,4 @@
 #pragma once
-#include <math.h>
-#include "noop_types.h"
 
 // TODO: No optimizations have been made in this file. Ideas: intrinsics, sse, better usage of temporary memory.
 
@@ -237,7 +235,7 @@ inline f32 dot(vec3 xyz1, vec3 xyz2) {
 }
 
 inline vec3 hadamard(const vec3& xyz1, const vec3& xyz2) {
-  return vec3{ xyz1.x * xyz2.x, xyz2.y * xyz2.y, xyz1.z * xyz2.z };
+  return vec3{ xyz1.x * xyz2.x, xyz1.y * xyz2.y, xyz1.z * xyz2.z };
 }
 
 inline vec3 cross(const vec3& xyz1, const vec3& xyz2) {
