@@ -1,10 +1,10 @@
 // TODO: When, if ever, does this vertex attribute data get deleted?
 global_variable VertexAtt globalCubePosVertexAtt{};
 global_variable VertexAtt globalInvertedCubePosVertexAtt{};
+global_variable VertexAtt globalQuadPosVertexAtt{};
+global_variable VertexAtt globalQuadPosTexVertexAtt{};
 
 const u32 cubePosAttStrideInBytes = 3 * sizeof(f32);
-// ===== Quad values (vec3 position, vec2 tex) =====
-const u32 quadPosTexVertexAttSizeInBytes = 5 * sizeof(f32);
 const f32 cubePosAtts[] = {
         // positions
         // face #1 (negative x)
@@ -85,14 +85,16 @@ const u32 cubeFacePositiveYIndicesOffset = 18;
 const u32 cubeFaceNegativeZIndicesOffset = 24;
 const u32 cubeFacePositiveZIndicesOffset = 30;
 
+// ===== Quad values (vec3 position, vec2 tex) =====
 // faces -Y direction
 const f32 quadPosVertexAttributes[] = {
-        // positions        // texCoords
+        // positions
         -0.5f,  0.0f, -0.5f,
          0.5f,  0.0f, -0.5f,
          0.5f,  0.0f,  0.5f,
         -0.5f,  0.0f,  0.5f,
 };
+const u32 quadPosVertexAttSizeInBytes = 3 * sizeof(f32);
 const f32 quadPosTexVertexAttributes[] = {
         // positions        // texCoords
         -0.5f,  0.0f, -0.5f,  0.0f, 0.0f,
@@ -100,17 +102,19 @@ const f32 quadPosTexVertexAttributes[] = {
          0.5f,  0.0f,  0.5f,  1.0f, 1.0f,
         -0.5f,  0.0f,  0.5f,  0.0f, 1.0f,
 };
+const u32 quadPosTexVertexAttSizeInBytes = 5 * sizeof(f32);
 const vec3 quadVertexAttNormal = {0.0f, -1.0f, 0.0f};
 const u8 quadIndices[]{
         0, 1, 2,
         0, 2, 3,
 };
 
-// normal is
-//mat4 quadModelMatrix(const vec3& centerPos, const vec3& normal, const f32 width, const f32 height) {
-//  f32 normalTheta = aCos(quadVertexAttNormal
-//
-//}
+mat4 quadModelMatrix(const vec3& centerPos, const vec3& desiredNormal, const f32 width, const f32 height) {
+  mat4 scaleMat = scale_mat4(vec3{width, 1.0f, height});;
+  mat4 rotationMat = rotate_mat4(orient(quadVertexAttNormal, desiredNormal));
+  mat4 translationMat = translate_mat4(centerPos);
+  return translationMat * rotationMat * scaleMat;
+}
 
 u32 convertSizeInBytesToOpenGLUIntType(u8 sizeInBytes) {
   switch(sizeInBytes) {
@@ -187,16 +191,112 @@ void initCubePositionVertexAttBuffers()
   }
 }
 
-VertexAtt cubePositionVertexAttBuffers(bool invertedWindingOrder) {
+VertexAtt cubePosVertexAttBuffers(bool invertedWindingOrder) {
   initCubePositionVertexAttBuffers();
   return invertedWindingOrder ? globalInvertedCubePosVertexAtt : globalCubePosVertexAtt;
 }
 
-VertexAtt quadCubeSidePosVertexAttBuffers(CubeSide cubeSide, bool invertedWindingOrder)
-{
-  VertexAtt vertexAtt;
-  // TODO: get quads from cube
-  return vertexAtt;
+void initQuadPosVertexAttBuffers() {
+  if (globalQuadPosVertexAtt.indexCount == 0)
+  { // uninitialized
+    globalQuadPosVertexAtt.indexCount = ArrayCount(quadIndices);
+    globalQuadPosVertexAtt.indexTypeSizeInBytes = sizeof(quadIndices) / globalQuadPosVertexAtt.indexCount;
+    const u32 positionAttributeIndex = 0;
+    const u32 textureAttributeIndex = 1;
+
+    glGenVertexArrays(1, &globalQuadPosVertexAtt.arrayObject);
+    glGenBuffers(1, &globalQuadPosVertexAtt.bufferObject);
+    glGenBuffers(1, &globalQuadPosVertexAtt.indexObject);
+
+    glBindVertexArray(globalQuadPosVertexAtt.arrayObject);
+
+    glBindBuffer(GL_ARRAY_BUFFER, globalQuadPosVertexAtt.bufferObject);
+    glBufferData(GL_ARRAY_BUFFER,
+                 sizeof(quadPosVertexAttributes),
+                 quadPosVertexAttributes,
+                 GL_STATIC_DRAW);
+
+    // set the vertex attributes (position and texture)
+    // position attribute
+    glVertexAttribPointer(positionAttributeIndex,
+                          3, // attribute size
+                          GL_FLOAT,
+                          GL_FALSE,
+                          quadPosVertexAttSizeInBytes,
+                          (void*) 0);
+    glEnableVertexAttribArray(positionAttributeIndex);
+
+    // bind element buffer object to give indices
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, globalQuadPosVertexAtt.indexObject);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadIndices), quadIndices, GL_STATIC_DRAW);
+
+    // unbind VBO, VAO, & EBO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    // Must unbind EBO AFTER unbinding VAO, since VAO stores all glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _) calls
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  }
+}
+
+VertexAtt quadPosVertexAttBuffers() {
+  initQuadPosVertexAttBuffers();
+  return globalQuadPosVertexAtt;
+}
+
+void initQuadPosTexVertexAttBuffers() {
+  if (globalQuadPosTexVertexAtt.indexCount == 0)
+  { // uninitialized
+    globalQuadPosTexVertexAtt.indexCount = ArrayCount(quadIndices);
+    globalQuadPosTexVertexAtt.indexTypeSizeInBytes = sizeof(quadIndices) / globalQuadPosTexVertexAtt.indexCount;
+    const u32 positionAttributeIndex = 0;
+    const u32 textureAttributeIndex = 1;
+
+    glGenVertexArrays(1, &globalQuadPosTexVertexAtt.arrayObject);
+    glGenBuffers(1, &globalQuadPosTexVertexAtt.bufferObject);
+    glGenBuffers(1, &globalQuadPosTexVertexAtt.indexObject);
+
+    glBindVertexArray(globalQuadPosTexVertexAtt.arrayObject);
+
+    glBindBuffer(GL_ARRAY_BUFFER, globalQuadPosTexVertexAtt.bufferObject);
+    glBufferData(GL_ARRAY_BUFFER,
+                 sizeof(quadPosTexVertexAttributes),
+                 quadPosTexVertexAttributes,
+                 GL_STATIC_DRAW);
+
+    // set the vertex attributes (position and texture)
+    // position attribute
+    glVertexAttribPointer(positionAttributeIndex,
+                          3, // attribute size
+                          GL_FLOAT,
+                          GL_FALSE,
+                          quadPosTexVertexAttSizeInBytes,
+                          (void*) 0);
+    glEnableVertexAttribArray(positionAttributeIndex);
+
+    // texture attribute
+    glVertexAttribPointer(textureAttributeIndex,
+                          2, // attribute size
+                          GL_FLOAT,
+                          GL_FALSE,
+                          quadPosTexVertexAttSizeInBytes,
+                          (void*) (3 * sizeof(f32)));
+    glEnableVertexAttribArray(textureAttributeIndex);
+
+    // bind element buffer object to give indices
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, globalQuadPosTexVertexAtt.indexObject);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadIndices), quadIndices, GL_STATIC_DRAW);
+
+    // unbind VBO, VAO, & EBO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    // Must unbind EBO AFTER unbinding VAO, since VAO stores all glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _) calls
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  }
+}
+
+VertexAtt quadPosTexVertexAttBuffers() {
+  initQuadPosTexVertexAttBuffers();
+  return globalQuadPosTexVertexAtt;
 }
 
 internal_func void drawIndexedTriangles(const VertexAtt* vertexAtt, u32 indexCount, u64 indexOffset)

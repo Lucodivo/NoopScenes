@@ -1,6 +1,7 @@
 #pragma once
 
 // TODO: No optimizations have been made in this file. Ideas: intrinsics, sse, better usage of temporary memory.
+// TODO: Translation and scaling are two things that happen all the time. Create translateScale_mat4/mat3(); (maybe also rotate)
 
 #define Min(x, y) (x < y ? x : y)
 #define Max(x, y) (x > y ? x : y)
@@ -537,273 +538,6 @@ inline vec4 lerp(const vec4& a, const vec4& b, f32 t) {
   return a - ((a + b) * t);
 }
 
-// mat3
-inline mat3 identity_mat3() {
-  return mat3 {
-          1.0f, 0.0f, 0.0f,
-          0.0f, 1.0f, 0.0f,
-          0.0f, 0.0f, 1.0f,
-  };
-}
-
-inline mat3 scale_mat3(f32 scale) {
-  return mat3 {
-          scale, 0.0f, 0.0f,
-          0.0f, scale, 0.0f,
-          0.0f, 0.0f, scale,
-  };
-}
-
-inline mat3 scale_mat3(vec3 scale) {
-  return mat3 {
-          scale.x, 0.0f, 0.0f,
-          0.0f, scale.y, 0.0f,
-          0.0f, 0.0f, scale.z,
-  };
-}
-
-inline mat3 transpose_mat3(const mat3& A) {
-  return mat3 {
-          A[0][0], A[1][0], A[2][0],
-          A[0][1], A[1][1], A[2][1],
-          A[0][2], A[1][2], A[2][2],
-  };
-}
-
-// angle in radians
-inline mat3 rotate_mat3(f32 angle, vec3 v) {
-  vec3 axis(normalize(v));
-
-  f32 const cosA = cosf(angle);
-  f32 const sinA = sinf(angle);
-  vec3 const axisTimesOneMinusCos = axis * (1.0f - cosA);
-
-  mat3 rotate;
-  rotate[0][0] = axis.x * axisTimesOneMinusCos.x + cosA;
-  rotate[0][1] = axis.x * axisTimesOneMinusCos.y + sinA * axis.z;
-  rotate[0][2] = axis.x * axisTimesOneMinusCos.z - sinA * axis.y;
-
-  rotate[1][0] = axis.y * axisTimesOneMinusCos.x - sinA * axis.z;
-  rotate[1][1] = axis.y * axisTimesOneMinusCos.y + cosA;
-  rotate[1][2] = axis.y * axisTimesOneMinusCos.z + sinA * axis.x;
-
-  rotate[2][0] = axis.z * axisTimesOneMinusCos.x + sinA * axis.y;
-  rotate[2][1] = axis.z * axisTimesOneMinusCos.y - sinA * axis.x;
-  rotate[2][2] = axis.z * axisTimesOneMinusCos.z + cosA;
-
-  return rotate;
-}
-
-inline vec3 operator*(const mat3& M, const vec3& v) {
-  vec3 result =  M.col[0] * v.x;
-  result      += M.col[1] * v.y;
-  result      += M.col[2] * v.z;
-  return result;
-}
-
-mat3 operator*(const mat3& A, const mat3& B) {
-  mat3 result;
-
-  mat3 transposeA = transpose_mat3(A); // cols <=> rows
-  result[0][0] = dot(transposeA.col[0], B.col[0]);
-  result[0][1] = dot(transposeA.col[1], B.col[0]);
-  result[0][2] = dot(transposeA.col[2], B.col[0]);
-  result[1][0] = dot(transposeA.col[0], B.col[1]);
-  result[1][1] = dot(transposeA.col[1], B.col[1]);
-  result[1][2] = dot(transposeA.col[2], B.col[1]);
-  result[2][0] = dot(transposeA.col[0], B.col[2]);
-  result[2][1] = dot(transposeA.col[1], B.col[2]);
-  result[2][2] = dot(transposeA.col[2], B.col[2]);
-
-  return result;
-}
-
-// mat4
-inline mat4 Mat4(mat3 M) {
-  return mat4{
-          M[0][1], M[0][1], M[0][1], 0.0f,
-          M[0][1], M[0][1], M[0][1], 0.0f,
-          M[0][1], M[0][1], M[0][1], 0.0f,
-          0.0f, 0.0f, 0.0f, 1.0f,
-  };
-}
-
-inline mat4 identity_mat4() {
-  return mat4 {
-          1.0f, 0.0f, 0.0f, 0.0f,
-          0.0f, 1.0f, 0.0f, 0.0f,
-          0.0f, 0.0f, 1.0f, 0.0f,
-          0.0f, 0.0f, 0.0f, 1.0f,
-  };
-}
-
-inline mat4 scale_mat4(f32 scale) {
-  return mat4 {
-          scale,  0.0f,  0.0f, 0.0f,
-           0.0f, scale,  0.0f, 0.0f,
-           0.0f,  0.0f, scale, 0.0f,
-           0.0f,  0.0f,  0.0f, 1.0f,
-  };
-}
-
-inline mat4 scale_mat4(vec3 scale) {
-  return mat4 {
-          scale.x,    0.0f,    0.0f, 0.0f,
-             0.0f, scale.y,    0.0f, 0.0f,
-             0.0f,    0.0f, scale.z, 0.0f,
-             0.0f,    0.0f,    0.0f, 1.0f,
-  };
-}
-
-inline mat4 translate_mat4(vec3 translation) {
-  return mat4 {
-                   1.0f,          0.0f,          0.0f, 0.0f,
-                   0.0f,          1.0f,          0.0f, 0.0f,
-                   0.0f,          0.0f,          1.0f, 0.0f,
-          translation.x, translation.y, translation.z, 1.0f,
-  };
-}
-
-inline mat4 transpose_mat4(const mat4& A) {
-  return mat4 {
-          A[0][0], A[1][0], A[2][0], A[3][0],
-          A[0][1], A[1][1], A[2][1], A[3][1],
-          A[0][2], A[1][2], A[2][2], A[3][2],
-          A[0][3], A[1][3], A[2][3], A[3][3],
-  };
-}
-
-// angle in radians
-inline mat4 rotate_mat4(f32 angle, vec3 v) {
-  vec3 axis(normalize(v));
-
-  f32 const cosA = cosf(angle);
-  f32 const sinA = sinf(angle);
-  vec3 const axisTimesOneMinusCos = axis * (1.0f - cosA);
-
-  mat4 rotate;
-  rotate[0][0] = axis.x * axisTimesOneMinusCos.x + cosA;
-  rotate[0][1] = axis.x * axisTimesOneMinusCos.y + sinA * axis.z;
-  rotate[0][2] = axis.x * axisTimesOneMinusCos.z - sinA * axis.y;
-  rotate[0][3] = 0;
-
-  rotate[1][0] = axis.y * axisTimesOneMinusCos.x - sinA * axis.z;
-  rotate[1][1] = axis.y * axisTimesOneMinusCos.y + cosA;
-  rotate[1][2] = axis.y * axisTimesOneMinusCos.z + sinA * axis.x;
-  rotate[1][3] = 0;
-
-  rotate[2][0] = axis.z * axisTimesOneMinusCos.x + sinA * axis.y;
-  rotate[2][1] = axis.z * axisTimesOneMinusCos.y - sinA * axis.x;
-  rotate[2][2] = axis.z * axisTimesOneMinusCos.z + cosA;
-  rotate[2][3] = 0;
-
-  rotate.col[3] = {0.0f, 0.0f, 0.0f, 1.0f};
-
-  return rotate;
-}
-
-inline vec4 operator*(const mat4& M, const vec4& v) {
-  vec4 result =  M.col[0] * v.x;
-  result      += M.col[1] * v.y;
-  result      += M.col[2] * v.z;
-  result      += M.col[3] * v.w;
-  return result;
-}
-
-mat4 operator*(const mat4& A, const mat4& B) {
-  mat4 result;
-
-  mat4 transposeA = transpose_mat4(A); // cols <=> rows
-  result[0][0] = dot(transposeA.col[0], B.col[0]);
-  result[0][1] = dot(transposeA.col[1], B.col[0]);
-  result[0][2] = dot(transposeA.col[2], B.col[0]);
-  result[0][3] = dot(transposeA.col[3], B.col[0]);
-  result[1][0] = dot(transposeA.col[0], B.col[1]);
-  result[1][1] = dot(transposeA.col[1], B.col[1]);
-  result[1][2] = dot(transposeA.col[2], B.col[1]);
-  result[1][3] = dot(transposeA.col[3], B.col[1]);
-  result[2][0] = dot(transposeA.col[0], B.col[2]);
-  result[2][1] = dot(transposeA.col[1], B.col[2]);
-  result[2][2] = dot(transposeA.col[2], B.col[2]);
-  result[2][3] = dot(transposeA.col[3], B.col[2]);
-  result[3][0] = dot(transposeA.col[0], B.col[3]);
-  result[3][1] = dot(transposeA.col[1], B.col[3]);
-  result[3][2] = dot(transposeA.col[2], B.col[3]);
-  result[3][3] = dot(transposeA.col[3], B.col[3]);
-
-  return result;
-}
-
-// real-time rendering 4.7.2
-// ex: screenWidth = 20.0f, screenDist = 30.0f will provide the horizontal field of view
-// for a person sitting 30 inches away from a 20 inch screen, assuming the screen is
-// perpendicular to the line of sight.
-// NOTE: Any units work as long as they are the same. Works for vertical and horizontal.
-f32 fieldOfView(f32 screenWidth, f32 screenDist) {
-  f32 phi = 2.0f * atanf(screenWidth/(2.0f * screenDist));
-  return phi;
-}
-
-// real-time rendering 4.7.1
-// This projection is for a canonical view volume goes from <-1,1>
-inline mat4 orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
-    // NOTE: Projection matrices are all about creating properly placing
-    // objects in the canonical view volume, which in the case of OpenGL
-    // is from <-1,-1,-1> to <1,1,1>.
-    // The 3x3 matrix is dividing vectors/points by the specified dimensions
-    // and multiplying by two. That is because the the canonical view volume
-    // in our case actually has dimensions of <2,2,2>. So we map our specified
-    // dimensions between the values of 0 and 2
-    // The translation value is necessary in order to translate the values from
-    // the range of 0 and 2 to the range of -1 and 1
-    // The translation may look odd and that is because this matrix is a
-    // combination of a Scale matrix, S, and a translation matrix, T, in
-    // which the translation must be performed first. Taking the x translation
-    // for example, we want to translate it by -(l + r) / 2. Which would
-    // effectively move the origin's x value in the center of l & r. However,
-    // the scaling changes that translation to [(2 / (r + l)) * (-(r + l) / 2)],
-    // which simplifies to what is seen below for the x translation.
-    return {
-             2 / (r - l),                0,                0, 0,
-                       0,      2 / (t - b),                0, 0,
-                       0,                0,      2 / (f - n), 0,
-        -(r + l)/(r - l), -(t + b)/(t - b), -(f + n)/(f - n), 1
-    };
-}
-
-// real-time rendering 4.7.2
-inline mat4 perspective(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
-  return {
-          (2.0f * n) / (r - l),                    0,      -(r + l) / (r - l),                         0,
-                             0, (2.0f * n) / (t - b),      -(t + b) / (t - b),                         0,
-                             0,                    0,      -(f + n) / (f - n), -(2.0f * f * n) / (f - n),
-                             0,                    0,                  -(1/n),                         0
-  };
-}
-
-// real-time rendering 4.7.2
-// aspect ratio is equivalent to width / height
-inline mat4 perspective(f32 fovVert, f32 aspect, f32 n, f32 f) {
-  const f32 c = 1.0f / tanf(fovVert / 2.0f);
-  return {
-          (c / aspect), 0.0f,                      0.0f,                      0.0f,
-                  0.0f,    c,                      0.0f,                      0.0f,
-                  0.0f, 0.0f,        -(f + n) / (f - n),                     -1.0f,
-                  0.0f, 0.0f, -(2.0f * f * n) / (f - n),                      0.0f,
-  };
-}
-
-void adjustAspectPerspProj(mat4* projectionMatrix, f32 fovVert, f32 aspect) {
-  const f32 c = 1.0f / tanf(fovVert / 2.0f);
-  (*projectionMatrix)[0][0] = c / aspect;
-  (*projectionMatrix)[1][1] = c;
-}
-
-void adjustNearFarPerspProj(mat4* projectionMatrix, f32 n, f32 f) {
-  (*projectionMatrix)[2][2] = -(f + n) / (f - n);
-  (*projectionMatrix)[3][2] = -(2.0f * f * n) / (f - n);
-}
-
 // Complex
 // This angle represents a counter-clockwise rotation
 complex Complex(f32 angle){
@@ -845,7 +579,8 @@ void operator*=(vec2& xy, const complex& ri) {
 }
 
 // Quaternions
-quaternion Quaternion(f32 angle, vec3 v) {
+quaternion Quaternion(vec3 v, f32 angle)
+{
   vec3 n = normalize(v);
 
   f32 halfA = angle * 0.5f;
@@ -963,12 +698,306 @@ quaternion slerp(quaternion a, quaternion b, f32 t) {
   return ((sinf(theta * (1.0f - t)) * a) + (sinf(theta * t) * b)) / sinf(theta);
 }
 
-//quaternion orient(const vec3& startOrientation, const vec3& endOrientation) {
-//  vec3 unitStartOrientation = normalize(startOrientation);
-//  vec3 unitEndOrientation = normalize(endOrientation);
-//  f32 theta = acosf(dot(unitStartOrientation, unitEndOrientation));
-//  vec3 unitPerp = normalize()
-//}
+// TODO: There is a whole 360 degrees of rotation around the endOrientation axis that will all result in a "correct"
+// TODO: end orientation as described by the function parameters
+// TODO: Consider making this more explicit if it no longer fits the needs.
+quaternion orient(const vec3& startOrientation, const vec3& endOrientation) {
+  // TODO: more robust handling of close orientations
+  if(startOrientation == endOrientation) {
+    return identity_quaternion();
+  } else if (startOrientation == -endOrientation) {
+    return Quaternion(vec3{0.0f, 0.0f, 1.0f}, 180.0f * RadiansPerDegree);
+  }
+  vec3 unitStartOrientation = normalize(startOrientation);
+  vec3 unitEndOrientation = normalize(endOrientation);
+  f32 theta = acosf(dot(unitStartOrientation, unitEndOrientation));
+  vec3 unitPerp = normalize(cross(unitStartOrientation, unitEndOrientation));
+  return Quaternion(unitPerp, theta);
+}
+
+// mat3
+inline mat3 identity_mat3() {
+  return mat3 {
+          1.0f, 0.0f, 0.0f,
+          0.0f, 1.0f, 0.0f,
+          0.0f, 0.0f, 1.0f,
+  };
+}
+
+inline mat3 scale_mat3(f32 scale) {
+  return mat3 {
+          scale, 0.0f, 0.0f,
+          0.0f, scale, 0.0f,
+          0.0f, 0.0f, scale,
+  };
+}
+
+inline mat3 scale_mat3(vec3 scale) {
+  return mat3 {
+          scale.x, 0.0f, 0.0f,
+          0.0f, scale.y, 0.0f,
+          0.0f, 0.0f, scale.z,
+  };
+}
+
+inline mat3 transpose_mat3(const mat3& A) {
+  return mat3 {
+          A[0][0], A[1][0], A[2][0],
+          A[0][1], A[1][1], A[2][1],
+          A[0][2], A[1][2], A[2][2],
+  };
+}
+
+// angle in radians
+inline mat3 rotate_mat3(f32 angle, vec3 v) {
+  vec3 axis(normalize(v));
+
+  f32 const cosA = cosf(angle);
+  f32 const sinA = sinf(angle);
+  vec3 const axisTimesOneMinusCos = axis * (1.0f - cosA);
+
+  mat3 rotate;
+  rotate[0][0] = axis.x * axisTimesOneMinusCos.x + cosA;
+  rotate[0][1] = axis.x * axisTimesOneMinusCos.y + sinA * axis.z;
+  rotate[0][2] = axis.x * axisTimesOneMinusCos.z - sinA * axis.y;
+
+  rotate[1][0] = axis.y * axisTimesOneMinusCos.x - sinA * axis.z;
+  rotate[1][1] = axis.y * axisTimesOneMinusCos.y + cosA;
+  rotate[1][2] = axis.y * axisTimesOneMinusCos.z + sinA * axis.x;
+
+  rotate[2][0] = axis.z * axisTimesOneMinusCos.x + sinA * axis.y;
+  rotate[2][1] = axis.z * axisTimesOneMinusCos.y - sinA * axis.x;
+  rotate[2][2] = axis.z * axisTimesOneMinusCos.z + cosA;
+
+  return rotate;
+}
+
+inline mat3 rotate_mat3(quaternion q) {
+  mat3 resultMat{}; // zero out matrix
+  resultMat.xTransform = q * vec3{1.0f, 0.0f, 0.0f};
+  resultMat.yTransform = q * vec3{0.0f, 1.0f, 0.0f};
+  resultMat.zTransform = q * vec3{0.0f, 0.0f, 1.0f};
+  return resultMat;
+}
+
+inline vec3 operator*(const mat3& M, const vec3& v) {
+  vec3 result =  M.col[0] * v.x;
+  result      += M.col[1] * v.y;
+  result      += M.col[2] * v.z;
+  return result;
+}
+
+mat3 operator*(const mat3& A, const mat3& B) {
+  mat3 result;
+
+  mat3 transposeA = transpose_mat3(A); // cols <=> rows
+  result[0][0] = dot(transposeA.col[0], B.col[0]);
+  result[0][1] = dot(transposeA.col[1], B.col[0]);
+  result[0][2] = dot(transposeA.col[2], B.col[0]);
+  result[1][0] = dot(transposeA.col[0], B.col[1]);
+  result[1][1] = dot(transposeA.col[1], B.col[1]);
+  result[1][2] = dot(transposeA.col[2], B.col[1]);
+  result[2][0] = dot(transposeA.col[0], B.col[2]);
+  result[2][1] = dot(transposeA.col[1], B.col[2]);
+  result[2][2] = dot(transposeA.col[2], B.col[2]);
+
+  return result;
+}
+
+// mat4
+inline mat4 Mat4(mat3 M) {
+  return mat4{
+          M[0][1], M[0][1], M[0][1], 0.0f,
+          M[0][1], M[0][1], M[0][1], 0.0f,
+          M[0][1], M[0][1], M[0][1], 0.0f,
+          0.0f, 0.0f, 0.0f, 1.0f,
+  };
+}
+
+inline mat4 identity_mat4() {
+  return mat4 {
+          1.0f, 0.0f, 0.0f, 0.0f,
+          0.0f, 1.0f, 0.0f, 0.0f,
+          0.0f, 0.0f, 1.0f, 0.0f,
+          0.0f, 0.0f, 0.0f, 1.0f,
+  };
+}
+
+inline mat4 scale_mat4(f32 scale) {
+  return mat4 {
+          scale,  0.0f,  0.0f, 0.0f,
+           0.0f, scale,  0.0f, 0.0f,
+           0.0f,  0.0f, scale, 0.0f,
+           0.0f,  0.0f,  0.0f, 1.0f,
+  };
+}
+
+inline mat4 scale_mat4(vec3 scale) {
+  return mat4 {
+          scale.x,    0.0f,    0.0f, 0.0f,
+             0.0f, scale.y,    0.0f, 0.0f,
+             0.0f,    0.0f, scale.z, 0.0f,
+             0.0f,    0.0f,    0.0f, 1.0f,
+  };
+}
+
+inline mat4 translate_mat4(vec3 translation) {
+  return mat4 {
+                   1.0f,          0.0f,          0.0f, 0.0f,
+                   0.0f,          1.0f,          0.0f, 0.0f,
+                   0.0f,          0.0f,          1.0f, 0.0f,
+          translation.x, translation.y, translation.z, 1.0f,
+  };
+}
+
+inline mat4 transpose_mat4(const mat4& A) {
+  return mat4 {
+          A[0][0], A[1][0], A[2][0], A[3][0],
+          A[0][1], A[1][1], A[2][1], A[3][1],
+          A[0][2], A[1][2], A[2][2], A[3][2],
+          A[0][3], A[1][3], A[2][3], A[3][3],
+  };
+}
+
+// angle in radians
+inline mat4 rotate_mat4(f32 angle, vec3 v) {
+  vec3 axis(normalize(v));
+
+  f32 const cosA = cosf(angle);
+  f32 const sinA = sinf(angle);
+  vec3 const axisTimesOneMinusCos = axis * (1.0f - cosA);
+
+  mat4 rotate;
+  rotate[0][0] = axis.x * axisTimesOneMinusCos.x + cosA;
+  rotate[0][1] = axis.x * axisTimesOneMinusCos.y + sinA * axis.z;
+  rotate[0][2] = axis.x * axisTimesOneMinusCos.z - sinA * axis.y;
+  rotate[0][3] = 0;
+
+  rotate[1][0] = axis.y * axisTimesOneMinusCos.x - sinA * axis.z;
+  rotate[1][1] = axis.y * axisTimesOneMinusCos.y + cosA;
+  rotate[1][2] = axis.y * axisTimesOneMinusCos.z + sinA * axis.x;
+  rotate[1][3] = 0;
+
+  rotate[2][0] = axis.z * axisTimesOneMinusCos.x + sinA * axis.y;
+  rotate[2][1] = axis.z * axisTimesOneMinusCos.y - sinA * axis.x;
+  rotate[2][2] = axis.z * axisTimesOneMinusCos.z + cosA;
+  rotate[2][3] = 0;
+
+  rotate.col[3] = {0.0f, 0.0f, 0.0f, 1.0f};
+
+  return rotate;
+}
+
+inline mat4 rotate_mat4(quaternion q) {
+  mat4 resultMat{}; // zero out matrix
+  resultMat.xTransform.xyz = q * vec3{1.0f, 0.0f, 0.0f};
+  resultMat.yTransform.xyz = q * vec3{0.0f, 1.0f, 0.0f};
+  resultMat.zTransform.xyz = q * vec3{0.0f, 0.0f, 1.0f};
+  resultMat[3][3] = 1.0f;
+  return resultMat;
+}
+
+inline vec4 operator*(const mat4& M, const vec4& v) {
+  vec4 result =  M.col[0] * v.x;
+  result      += M.col[1] * v.y;
+  result      += M.col[2] * v.z;
+  result      += M.col[3] * v.w;
+  return result;
+}
+
+mat4 operator*(const mat4& A, const mat4& B) {
+  mat4 result;
+
+  mat4 transposeA = transpose_mat4(A); // cols <=> rows
+  result[0][0] = dot(transposeA.col[0], B.col[0]);
+  result[0][1] = dot(transposeA.col[1], B.col[0]);
+  result[0][2] = dot(transposeA.col[2], B.col[0]);
+  result[0][3] = dot(transposeA.col[3], B.col[0]);
+  result[1][0] = dot(transposeA.col[0], B.col[1]);
+  result[1][1] = dot(transposeA.col[1], B.col[1]);
+  result[1][2] = dot(transposeA.col[2], B.col[1]);
+  result[1][3] = dot(transposeA.col[3], B.col[1]);
+  result[2][0] = dot(transposeA.col[0], B.col[2]);
+  result[2][1] = dot(transposeA.col[1], B.col[2]);
+  result[2][2] = dot(transposeA.col[2], B.col[2]);
+  result[2][3] = dot(transposeA.col[3], B.col[2]);
+  result[3][0] = dot(transposeA.col[0], B.col[3]);
+  result[3][1] = dot(transposeA.col[1], B.col[3]);
+  result[3][2] = dot(transposeA.col[2], B.col[3]);
+  result[3][3] = dot(transposeA.col[3], B.col[3]);
+
+  return result;
+}
+
+// real-time rendering 4.7.2
+// ex: screenWidth = 20.0f, screenDist = 30.0f will provide the horizontal field of view
+// for a person sitting 30 inches away from a 20 inch screen, assuming the screen is
+// perpendicular to the line of sight.
+// NOTE: Any units work as long as they are the same. Works for vertical and horizontal.
+f32 fieldOfView(f32 screenWidth, f32 screenDist) {
+  f32 phi = 2.0f * atanf(screenWidth/(2.0f * screenDist));
+  return phi;
+}
+
+// real-time rendering 4.7.1
+// This projection is for a canonical view volume goes from <-1,1>
+inline mat4 orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
+    // NOTE: Projection matrices are all about creating properly placing
+    // objects in the canonical view volume, which in the case of OpenGL
+    // is from <-1,-1,-1> to <1,1,1>.
+    // The 3x3 matrix is dividing vectors/points by the specified dimensions
+    // and multiplying by two. That is because the the canonical view volume
+    // in our case actually has dimensions of <2,2,2>. So we map our specified
+    // dimensions between the values of 0 and 2
+    // The translation value is necessary in order to translate the values from
+    // the range of 0 and 2 to the range of -1 and 1
+    // The translation may look odd and that is because this matrix is a
+    // combination of a Scale matrix, S, and a translation matrix, T, in
+    // which the translation must be performed first. Taking the x translation
+    // for example, we want to translate it by -(l + r) / 2. Which would
+    // effectively move the origin's x value in the center of l & r. However,
+    // the scaling changes that translation to [(2 / (r + l)) * (-(r + l) / 2)],
+    // which simplifies to what is seen below for the x translation.
+    return {
+             2 / (r - l),                0,                0, 0,
+                       0,      2 / (t - b),                0, 0,
+                       0,                0,      2 / (f - n), 0,
+        -(r + l)/(r - l), -(t + b)/(t - b), -(f + n)/(f - n), 1
+    };
+}
+
+// real-time rendering 4.7.2
+inline mat4 perspective(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
+  return {
+          (2.0f * n) / (r - l),                    0,      -(r + l) / (r - l),                         0,
+                             0, (2.0f * n) / (t - b),      -(t + b) / (t - b),                         0,
+                             0,                    0,      -(f + n) / (f - n), -(2.0f * f * n) / (f - n),
+                             0,                    0,                  -(1/n),                         0
+  };
+}
+
+// real-time rendering 4.7.2
+// aspect ratio is equivalent to width / height
+inline mat4 perspective(f32 fovVert, f32 aspect, f32 n, f32 f) {
+  const f32 c = 1.0f / tanf(fovVert / 2.0f);
+  return {
+          (c / aspect), 0.0f,                      0.0f,                      0.0f,
+                  0.0f,    c,                      0.0f,                      0.0f,
+                  0.0f, 0.0f,        -(f + n) / (f - n),                     -1.0f,
+                  0.0f, 0.0f, -(2.0f * f * n) / (f - n),                      0.0f,
+  };
+}
+
+void adjustAspectPerspProj(mat4* projectionMatrix, f32 fovVert, f32 aspect) {
+  const f32 c = 1.0f / tanf(fovVert / 2.0f);
+  (*projectionMatrix)[0][0] = c / aspect;
+  (*projectionMatrix)[1][1] = c;
+}
+
+void adjustNearFarPerspProj(mat4* projectionMatrix, f32 n, f32 f) {
+  (*projectionMatrix)[2][2] = -(f + n) / (f - n);
+  (*projectionMatrix)[3][2] = -(2.0f * f * n) / (f - n);
+}
 
 // etc
 bool insideRect(BoundingRect boundingRect, vec2 position) {

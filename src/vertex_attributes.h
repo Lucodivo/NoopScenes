@@ -10,15 +10,6 @@ struct VertexAtt {
   u32 indexTypeSizeInBytes;
 };
 
-enum CubeSide {
-  CubeSide_NegativeX,
-  CubeSide_PositiveX,
-  CubeSide_NegativeY,
-  CubeSide_PositiveY,
-  CubeSide_NegativeZ,
-  CubeSide_PositiveZ
-};
-
 const vec3 cubeFaceNegativeXCenter{-0.5f, 0.0f, 0.0f};
 const vec3 cubeFacePositiveXCenter{0.5f, 0.0f, 0.0f};
 const vec3 cubeFaceNegativeYCenter{0.0f, -0.5f, 0.0f};
@@ -26,19 +17,21 @@ const vec3 cubeFacePositiveYCenter{0.0f, 0.5f, 0.0f};
 const vec3 cubeFaceNegativeZCenter{0.0f, 0.0f, -0.5f};
 const vec3 cubeFacePositiveZCenter{0.0f, 0.0f, 0.5f};
 // center values are simply doubled to get a normalized vector
-const vec3 cubeFaceNegativeXNormal = cubeFaceNegativeXCenter * 2.0f;
-const vec3 cubeFacePositiveXNormal = cubeFacePositiveXCenter * 2.0f;
-const vec3 cubeFaceNegativeZNormal = cubeFaceNegativeZCenter * 2.0f;
-const vec3 cubeFacePositiveZNormal = cubeFacePositiveZCenter * 2.0f;
-const vec3 cubeFaceNegativeYNormal = cubeFaceNegativeYCenter * 2.0f;
-const vec3 cubeFacePositiveYNormal = cubeFacePositiveYCenter * 2.0f;
+const vec3 negativeXNormal = vec3{-1.0f, 0.0f, 0.0f};
+const vec3 positiveXNormal = vec3{1.0f, 0.0f, 0.0f};
+const vec3 negativeYNormal = vec3{0.0f, -1.0f, 0.0f};
+const vec3 positiveYNormal = vec3{0.0f, 1.0f, 0.0f};
+const vec3 negativeZNormal = vec3{0.0f, 0.0f, -1.0f};
+const vec3 positiveZNormal = vec3{0.0f, 0.0f, 1.0f};
 const BoundingBox cubeVertAttBoundingBox = {
         {-0.5, -0.5, -0.5},
         {1.0f, 1.0f, 1.0f}
 };
 
-VertexAtt cubePositionVertexAttBuffers(bool invertedWindingOrder = false);
-VertexAtt quadPosTexVertexAttBuffers(CubeSide cubeSide, bool invertedWindingOrder = false);
+VertexAtt cubePosVertexAttBuffers(bool invertedWindingOrder = false);
+
+VertexAtt quadPosVertexAttBuffers();
+VertexAtt quadPosTexVertexAttBuffers();
 
 void drawTriangles(const VertexAtt* vertexAtt, u32 count, u32 offset);
 void drawTriangles(const VertexAtt* vertexAtt);

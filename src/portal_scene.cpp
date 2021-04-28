@@ -4,7 +4,9 @@ const f32 portalScale = 3.0f;
 const f32 shapeScale = 1.0f;
 const vec3 portalPosition{0.0f, 0.0f, portalScale * 0.5f};
 global_variable GLuint projViewModelUBOid = 0;
-global_variable ShaderProgram stencilShader;
+global_variable ShaderProgram stencilShader{};
+global_variable VertexAtt portalVertexAtt{};
+
 
 struct Player {
   BoundingBox boundingBox;
@@ -24,15 +26,6 @@ enum EntityType {
   EntityType_Skybox = 1 << 2,
 };
 
-// Currently can only be axis aligned
-struct Portal {
-  VertexAtt* vertexAtt;
-  BoundingBox boundingBox;
-  vec3 position;
-  vec3 normal;
-  f32 scale;
-};
-
 struct Entity {
   ShaderProgram shaderProgram;
   Model model;
@@ -44,6 +37,17 @@ struct Entity {
 struct Scene {
   u32 entities[16];
   u32 entityCount;
+  u32 portals[4]; // TODO: actually use these
+  u32 portalCount;
+};
+
+struct Portal {
+  mat4 modelMat;
+  vec3 normal;
+  vec3 position;
+  vec2 scale;
+  u32 stencilMask;
+  // TODO: destination Scene ?
 };
 
 struct World
@@ -56,6 +60,8 @@ struct World
   u32 sceneCount;
   Entity entities[128];
   u32 entityCount;
+  Portal portals[32];
+  u32 portalCount;
 };
 
 u32 addNewScene(World* world) {
@@ -102,7 +108,10 @@ void drawTrianglesWireframe(const VertexAtt* vertexAtt) {
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   glEnable(GL_DEPTH_TEST);
 }
-void drawPortal(const VertexAtt* portalVertexAtt, const u32 portalStencilMask) {
+
+void drawPortal(const Portal& portal) {
+  glUseProgram(stencilShader.id);
+
   // NOTE: Stencil function Example
   // GL_LEQUAL
   // Passes if ( ref & mask ) <= ( stencil & mask )
@@ -113,7 +122,11 @@ void drawPortal(const VertexAtt* portalVertexAtt, const u32 portalStencilMask) {
               GL_KEEP, // action when stencil passes but depth fails
               GL_REPLACE); // action when both stencil and depth pass
 
-  glStencilMask(portalStencilMask);
+  glStencilMask(portal.stencilMask);
+  glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+  glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portal.modelMat);
+  glBindBuffer(GL_UNIFORM_BUFFER, 0);
+  drawTriangles(&portalVertexAtt);
 }
 
 void drawScene(World* world, const u32 sceneIndex) {
@@ -162,23 +175,56 @@ void drawScene(World* world, const u32 sceneIndex) {
       }
     }
   }
+
+  for(u32 scenePortalIndex = 0; scenePortalIndex < scene->portalCount; scenePortalIndex++) {
+    u32 sceneIndex = scene->portals[scenePortalIndex];
+    // TODO: draw portals for scene
+  }
 }
 
 void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneIndex, const u32* fourSceneIndices) {
   // TODO: Move this func_persist data somewhere reasonable
   func_persist b32 portalInFocus = false;
-  func_persist CubeSide portalOfFocus;
-  func_persist vec3 portalNegativeXCenter = cubeFaceNegativeXCenter * portalScale;
-  func_persist vec3 portalPositiveXCenter = cubeFacePositiveXCenter * portalScale;
-  func_persist vec3 portalNegativeYCenter = cubeFaceNegativeYCenter * portalScale;
-  func_persist vec3 portalPositiveYCenter = cubeFacePositiveYCenter * portalScale;
-  func_persist VertexAtt cubePosVertexAtt = cubePositionVertexAttBuffers();
-  func_persist VertexAtt invertedCubePosVertexAtt = cubePositionVertexAttBuffers(true);
+  func_persist u32 portalOfFocusIndex;
+  func_persist VertexAtt cubePosVertexAtt = cubePosVertexAttBuffers();
+  func_persist VertexAtt invertedCubePosVertexAtt = cubePosVertexAttBuffers(true);
+  func_persist Portal portals[4] = {};
+
+  // TODO: delete the hell out of this ugly ass thing
+  func_persist mat4 portalBackingInvertedCubeModelMat = {};
 
   const u32 portalNegativeXStencilMask = 0x01;
   const u32 portalPositiveXStencilMask = 0x02;
   const u32 portalNegativeYStencilMask = 0x03;
   const u32 portalPositiveYStencilMask = 0x04;
+
+  if(portals[0].stencilMask == 0) { // uninitialized
+    portalBackingInvertedCubeModelMat = translate_mat4(portalPosition) * scale_mat4(portalScale);
+
+    portals[0].stencilMask = 0x01;
+    portals[0].scale = vec2{portalScale, portalScale};
+    portals[0].position = (cubeFaceNegativeXCenter * portalScale) + portalPosition;
+    portals[0].normal = negativeXNormal;
+    portals[0].modelMat = quadModelMatrix(portals[0].position, portals[0].normal, portals[0].scale.x, portals[0].scale.y);
+
+    portals[1].stencilMask = 0x02;
+    portals[1].scale = vec2{portalScale, portalScale};
+    portals[1].position = (cubeFacePositiveXCenter * portalScale) + portalPosition;
+    portals[1].normal = positiveXNormal;
+    portals[1].modelMat = quadModelMatrix(portals[1].position, portals[1].normal, portals[1].scale.x, portals[1].scale.y);
+
+    portals[2].stencilMask = 0x03;
+    portals[2].scale = vec2{portalScale, portalScale};
+    portals[2].position = (cubeFaceNegativeYCenter * portalScale) + portalPosition;
+    portals[2].normal = negativeYNormal;
+    portals[2].modelMat = quadModelMatrix(portals[2].position, portals[2].normal, portals[2].scale.x, portals[2].scale.y);
+
+    portals[3].stencilMask = 0x04;
+    portals[3].scale = vec2{portalScale, portalScale};
+    portals[3].position = (cubeFacePositiveYCenter * portalScale) + portalPosition;
+    portals[3].normal = positiveYNormal;
+    portals[3].modelMat = quadModelMatrix(portals[3].position, portals[3].normal, portals[3].scale.x, portals[3].scale.y);
+  }
 
   vec3 playerViewPosition = calcPlayerViewingPosition(&world->player);
   BoundingBox portalBoundingBox;
@@ -191,60 +237,63 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
   b32 gateIsVisible = gateIsInFront || insideGate;
   b32 insidePortal = insideBox(portalBoundingBox, playerViewPosition);
 
-  vec3 portalNegativeXCenterToPlayerView = playerViewPosition - portalNegativeXCenter;
-  vec3 portalPositiveXCenterToPlayerView = playerViewPosition - portalPositiveXCenter;
-  vec3 portalNegativeYCenterToPlayerView = playerViewPosition - portalNegativeYCenter;
-  vec3 portalPositiveYCenterToPlayerView = playerViewPosition - portalPositiveYCenter;
-  f32 distSquaredPortalNegativeXCenterToPlayerView = magnitudeSquared(portalNegativeXCenterToPlayerView);
-  f32 distSquaredPortalPositiveXCenterToPlayerView = magnitudeSquared(portalPositiveXCenterToPlayerView);
-  f32 distSquaredPortalNegativeYCenterToPlayerView = magnitudeSquared(portalNegativeYCenterToPlayerView);
-  f32 distSquaredPortalPositiveYCenterToPlayerView = magnitudeSquared(portalPositiveYCenterToPlayerView);
+  vec3 portal0CenterToPlayerView = playerViewPosition - portals[0].position;
+  vec3 portal1CenterToPlayerView = playerViewPosition - portals[1].position;
+  vec3 portal2CenterToPlayerView = playerViewPosition - portals[2].position;
+  vec3 portal3CenterToPlayerView = playerViewPosition - portals[3].position;
+  f32 distSquaredPortal0CenterToPlayerView = magnitudeSquared(portal0CenterToPlayerView);
+  f32 distSquaredPortal1CenterToPlayerView = magnitudeSquared(portal1CenterToPlayerView);
+  f32 distSquaredPortal2CenterToPlayerView = magnitudeSquared(portal2CenterToPlayerView);
+  f32 distSquaredPortal3CenterToPlayerView = magnitudeSquared(portal3CenterToPlayerView);
 
   if(portalInFocus != insideGate) { // If transitioning between inside and outside of gate boundaries
     portalInFocus = insideGate;
     if(portalInFocus) { // transitioning to inside
-      portalOfFocus = CubeSide_NegativeX;
-      f32 smallestDist = distSquaredPortalNegativeXCenterToPlayerView;
-      if(distSquaredPortalPositiveXCenterToPlayerView < smallestDist) {
-        portalOfFocus = CubeSide_PositiveX;
-        smallestDist = distSquaredPortalPositiveXCenterToPlayerView;
+      portalOfFocusIndex = 0;
+      f32 smallestDist = distSquaredPortal0CenterToPlayerView;
+      if(distSquaredPortal1CenterToPlayerView < smallestDist) {
+        portalOfFocusIndex = 1;
+        smallestDist = distSquaredPortal1CenterToPlayerView;
       }
-      if(distSquaredPortalNegativeYCenterToPlayerView < smallestDist) {
-        portalOfFocus = CubeSide_NegativeY;
-        smallestDist = distSquaredPortalNegativeYCenterToPlayerView;
+      if(distSquaredPortal2CenterToPlayerView < smallestDist) {
+        portalOfFocusIndex = 2;
+        smallestDist = distSquaredPortal2CenterToPlayerView;
       }
-      if(distSquaredPortalPositiveYCenterToPlayerView < smallestDist) {
-        portalOfFocus = CubeSide_PositiveY;
-        smallestDist = distSquaredPortalPositiveYCenterToPlayerView;
+      if(distSquaredPortal3CenterToPlayerView < smallestDist) {
+        portalOfFocusIndex = 3;
+        smallestDist = distSquaredPortal3CenterToPlayerView;
       }
     }
   }
 
   if(insidePortal && portalInFocus){
-    switch(portalOfFocus) {
-      case CubeSide_NegativeX:
+    // TODO: grab scene from portal
+    switch(portalOfFocusIndex) {
+      case 0:
         world->sceneState = SceneState_1;
         break;
-      case CubeSide_PositiveX:
+      case 1:
         world->sceneState = SceneState_2;
         break;
-      case CubeSide_NegativeY:
+      case 2:
         world->sceneState = SceneState_3;
         break;
-      case CubeSide_PositiveY:
+      case 3:
         world->sceneState = SceneState_4;
         break;
+      default:
+        InvalidCodePath;
     }
   }
 
-  b32 portalNegativeXVisible = ((dot(portalNegativeXCenterToPlayerView, cubeFaceNegativeXNormal) > 0.0f) && gateIsVisible && !portalInFocus) ||
-                               (portalInFocus && portalOfFocus == CubeSide_NegativeX);
-  b32 portalPositiveXVisible = ((dot(portalPositiveXCenterToPlayerView, cubeFacePositiveXNormal) > 0.0f) && gateIsVisible && !portalInFocus) ||
-                               (portalInFocus && portalOfFocus == CubeSide_PositiveX);
-  b32 portalNegativeYVisible = ((dot(portalNegativeYCenterToPlayerView, cubeFaceNegativeYNormal) > 0.0f) && gateIsVisible && !portalInFocus) ||
-                               (portalInFocus && portalOfFocus == CubeSide_NegativeY);
-  b32 portalPositiveYVisible = ((dot(portalPositiveYCenterToPlayerView, cubeFacePositiveYNormal) > 0.0f) && gateIsVisible && !portalInFocus) ||
-                               (portalInFocus && portalOfFocus == CubeSide_PositiveY);
+  b32 portal0Visible = ((dot(portal0CenterToPlayerView, portals[0].normal) > 0.0f) && gateIsVisible && !portalInFocus) ||
+                       (portalInFocus && portalOfFocusIndex == 0);
+  b32 portal1Visible = ((dot(portal1CenterToPlayerView, portals[1].normal) > 0.0f) && gateIsVisible && !portalInFocus) ||
+                       (portalInFocus && portalOfFocusIndex == 1);
+  b32 portal2Visible = ((dot(portal2CenterToPlayerView, portals[2].normal) > 0.0f) && gateIsVisible && !portalInFocus) ||
+                       (portalInFocus && portalOfFocusIndex == 2);
+  b32 portal3Visible = ((dot(portal3CenterToPlayerView, portals[3].normal) > 0.0f) && gateIsVisible && !portalInFocus) ||
+                       (portalInFocus && portalOfFocusIndex == 3);
 
   if(gateIsVisible)
   {
@@ -264,54 +313,22 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
                   GL_KEEP, // action when stencil passes but depth fails
                   GL_REPLACE); // action when both stencil and depth pass
 
-      // NOTE: Portal model matrix is the same as the gate
-      glUseProgram(stencilShader.id);
-      mat4 portalModelMatrix = translate_mat4(portalPosition) * scale_mat4(portalScale);
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portalModelMatrix);
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
       if(portalInFocus) {
         // if there's a portal of focus, create the portal using an inverted cube and a stencil mask. This zone allows
-        // the camera to go "inside" the portal, instead of just clipping through one side of a cube.
-        switch(portalOfFocus) {
-          case CubeSide_NegativeX:
-            glStencilMask(portalNegativeXStencilMask);
-            break;
-          case CubeSide_PositiveX:
-            glStencilMask(portalPositiveXStencilMask);
-            break;
-          case CubeSide_NegativeY:
-            glStencilMask(portalNegativeYStencilMask);
-            break;
-          case CubeSide_PositiveY:
-            glStencilMask(portalPositiveYStencilMask);
-            break;
-        }
+        // the camera to go "inside" the portal, instead of just clipping through one side of a cube.case CubeSide_NegativeX:
+        // TODO: This shouldn't work but it does by pure coincidence and bad hand craftyness.
+        // TODO: Next, we need to actually dynamically create an inverted bounding box mask to serve this specific portal entry way.
+        glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+        glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portalBackingInvertedCubeModelMat);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        glUseProgram(stencilShader.id);
+        glStencilMask(portals[portalOfFocusIndex].stencilMask);
         drawTriangles(&invertedCubePosVertexAtt);
       } else { // no portal in focus
-        if (portalNegativeXVisible)
-        {
-          glStencilMask(portalNegativeXStencilMask);
-          drawTriangles(&cubePosVertexAtt, 6, cubeFaceNegativeXIndicesOffset);
-        }
-
-        if (portalPositiveXVisible)
-        {
-          glStencilMask(portalPositiveXStencilMask);
-          drawTriangles(&cubePosVertexAtt, 6, cubeFacePositiveXIndicesOffset);
-        }
-
-        if (portalNegativeYVisible)
-        {
-          glStencilMask(portalNegativeYStencilMask);
-          drawTriangles(&cubePosVertexAtt, 6, cubeFaceNegativeYIndicesOffset);
-        }
-
-        if (portalPositiveYVisible)
-        {
-          glStencilMask(portalPositiveYStencilMask);
-          drawTriangles(&cubePosVertexAtt, 6, cubeFacePositiveYIndicesOffset);
-        }
+        if (portal0Visible) { drawPortal(portals[0]); }
+        if (portal1Visible) { drawPortal(portals[1]); }
+        if (portal2Visible) { drawPortal(portals[2]); }
+        if (portal3Visible) { drawPortal(portals[3]); }
       }
     }
 
@@ -325,44 +342,44 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
     { // use stencils to draw portals
 
       // portal negative x
-      if (portalNegativeXVisible)
+      if (portal0Visible)
       {
         glStencilFunc(
                 GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                portalNegativeXStencilMask, // ref
+                portals[0].stencilMask, // ref
                 0xFF); // enable which bits in reference and stored value are compared
 
         drawScene(world, fourSceneIndices[0]);
       }
 
       // portal positive x
-      if (portalPositiveXVisible)
+      if (portal1Visible)
       {
         glStencilFunc(
                 GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                portalPositiveXStencilMask, // ref
+                portals[1].stencilMask, // ref
                 0xFF); // enable which bits in reference and stored value are compared
 
         drawScene(world, fourSceneIndices[1]);
       }
 
       // portal negative y
-      if (portalNegativeYVisible)
+      if (portal2Visible)
       {
         glStencilFunc(
                 GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                portalNegativeYStencilMask, // ref
+                portals[2].stencilMask, // ref
                 0xFF); // enable which bits in reference and stored value are compared
 
         drawScene(world, fourSceneIndices[2]);
       }
 
       // portal positive y
-      if (portalPositiveYVisible)
+      if (portal3Visible)
       {
         glStencilFunc(
                 GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
-                portalPositiveYStencilMask, // ref
+                portals[3].stencilMask, // ref
                 0xFF); // enable which bits in reference and stored value are compared
 
         drawScene(world, fourSceneIndices[3]);
@@ -379,7 +396,8 @@ void portalScene(GLFWwindow* window) {
   World world{};
   world.sceneState = SceneState_Gate;
 
-  VertexAtt cubePosVertexAtt = cubePositionVertexAttBuffers();
+  VertexAtt cubePosVertexAtt = cubePosVertexAttBuffers();
+  portalVertexAtt = quadPosVertexAttBuffers();
 
   ShaderProgram albedoNormalTexShader = createShaderProgram(gateVertexShaderFileLoc, gateFragmentShaderFileLoc);
   ShaderProgram singleColorShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);

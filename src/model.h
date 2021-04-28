@@ -349,7 +349,7 @@ void deleteModels(Model** models, u32 count) {
 void skyBoxModel(const char* const imgLocations[6], Model* model) {
   model->boundingBox = cubeVertAttBoundingBox;
   model->meshes = new Mesh[1];
-  model->meshes[0].vertexAtt = cubePositionVertexAttBuffers(true); // TODO: reuse this vert att
+  model->meshes[0].vertexAtt = cubePosVertexAttBuffers(true);
   model->meshes[0].textureData = {};
   loadCubeMapTexture(imgLocations, &model->meshes[0].textureData.albedoTextureId);
   model->meshCount = 1;

@@ -159,7 +159,7 @@ void quaternionVec3RotationTest(){
   vec3 y{0.0f, 1.0f, 0.0f};
   vec3 z{0.0f, 0.0f, 1.0f};
 
-  quaternion q = Quaternion(angle, rotationAxis);
+  quaternion q = Quaternion(rotationAxis, angle);
 
   vec3 rotatedX = q * x;
   vec3 rotatedY = q * y;
@@ -195,7 +195,7 @@ void crossProductTest() {
 void slerpTest() {
   vec3 rotationAxis{0.0f, 0.0f, 1.0f};
   quaternion q1 = identity_quaternion();
-  quaternion q2 = Quaternion(RadiansPerDegree * 90, rotationAxis);
+  quaternion q2 = Quaternion(rotationAxis, RadiansPerDegree * 90);
   vec3 vector{1.0f, 0.0f, 0.0f};
   vec3 expectedVectorZero = vector;
   vec3 expectedVectorThirtyOverNinety{cos30, sin30, 0.0f};
@@ -221,7 +221,7 @@ void slerpTest() {
   Assert(vectorOne == expectedVectorOne);
 
   // also test counter-clockwise slerp works as intended
-  quaternion q3 = Quaternion(RadiansPerDegree * -90, rotationAxis);
+  quaternion q3 = Quaternion(rotationAxis, RadiansPerDegree * -90);
   expectedVectorZero = vector;
   expectedVectorThirtyOverNinety = {cos30, -sin30, 0.0f};
   expectedVectorHalf = {cos45, -sin45, 0.0f};
@@ -298,6 +298,25 @@ void bracketAssignmentOperatorsSanityCheck() {
   Assert(c[indexOfInterest] == zanyWhackyNum);
 }
 
+void quaternionOrientTest() {
+  vec3 orientation1 = normalize(1.0f, 1.0f, 1.0f);
+  vec3 orientation2 = normalize(1.0, 3.0f, -6.0f);
+  quaternion orientQuaternion1to2 = orient(orientation1, orientation2);
+  quaternion orientQuaternion2to1 = orient(orientation2, orientation1);
+  mat3 matrix1to2 = rotate_mat3(orientQuaternion1to2);
+  mat3 matrix2to1 = rotate_mat3(orientQuaternion2to1);
+
+  vec3 resultOrientationQuaternion1to2 = orientQuaternion1to2 * orientation1;
+  vec3 resultOrientationQuaternion2to1 = orientQuaternion2to1 * orientation2;
+  vec3 resultOrientationMat1to2 = matrix1to2 * orientation1;
+  vec3 resultOrientationMat2to1 = matrix2to1 * orientation2;
+
+  Assert(resultOrientationQuaternion1to2 == orientation2);
+  Assert(resultOrientationQuaternion2to1 == orientation1);
+  Assert(resultOrientationMat1to2 == orientation2);
+  Assert(resultOrientationMat2to1 == orientation1);
+}
+
 void runAllMathTests()
 {
   translateTest();
@@ -313,5 +332,6 @@ void runAllMathTests()
 }
 
 void runMathTests() {
-  runAllMathTests();
+//  runAllMathTests();
+  quaternionOrientTest();
 }
