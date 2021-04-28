@@ -699,8 +699,9 @@ quaternion slerp(quaternion a, quaternion b, f32 t) {
 }
 
 // TODO: There is a whole 360 degrees of rotation around the endOrientation axis that will all result in a "correct"
-// TODO: end orientation as described by the function parameters
-// TODO: Consider making this more explicit if it no longer fits the needs.
+// TODO: end orientation as described by the function parameters.
+// TODO: We only consider the forward orientation atm. Consider adjusting the up or right "orientation" if this function
+// TODO: no longer fits our needs. A reasonable approach would be ensuring the result is essentially a yaw/pitch with no roll.
 quaternion orient(const vec3& startOrientation, const vec3& endOrientation) {
   // TODO: more robust handling of close orientations
   if(startOrientation == endOrientation) {
