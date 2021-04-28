@@ -78,17 +78,39 @@ const u8 invertedWindingCubePosAttsIndices[]{
         20, 22,21,
         22, 20,23,
 };
+const u32 cubeFaceNegativeXIndicesOffset = 0;
+const u32 cubeFacePositiveXIndicesOffset = 6;
+const u32 cubeFaceNegativeYIndicesOffset = 12;
+const u32 cubeFacePositiveYIndicesOffset = 18;
+const u32 cubeFaceNegativeZIndicesOffset = 24;
+const u32 cubeFacePositiveZIndicesOffset = 30;
+
+// faces -Y direction
+const f32 quadPosVertexAttributes[] = {
+        // positions        // texCoords
+        -0.5f,  0.0f, -0.5f,
+         0.5f,  0.0f, -0.5f,
+         0.5f,  0.0f,  0.5f,
+        -0.5f,  0.0f,  0.5f,
+};
 const f32 quadPosTexVertexAttributes[] = {
         // positions        // texCoords
-        -0.5f,  0.5f, 0.0f,  0.0f, 1.0f,
-        -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,
-        0.5f, -0.5f,  0.0f,  1.0f, 0.0f,
-        0.5f,  0.5f,  0.0f,  1.0f, 1.0f,
+        -0.5f,  0.0f, -0.5f,  0.0f, 0.0f,
+         0.5f,  0.0f, -0.5f,  1.0f, 0.0f,
+         0.5f,  0.0f,  0.5f,  1.0f, 1.0f,
+        -0.5f,  0.0f,  0.5f,  0.0f, 1.0f,
 };
+const vec3 quadVertexAttNormal = {0.0f, -1.0f, 0.0f};
 const u8 quadIndices[]{
         0, 1, 2,
         0, 2, 3,
 };
+
+// normal is
+//mat4 quadModelMatrix(const vec3& centerPos, const vec3& normal, const f32 width, const f32 height) {
+//  f32 normalTheta = aCos(quadVertexAttNormal
+//
+//}
 
 u32 convertSizeInBytesToOpenGLUIntType(u8 sizeInBytes) {
   switch(sizeInBytes) {
@@ -104,7 +126,7 @@ u32 convertSizeInBytesToOpenGLUIntType(u8 sizeInBytes) {
   return 0;
 }
 
-VertexAtt cubePositionVertexAttBuffers(bool invertedWindingOrder)
+void initCubePositionVertexAttBuffers()
 {
   if (globalCubePosVertexAtt.indexCount == 0)
   { // uninitialized
@@ -163,11 +185,14 @@ VertexAtt cubePositionVertexAttBuffers(bool invertedWindingOrder)
     // Must unbind EBO AFTER unbinding VAO
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
   }
+}
 
+VertexAtt cubePositionVertexAttBuffers(bool invertedWindingOrder) {
+  initCubePositionVertexAttBuffers();
   return invertedWindingOrder ? globalInvertedCubePosVertexAtt : globalCubePosVertexAtt;
 }
 
-VertexAtt quadPosTexVertexAttBuffers(CubeSide cubeSide, bool invertedWindingOrder)
+VertexAtt quadCubeSidePosVertexAttBuffers(CubeSide cubeSide, bool invertedWindingOrder)
 {
   VertexAtt vertexAtt;
   // TODO: get quads from cube

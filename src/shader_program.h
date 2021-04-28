@@ -77,12 +77,12 @@ void setUniform(GLuint shaderId, const std::string& name, f32 value1, f32 value2
   glUniform4f(glGetUniformLocation(shaderId, name.c_str()), value1, value2, value3, value4);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const mat4& mat)
+void setUniform(GLuint shaderId, const std::string& name, const mat4* mat)
 {
   glUniformMatrix4fv(glGetUniformLocation(shaderId, name.c_str()),
                      1, // count
                      GL_FALSE, // transpose: swap columns and rows (true or false)
-                     mat.values); // pointer to float values
+                     mat->valuesPtr); // pointer to float values
 }
 
 void setUniform(GLuint shaderId, const std::string& name, const mat4* matArray, const u32 arraySize)
@@ -90,7 +90,7 @@ void setUniform(GLuint shaderId, const std::string& name, const mat4* matArray, 
   glUniformMatrix4fv(glGetUniformLocation(shaderId, name.c_str()),
                      arraySize, // count
                      GL_FALSE, // transpose: swap columns and rows (true or false)
-                     matArray->values); // pointer to float values
+                     matArray->valuesPtr); // pointer to float values
 }
 
 void setUniform(GLuint shaderId, const std::string& name, const float* floatArray, const u32 arraySize)

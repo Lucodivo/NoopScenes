@@ -1,8 +1,10 @@
 #pragma once
+#include <math.h>
+#include <stdio.h>
 
+#include "../noop_types.h"
 #include "../noop_math.h"
 
-#include <stdio.h>
 
 void printVec4(const char* name, const vec4& v) {
   printf("%s: [%4.2f, %4.2f, %4.2f, %4.2f]\n", name, v.x, v.y, v.z, v.w);
@@ -17,44 +19,8 @@ void printMat4(const char* name, const mat4& M) {
   }
 }
 
-b32 equals(const vec2& v1, const vec2& v2, f32 epsilon = 0.001f) {
-  b32 pass = true;
-  for(u32 i = 0; i < 2; ++i) {
-    f32 diff = (v1.c[i] - v2.c[i]);
-    pass = pass && (diff <= epsilon && diff >= -epsilon);
-  }
-  return pass;
-}
-
-b32 equals(const vec3& v1, const vec3& v2, f32 epsilon = 0.001f) {
-  b32 pass = true;
-  for(u32 i = 0; i < 3; ++i) {
-    f32 diff = (v1.c[i] - v2.c[i]);
-    pass = pass && (diff <= epsilon && diff >= -epsilon);
-  }
-  return pass;
-}
-
-b32 equals(const vec4& v1, const vec4& v2, f32 epsilon = 0.001f) {
-  b32 pass = true;
-  for(u32 i = 0; i < 4; ++i) {
-    f32 diff = (v1.c[i] - v2.c[i]);
-    pass = pass && (diff <= epsilon && diff >= -epsilon);
-  }
-  return pass;
-}
-
-b32 equals(const mat4& A, const mat4& B) {
-  b32 pass = true;
-  for(u32 i = 0; i < 4; ++i)
-  {
-    pass = pass && equals(A.col[i], B.col[i]);
-  }
-  return pass;
-}
-
 b32 printIfNotEqual(const mat4& A, const mat4& B) {
-  b32 equal = equals(A, B);
+  b32 equal = A == B;
   if(!equal) {
     printf("Two mat4s are not equal");
     printMat4("mat1", A);
@@ -64,7 +30,7 @@ b32 printIfNotEqual(const mat4& A, const mat4& B) {
 }
 
 b32 printIfNotEqual(const vec4& v1, const vec4& v2) {
-  b32 equal = equals(v1, v2);
+  b32 equal = v1 == v2;
   if(!equal) {
     printf("Two vec4s are not equal");
     printVec4("vec1", v1);
@@ -138,10 +104,10 @@ void mat4RotateTest() {
   vec4 rotatedZ = rotationMat * z;
   vec4 rotatedAxis = rotationMat * vec4{rotationAxis.x, rotationAxis.y, rotationAxis.y, 1.0f};
 
-  Assert(equals(rotatedX, y));
-  Assert(equals(rotatedY, z));
-  Assert(equals(rotatedZ, x));
-  Assert(equals(rotatedAxis.xyz, rotationAxis));
+  Assert(rotatedX == y);
+  Assert(rotatedY == z);
+  Assert(rotatedZ == x);
+  Assert(rotatedAxis.xyz == rotationAxis);
 }
 
 void complexVec2RotationTest(){
@@ -174,16 +140,16 @@ void complexVec2RotationTest(){
   vec2 rotatedY60 = c60 * y;
   vec2 rotatedY90 = c90 * y;
 
-  Assert(equals(rotatedX0, expectedRotatedX0));
-  Assert(equals(rotatedX30, expectedRotatedX30));
-  Assert(equals(rotatedX45, expectedRotatedX45));
-  Assert(equals(rotatedX60, expectedRotatedX60));
-  Assert(equals(rotatedX90, expectedRotatedX90));
-  Assert(equals(rotatedY0, expectedRotatedY0));
-  Assert(equals(rotatedY30, expectedRotatedY30));
-  Assert(equals(rotatedY45, expectedRotatedY45));
-  Assert(equals(rotatedY60, expectedRotatedY60));
-  Assert(equals(rotatedY90, expectedRotatedY90));
+  Assert(rotatedX0 == expectedRotatedX0);
+  Assert(rotatedX30 == expectedRotatedX30);
+  Assert(rotatedX45 == expectedRotatedX45);
+  Assert(rotatedX60 == expectedRotatedX60);
+  Assert(rotatedX90 == expectedRotatedX90);
+  Assert(rotatedY0 == expectedRotatedY0);
+  Assert(rotatedY30 == expectedRotatedY30);
+  Assert(rotatedY45 == expectedRotatedY45);
+  Assert(rotatedY60 == expectedRotatedY60);
+  Assert(rotatedY90 == expectedRotatedY90);
 }
 
 void quaternionVec3RotationTest(){
@@ -200,10 +166,10 @@ void quaternionVec3RotationTest(){
   vec3 rotatedZ = q * z;
   vec3 rotatedAxis = q * rotationAxis;
 
-  Assert(equals(rotatedX, y));
-  Assert(equals(rotatedY, z));
-  Assert(equals(rotatedZ, x));
-  Assert(equals(rotatedAxis, rotationAxis));
+  Assert(rotatedX == y);
+  Assert(rotatedY == z);
+  Assert(rotatedZ == x);
+  Assert(rotatedAxis == rotationAxis);
 }
 
 void crossProductTest() {
@@ -218,12 +184,12 @@ void crossProductTest() {
   vec3 zCrossX = cross(z, x);
   vec3 zCrossY = cross(z, y);
 
-  Assert(equals(xCrossY, z));
-  Assert(equals(xCrossZ, -y));
-  Assert(equals(yCrossZ, x));
-  Assert(equals(yCrossX, -z));
-  Assert(equals(zCrossX, y));
-  Assert(equals(zCrossY, -x));
+  Assert(xCrossY == z);
+  Assert(xCrossZ == -y);
+  Assert(yCrossZ == x);
+  Assert(yCrossX == -z);
+  Assert(zCrossX == y);
+  Assert(zCrossY == -x);
 }
 
 void slerpTest() {
@@ -248,11 +214,11 @@ void slerpTest() {
   vec3 vectorSixetyOverNinety = qSixetyOverNinety * vector;
   vec3 vectorOne = qOne * vector;
 
-  Assert(equals(vectorZero, expectedVectorZero));
-  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety));
-  Assert(equals(vectorHalf, expectedVectorHalf));
-  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety));
-  Assert(equals(vectorOne, expectedVectorOne));
+  Assert(vectorZero == expectedVectorZero);
+  Assert(vectorThirtyOver90 == expectedVectorThirtyOverNinety);
+  Assert(vectorHalf == expectedVectorHalf);
+  Assert(vectorSixetyOverNinety == expectedSixetyOverNinety);
+  Assert(vectorOne == expectedVectorOne);
 
   // also test counter-clockwise slerp works as intended
   quaternion q3 = Quaternion(RadiansPerDegree * -90, rotationAxis);
@@ -273,11 +239,11 @@ void slerpTest() {
   vectorSixetyOverNinety = qSixetyOverNinety * vector;
   vectorOne = qOne * vector;
 
-  Assert(equals(vectorZero, expectedVectorZero));
-  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety));
-  Assert(equals(vectorHalf, expectedVectorHalf));
-  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety));
-  Assert(equals(vectorOne, expectedVectorOne));
+  Assert(vectorZero == expectedVectorZero);
+  Assert(vectorThirtyOver90 == expectedVectorThirtyOverNinety);
+  Assert(vectorHalf == expectedVectorHalf);
+  Assert(vectorSixetyOverNinety == expectedSixetyOverNinety);
+  Assert(vectorOne == expectedVectorOne);
 }
 
 void orthographicTest() {
@@ -301,7 +267,35 @@ void orthographicTest() {
 
   vec4 transformedPoint = ortho * point;
 
-  Assert(equals(transformedPoint, expectedCanonicalViewPoint));
+  Assert(transformedPoint == expectedCanonicalViewPoint);
+}
+
+void bracketAssignmentOperatorsSanityCheck() {
+  f32 zanyWhackyNum = 123.456f;
+  u32 indexOfInterest = 1;
+  vec2 v2{};
+  vec3 v3{};
+  vec4 v4{};
+  mat3 m3{};
+  mat4 m4{};
+  quaternion q{};
+  complex c{};
+
+  v2[indexOfInterest] = zanyWhackyNum;
+  v3[indexOfInterest] = zanyWhackyNum;
+  v4[indexOfInterest] = zanyWhackyNum;
+  m3[indexOfInterest][indexOfInterest] = zanyWhackyNum;
+  m4[indexOfInterest][indexOfInterest] = zanyWhackyNum;
+  q[indexOfInterest] = zanyWhackyNum;
+  c[indexOfInterest] = zanyWhackyNum;
+
+  Assert(v2[indexOfInterest] == zanyWhackyNum);
+  Assert(v3[indexOfInterest] == zanyWhackyNum);
+  Assert(v4[indexOfInterest] == zanyWhackyNum);
+  Assert(m3[indexOfInterest][indexOfInterest] == zanyWhackyNum);
+  Assert(m4[indexOfInterest][indexOfInterest] == zanyWhackyNum);
+  Assert(q[indexOfInterest] == zanyWhackyNum);
+  Assert(c[indexOfInterest] == zanyWhackyNum);
 }
 
 void runAllMathTests()
@@ -315,8 +309,9 @@ void runAllMathTests()
   crossProductTest();
   slerpTest();
   orthographicTest();
+  bracketAssignmentOperatorsSanityCheck();
 }
 
 void runMathTests() {
-//  runAllMathTests();
+  runAllMathTests();
 }

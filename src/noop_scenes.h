@@ -34,5 +34,5 @@
 
 #include "glfw_util.cpp"
 #include "input.cpp"
-#include "portal_scene.cpp"
 #include "vertex_attributes.cpp"
+#include "portal_scene.cpp"

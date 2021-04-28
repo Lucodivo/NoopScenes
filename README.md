@@ -43,7 +43,7 @@ the working directory is at the root directory.
 - Any dimensions/positions in the code will always refer to length in meters where a concrete unit matters.
 
 #### 3D Math
-- mat3/mat4 are all considered to be column major. (ex: aMat3.c[ i ][ j ] leads you to column i, row j)
+- mat3/mat4 are all considered to be column major. (ex: aMat3[ i ][ j ] leads you to column i, row j)
 - vec2/vec3/vec4 are all considered to be column vectors.
     - A consequence of this is that M * *v* is legal but *v* * M is not.
 

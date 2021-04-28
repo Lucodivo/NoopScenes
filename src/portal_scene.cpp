@@ -24,10 +24,13 @@ enum EntityType {
   EntityType_Skybox = 1 << 2,
 };
 
+// Currently can only be axis aligned
 struct Portal {
   VertexAtt* vertexAtt;
-  b32 ccwWindingOrder;
   BoundingBox boundingBox;
+  vec3 position;
+  vec3 normal;
+  f32 scale;
 };
 
 struct Entity {
@@ -198,9 +201,8 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
   f32 distSquaredPortalPositiveYCenterToPlayerView = magnitudeSquared(portalPositiveYCenterToPlayerView);
 
   if(portalInFocus != insideGate) { // If transitioning between inside and outside of gate boundaries
-    if(insideGate) { // transitioning to inside
-      portalInFocus = true;
-
+    portalInFocus = insideGate;
+    if(portalInFocus) { // transitioning to inside
       portalOfFocus = CubeSide_NegativeX;
       f32 smallestDist = distSquaredPortalNegativeXCenterToPlayerView;
       if(distSquaredPortalPositiveXCenterToPlayerView < smallestDist) {
@@ -215,8 +217,6 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
         portalOfFocus = CubeSide_PositiveY;
         smallestDist = distSquaredPortalPositiveYCenterToPlayerView;
       }
-    } else { // transitioning to outside
-      portalInFocus = false;
     }
   }
 
@@ -248,7 +248,7 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
 
   if(gateIsVisible)
   {
-    { // draw gate
+    { // draw gate scene
       drawScene(world, gateSceneIndex);
     }
 
@@ -271,6 +271,8 @@ void drawGateScene(World* world, const u32 gateEntityIndex, const u32 gateSceneI
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portalModelMatrix);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
       if(portalInFocus) {
+        // if there's a portal of focus, create the portal using an inverted cube and a stencil mask. This zone allows
+        // the camera to go "inside" the portal, instead of just clipping through one side of a cube.
         switch(portalOfFocus) {
           case CubeSide_NegativeX:
             glStencilMask(portalNegativeXStencilMask);
@@ -377,6 +379,8 @@ void portalScene(GLFWwindow* window) {
   World world{};
   world.sceneState = SceneState_Gate;
 
+  VertexAtt cubePosVertexAtt = cubePositionVertexAttBuffers();
+
   ShaderProgram albedoNormalTexShader = createShaderProgram(gateVertexShaderFileLoc, gateFragmentShaderFileLoc);
   ShaderProgram singleColorShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
   ShaderProgram skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
@@ -395,9 +399,6 @@ void portalScene(GLFWwindow* window) {
   vec3 firstPersonCameraInitPosition = calcPlayerViewingPosition(&world.player);
   vec3 firstPersonCameraInitFocus{gatePosition.x, gatePosition.y, firstPersonCameraInitPosition.z};
   lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, &world.camera);
-
-  VertexAtt cubePosVertexAtt = cubePositionVertexAttBuffers();
-  VertexAtt invertedCubePosVertexAtt = cubePositionVertexAttBuffers(true);
 
   mat4 playerBoundingBoxScaleMatrix = scale_mat4(world.player.boundingBox.diagonal);
   const f32 originalProjectionDepthNear = 0.1f;

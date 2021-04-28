@@ -10,15 +10,9 @@ typedef WINDOW_SIZE_CALLBACK(windows_size_callback);
  */
 enum InputType
 {
-  KeyboardInput_Q = 0,
-
-  KeyboardInput_W, KeyboardInput_E, KeyboardInput_R,
-  KeyboardInput_A, KeyboardInput_S, KeyboardInput_D, KeyboardInput_F,
-  KeyboardInput_J, KeyboardInput_K, KeyboardInput_L, KeyboardInput_Semicolon,
-  KeyboardInput_Shift_Left, KeyboardInput_Ctrl_Left, KeyboardInput_Alt_Left, KeyboardInput_Tab,
-  KeyboardInput_Shift_Right, KeyboardInput_Ctrl_Right, KeyboardInput_Alt_Right, KeyboardInput_Enter,
-  KeyboardInput_Esc, KeyboardInput_Backtick, KeyboardInput_1, KeyboardInput_2, KeyboardInput_3,
-  KeyboardInput_Up, KeyboardInput_Down, KeyboardInput_Left, KeyboardInput_Right, KeyboardInput_Space,
+#define KeyboardInput(name, input_code) KeyboardInput_##name,
+#include "keyboard_input_list.inc"
+#undef KeyboardInput
 
   MouseInput_Left, MouseInput_Right, MouseInput_Middle, MouseInput_Back, MouseInput_Forward,
   MouseInput_Scroll, MouseInput_Movement,

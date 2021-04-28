@@ -1,9 +1,9 @@
 #include <windows.h>
 #include <Xinput.h>
 
-internal_func void setKeyState(GLFWwindow* window, s32 glfwKey, InputType keyboardInput);
-internal_func void setMouseState(GLFWwindow* window, s32 glfwKey, InputType mouseInput);
-internal_func void setControllerState(s16 gamepadFlags, u16 xInputButtonFlag, InputType controllerInput);
+internal_func void setKeyState(InputType keyboardInput, s32 glfwKey, GLFWwindow* window);
+internal_func void setMouseState(InputType mouseInput, s32 glfwKey, GLFWwindow* window);
+internal_func void setControllerState(InputType controllerInput, u16 xInputButtonFlag, s16 gamepadFlags);
 internal_func void loadXInput();
 
 internal_func void glfw_mouse_scroll_callback(GLFWwindow* window, f64 xOffset, f64 yOffset);
@@ -132,19 +132,19 @@ void setInputState(InputType inputType, b32 inputIsCurrentlyActive) {
     }
 }
 
-void setKeyState(GLFWwindow* window, s32 glfwKey, InputType keyboardInput)
+void setKeyState(InputType keyboardInput, s32 glfwKey, GLFWwindow* window)
 {
     b32 keyIsCurrentlyActive = glfwGetKey(window, glfwKey) == GLFW_PRESS;
     setInputState(keyboardInput, keyIsCurrentlyActive);
 }
 
-void setMouseState(GLFWwindow* window, s32 glfwKey, InputType mouseInput)
+void setMouseState(InputType mouseInput, s32 glfwKey, GLFWwindow* window)
 {
     b32 mouseInputIsCurrentlyActive = glfwGetMouseButton(window, glfwKey) == GLFW_PRESS;
     setInputState(mouseInput, mouseInputIsCurrentlyActive);
 }
 
-void setControllerState(s16 gamepadFlags, u16 xInputButtonFlag, InputType controllerInput)
+void setControllerState(InputType controllerInput, u16 xInputButtonFlag, s16 gamepadFlags)
 {
     b32 controllerInputIsCurrentlyActive = gamepadFlags & xInputButtonFlag;
     setInputState(controllerInput, controllerInputIsCurrentlyActive);
@@ -152,46 +152,17 @@ void setControllerState(s16 gamepadFlags, u16 xInputButtonFlag, InputType contro
 
 void loadInputStateForFrame(GLFWwindow* window) {
   // keyboard state
-  {
-    setKeyState(window, GLFW_KEY_Q, KeyboardInput_Q);
-    setKeyState(window, GLFW_KEY_W, KeyboardInput_W);
-    setKeyState(window, GLFW_KEY_E, KeyboardInput_E);
-    setKeyState(window, GLFW_KEY_R, KeyboardInput_R);
-    setKeyState(window, GLFW_KEY_A, KeyboardInput_A);
-    setKeyState(window, GLFW_KEY_S, KeyboardInput_S);
-    setKeyState(window, GLFW_KEY_D, KeyboardInput_D);
-    setKeyState(window, GLFW_KEY_F, KeyboardInput_F);
-    setKeyState(window, GLFW_KEY_J, KeyboardInput_J);
-    setKeyState(window, GLFW_KEY_K, KeyboardInput_K);
-    setKeyState(window, GLFW_KEY_L, KeyboardInput_L);
-    setKeyState(window, GLFW_KEY_SEMICOLON, KeyboardInput_Semicolon);
-    setKeyState(window, GLFW_KEY_LEFT_SHIFT, KeyboardInput_Shift_Left);
-    setKeyState(window, GLFW_KEY_LEFT_CONTROL, KeyboardInput_Ctrl_Left);
-    setKeyState(window, GLFW_KEY_LEFT_ALT, KeyboardInput_Alt_Left);
-    setKeyState(window, GLFW_KEY_TAB, KeyboardInput_Tab);
-    setKeyState(window, GLFW_KEY_RIGHT_SHIFT, KeyboardInput_Shift_Right);
-    setKeyState(window, GLFW_KEY_RIGHT_CONTROL, KeyboardInput_Ctrl_Right);
-    setKeyState(window, GLFW_KEY_RIGHT_ALT, KeyboardInput_Alt_Right);
-    setKeyState(window, GLFW_KEY_ENTER, KeyboardInput_Enter);
-    setKeyState(window, GLFW_KEY_ESCAPE, KeyboardInput_Esc);
-    setKeyState(window, GLFW_KEY_GRAVE_ACCENT, KeyboardInput_Backtick);
-    setKeyState(window, GLFW_KEY_1, KeyboardInput_1);
-    setKeyState(window, GLFW_KEY_2, KeyboardInput_2);
-    setKeyState(window, GLFW_KEY_3, KeyboardInput_3);
-    setKeyState(window, GLFW_KEY_UP, KeyboardInput_Up);
-    setKeyState(window, GLFW_KEY_DOWN, KeyboardInput_Down);
-    setKeyState(window, GLFW_KEY_LEFT, KeyboardInput_Left);
-    setKeyState(window, GLFW_KEY_RIGHT, KeyboardInput_Right);
-    setKeyState(window, GLFW_KEY_SPACE, KeyboardInput_Space);
-  }
+#define KeyboardInput(name, input_code) setKeyState(KeyboardInput_##name, input_code, window);
+#include "keyboard_input_list.inc"
+#undef KeyboardInput
 
   // mouse state
   {
-    setMouseState(window, GLFW_MOUSE_BUTTON_LEFT, MouseInput_Left);
-    setMouseState(window, GLFW_MOUSE_BUTTON_RIGHT, MouseInput_Right);
-    setMouseState(window, GLFW_MOUSE_BUTTON_MIDDLE, MouseInput_Middle);
-    setMouseState(window, GLFW_MOUSE_BUTTON_4, MouseInput_Back);
-    setMouseState(window, GLFW_MOUSE_BUTTON_5, MouseInput_Forward);
+    setMouseState(MouseInput_Left, GLFW_MOUSE_BUTTON_LEFT, window);
+    setMouseState(MouseInput_Right, GLFW_MOUSE_BUTTON_RIGHT, window);
+    setMouseState(MouseInput_Middle, GLFW_MOUSE_BUTTON_MIDDLE, window);
+    setMouseState(MouseInput_Back, GLFW_MOUSE_BUTTON_4, window);
+    setMouseState(MouseInput_Forward, GLFW_MOUSE_BUTTON_5, window);
 
     // mouse movement state management
     {
@@ -221,18 +192,18 @@ void loadInputStateForFrame(GLFWwindow* window) {
   {
     // the controller is plugged in
     s16 gamepadButtonFlags = controllerState.Gamepad.wButtons;
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_A, Controller1Input_A);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_B, Controller1Input_B);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_X, Controller1Input_X);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_Y, Controller1Input_Y);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_DPAD_UP, Controller1Input_DPad_Up);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_DPAD_DOWN, Controller1Input_DPad_Down);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_DPAD_LEFT, Controller1Input_DPad_Left);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_DPAD_RIGHT, Controller1Input_DPad_Right);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_LEFT_SHOULDER, Controller1Input_Shoulder_Left);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_RIGHT_SHOULDER, Controller1Input_Shoulder_Right);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_START, Controller1Input_Start);
-    setControllerState(gamepadButtonFlags, XINPUT_GAMEPAD_BACK, Controller1Input_Select);
+    setControllerState(Controller1Input_A, XINPUT_GAMEPAD_A, gamepadButtonFlags);
+    setControllerState(Controller1Input_B, XINPUT_GAMEPAD_B, gamepadButtonFlags);
+    setControllerState(Controller1Input_X, XINPUT_GAMEPAD_X, gamepadButtonFlags);
+    setControllerState(Controller1Input_Y, XINPUT_GAMEPAD_Y, gamepadButtonFlags);
+    setControllerState(Controller1Input_DPad_Up, XINPUT_GAMEPAD_DPAD_UP, gamepadButtonFlags);
+    setControllerState(Controller1Input_DPad_Down, XINPUT_GAMEPAD_DPAD_DOWN, gamepadButtonFlags);
+    setControllerState(Controller1Input_DPad_Left, XINPUT_GAMEPAD_DPAD_LEFT, gamepadButtonFlags);
+    setControllerState(Controller1Input_DPad_Right, XINPUT_GAMEPAD_DPAD_RIGHT, gamepadButtonFlags);
+    setControllerState(Controller1Input_Shoulder_Left, XINPUT_GAMEPAD_LEFT_SHOULDER, gamepadButtonFlags);
+    setControllerState(Controller1Input_Shoulder_Right, XINPUT_GAMEPAD_RIGHT_SHOULDER, gamepadButtonFlags);
+    setControllerState(Controller1Input_Start, XINPUT_GAMEPAD_START, gamepadButtonFlags);
+    setControllerState(Controller1Input_Select, XINPUT_GAMEPAD_BACK, gamepadButtonFlags);
 
     analogStickLeft = { controllerState.Gamepad.sThumbLX, controllerState.Gamepad.sThumbLY };
     if(analogStickLeft.x > -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE && analogStickLeft.x < XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)

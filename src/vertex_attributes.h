@@ -37,17 +37,6 @@ const BoundingBox cubeVertAttBoundingBox = {
         {1.0f, 1.0f, 1.0f}
 };
 
-// TODO: move to cpp
-const u32 cubeFaceNegativeXIndicesOffset = 0;
-const u32 cubeFacePositiveXIndicesOffset = 6;
-const u32 cubeFaceNegativeYIndicesOffset = 12;
-const u32 cubeFacePositiveYIndicesOffset = 18;
-const u32 cubeFaceNegativeZIndicesOffset = 24;
-const u32 cubeFacePositiveZIndicesOffset = 30;
-
-
-// ===== Quad values (vec2 position, vec2 tex) =====
-
 VertexAtt cubePositionVertexAttBuffers(bool invertedWindingOrder = false);
 VertexAtt quadPosTexVertexAttBuffers(CubeSide cubeSide, bool invertedWindingOrder = false);
 
