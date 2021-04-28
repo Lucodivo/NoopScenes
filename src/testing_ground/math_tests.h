@@ -256,11 +256,11 @@ void orthographicTest() {
   f32 f = 500.0f;
   vec4 expectedCanonicalViewPoint{
           (point.x - ((r + l) / 2.0f)) // move origin to center
-              * (2.0f / (r - l)), // scale desired dimens between -1 and 1
+              * (2.0f / (r - l)), // dimens desired dimens between -1 and 1
           (point.y - ((t + b) / 2.0f)) // move origin to center
-              * (2.0f / (t - b)), // scale desired dimens between -1 and 1
+              * (2.0f / (t - b)), // dimens desired dimens between -1 and 1
           (point.z - ((f + n) / 2.0f)) // move origin to center
-              * (2.0f / (f - n)), // scale desired dimens between -1 and 1
+              * (2.0f / (f - n)), // dimens desired dimens between -1 and 1
           1.0f
   };
   mat4 ortho = orthographic(l, r, b, t, n, f);

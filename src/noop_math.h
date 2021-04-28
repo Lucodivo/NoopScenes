@@ -314,6 +314,12 @@ inline vec2 normalize(f32 x, f32 y) {
   return vec2{x * magInv, y * magInv};
 }
 
+// less than a 90 degree angle between the two vectors
+// v2 exists in the same half circle that centers around v1
+inline b32 similarDirection(vec2 v1, vec2 v2) {
+  return dot(v1, v2) > 0.0f;
+}
+
 inline vec2 operator-(const vec2& xy) {
   return vec2{-xy.x, -xy.y};
 }
@@ -364,42 +370,6 @@ inline vec3 Vec3(vec2 xy, f32 z) {
   return vec3{xy.x, xy.y, z};
 }
 
-inline f32 dot(vec3 xyz1, vec3 xyz2) {
-  return (xyz1.x * xyz2.x) + (xyz1.y * xyz2.y) + (xyz1.z * xyz2.z);
-}
-
-inline vec3 hadamard(const vec3& xyz1, const vec3& xyz2) {
-  return vec3{ xyz1.x * xyz2.x, xyz1.y * xyz2.y, xyz1.z * xyz2.z };
-}
-
-inline vec3 cross(const vec3& xyz1, const vec3& xyz2) {
-  return vec3{ (xyz1.y * xyz2.z - xyz2.y * xyz1.z),
-               (xyz1.z * xyz2.x - xyz2.z * xyz1.x),
-               (xyz1.x * xyz2.y - xyz2.x * xyz1.y) };
-}
-
-inline f32 magnitudeSquared(vec3 xyz) {
-  return (xyz.x * xyz.x) + (xyz.y * xyz.y) + (xyz.z * xyz.z);
-}
-
-inline f32 magnitude(vec3 xyz) {
-  return sqrtf((xyz.x * xyz.x) + (xyz.y * xyz.y) + (xyz.z * xyz.z));
-}
-
-inline vec3 normalize(const vec3& xyz) {
-  f32 mag = magnitude(xyz);
-  Assert(mag != 0.0f);
-  f32 magInv = 1.0f / mag;
-  return vec3{xyz.x * magInv, xyz.y * magInv, xyz.z * magInv};
-}
-
-inline vec3 normalize(f32 x, f32 y, f32 z) {
-  f32 mag = sqrtf(x * x + y * y + z * z);
-  Assert(mag != 0.0f);
-  f32 magInv = 1.0f / mag;
-  return vec3{x * magInv, y * magInv, z * magInv};
-}
-
 inline vec3 operator-(const vec3& xyz) {
   return vec3{-xyz.x, -xyz.y, -xyz.z};
 }
@@ -441,6 +411,64 @@ inline void operator*=(vec3& xyz, f32 s) {
 inline vec3 operator/(const vec3& xyz, const f32 s) {
   f32 scaleInv = 1.0f / s;
   return {xyz.x * scaleInv, xyz.y * scaleInv, xyz.z * scaleInv};
+}
+
+inline f32 dot(vec3 xyz1, vec3 xyz2) {
+  return (xyz1.x * xyz2.x) + (xyz1.y * xyz2.y) + (xyz1.z * xyz2.z);
+}
+
+inline vec3 hadamard(const vec3& xyz1, const vec3& xyz2) {
+  return vec3{ xyz1.x * xyz2.x, xyz1.y * xyz2.y, xyz1.z * xyz2.z };
+}
+
+inline vec3 cross(const vec3& xyz1, const vec3& xyz2) {
+  return vec3{ (xyz1.y * xyz2.z - xyz2.y * xyz1.z),
+               (xyz1.z * xyz2.x - xyz2.z * xyz1.x),
+               (xyz1.x * xyz2.y - xyz2.x * xyz1.y) };
+}
+
+inline f32 magnitudeSquared(vec3 xyz) {
+  return (xyz.x * xyz.x) + (xyz.y * xyz.y) + (xyz.z * xyz.z);
+}
+
+inline f32 magnitude(vec3 xyz) {
+  return sqrtf((xyz.x * xyz.x) + (xyz.y * xyz.y) + (xyz.z * xyz.z));
+}
+
+inline vec3 normalize(const vec3& xyz) {
+  f32 mag = magnitude(xyz);
+  Assert(mag != 0.0f);
+  f32 magInv = 1.0f / mag;
+  return magInv * xyz;
+}
+
+inline vec3 normalize(f32 x, f32 y, f32 z) {
+  f32 mag = sqrtf(x * x + y * y + z * z);
+  Assert(mag != 0.0f);
+  f32 magInv = 1.0f / mag;
+  return vec3{x * magInv, y * magInv, z * magInv};
+}
+
+inline b32 degenerate(const vec3& v) {
+  return v == vec3{0.0f, 0.0f, 0.0f};
+}
+
+// v2 is assumed to be normalized
+inline vec3 projection(const vec3& v1, const vec3& ontoV2) {
+  f32 dotV1V2 = dot(v1, ontoV2);
+  return dotV1V2 * ontoV2;
+}
+
+// v2 is assumed to be normalized
+inline vec3 perpendicularTo(const vec3& v1, const vec3& ontoV2) {
+  vec3 parallel = projection(v1, ontoV2);
+  return v1 - parallel;
+}
+
+// less than a 90 degree angle between the two vectors
+// v2 exists in the same hemisphere that centers around v1
+inline b32 similarDirection(const vec3& v1, const vec3& v2) {
+  return dot(v1, v2) > 0.0f;
 }
 
 inline vec3 lerp(const vec3& a, const vec3& b, f32 t) {
