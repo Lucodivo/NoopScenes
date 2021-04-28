@@ -6,6 +6,7 @@ const vec3 portalPosition{0.0f, 0.0f, portalScale * 0.5f};
 global_variable GLuint projViewModelUBOid = 0;
 global_variable ShaderProgram stencilShader{};
 global_variable VertexAtt portalVertexAtt{};
+global_variable VertexAtt portalBackingBoxVertexAtt{};
 
 
 struct Player {
@@ -42,7 +43,7 @@ struct Portal {
   vec2 dimens;
   b32 inFocus;
   u32 stencilMask;
-  SceneState sceneDestination;
+  u32 sceneDestination;
 };
 
 struct Scene {
@@ -56,13 +57,17 @@ struct World
 {
   Camera camera;
   Player player;
-  SceneState sceneState;
+  u32 currentSceneIndex;
   StopWatch stopWatch;
   Scene scenes[16];
   u32 sceneCount;
   Entity entities[128];
   u32 entityCount;
 };
+
+
+void drawScene(World* world, const u32 sceneIndex, u32 stencilMask = 0x00);
+void drawPortals(World* world, const u32 sceneIndex);
 
 mat4 portalBackingBoxModelMatrix(const vec3& centerPos, const vec3& desiredNormal, const f32 width, const f32 height) {
   mat4 scaleMat = scale_mat4(vec3{width, 1.0f, height});;
@@ -73,14 +78,19 @@ mat4 portalBackingBoxModelMatrix(const vec3& centerPos, const vec3& desiredNorma
 
 #define PORTAL_BACKING_BOX_DEPTH 0.5f
 
-Portal createPortal(const vec3& position, const vec3& normal, const vec2& dimens, const u32 stencilMask, const SceneState sceneDestination) {
+void addPortal(World* world, u32 homeSceneIndex,
+                 const vec3& position, const vec3& normal, const vec2& dimens,
+                 const u32 stencilMask, const u32 destinationSceneIndex) {
+  Scene* homeScene = world->scenes + homeSceneIndex;
+  Assert(homeScene->portalCount < ArrayCount(homeScene->portals));
+
   Portal portal{};
   portal.stencilMask = stencilMask;
   portal.dimens = dimens;
   portal.position = position;
   portal.normal = normal;
   portal.portalModelMat = quadModelMatrix(position, normal, dimens.x, dimens.y);
-  portal.sceneDestination = sceneDestination;
+  portal.sceneDestination = destinationSceneIndex;
   portal.inFocus = false;
 
   mat4 translation1Mat = translate_mat4(-cubeFaceNegativeYCenter);
@@ -89,7 +99,7 @@ Portal createPortal(const vec3& position, const vec3& normal, const vec2& dimens
   mat4 translation2Mat = translate_mat4(position);
   portal.backingBoxModelMat = translation2Mat * rotationMat * scaleMat * translation1Mat;
 
-  return portal;
+  homeScene->portals[homeScene->portalCount++] = portal;
 }
 
 u32 addNewScene(World* world) {
@@ -123,7 +133,7 @@ inline vec3 calcBoundingBoxCenterPosition(BoundingBox box) {
 }
 
 // assume "eyes" (FPS camera) is positioned on middle X, max Y, max Z
-inline vec3 calcPlayerViewingPosition(Player* player) {
+inline vec3 calcPlayerViewingPosition(const Player* player) {
   return player->boundingBox.min + hadamard(player->boundingBox.diagonal, {0.5f, 1.0f, 1.0f});
 }
 
@@ -137,7 +147,7 @@ void drawTrianglesWireframe(const VertexAtt* vertexAtt) {
   glEnable(GL_DEPTH_TEST);
 }
 
-void drawPortal(const Portal& portal) {
+void drawPortal(const World* world, Portal* portal, Out b32* enteredPortal) {
   glUseProgram(stencilShader.id);
 
   // NOTE: Stencil function Example
@@ -150,76 +160,72 @@ void drawPortal(const Portal& portal) {
               GL_KEEP, // action when stencil passes but depth fails
               GL_REPLACE); // action when both stencil and depth pass
 
-  glStencilMask(portal.stencilMask);
-  glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
-  glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portal.portalModelMat);
-  glBindBuffer(GL_UNIFORM_BUFFER, 0);
-  drawTriangles(&portalVertexAtt);
+  // TODO: avoid calculating this multiple times a frame
+  vec3 playerViewPosition = calcPlayerViewingPosition(&world->player);
+
+  b32 portalWasInFocus = portal->inFocus;
+  vec3 portalCenterToPlayerView = playerViewPosition - portal->position;
+  b32 portalViewableFromPosition = similarDirection(portalCenterToPlayerView, portal->normal);
+  vec3 viewPositionPerpendicularToPortal = perpendicularTo(portalCenterToPlayerView, portal->normal);
+  f32 widthDistFromCenter = magnitude(viewPositionPerpendicularToPortal.xy);
+  f32 heightDistFromCenter = viewPositionPerpendicularToPortal.z;
+  b32 viewerInsideDimens = widthDistFromCenter < (portal->dimens.x * 0.5f) &&
+                           heightDistFromCenter < (portal->dimens.y * 0.5f);
+
+  portal->inFocus = portalViewableFromPosition && viewerInsideDimens;
+  b32 insidePortal = portalWasInFocus && !portalViewableFromPosition; // portal was in focus and now we're on the other side
+
+  if(portal->inFocus || insidePortal) {
+    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+    glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portal->backingBoxModelMat);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glUseProgram(stencilShader.id);
+    glStencilMask(portal->stencilMask);
+    drawTriangles(&portalBackingBoxVertexAtt);
+  } else if(portalViewableFromPosition) {
+    glStencilMask(portal->stencilMask);
+    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
+    glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portal->portalModelMat);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    drawTriangles(&portalVertexAtt);
+  }
+
+  *enteredPortal = insidePortal;
 }
 
 void drawPortals(World* world, const u32 sceneIndex){
-  func_persist VertexAtt invertedCubePosVertexAtt = cubePosVertexAttBuffers(true);
 
   Scene* scene = world->scenes + sceneIndex;
 
-  vec3 playerViewPosition = calcPlayerViewingPosition(&world->player);
-
   b32 enteredPortal = false;
-  u32 portalEnteredIndex = 0;
 
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
-    Portal* portal = &scene->portals[portalIndex];
+    drawPortal(world, scene->portals + portalIndex, &enteredPortal);
 
-    b32 portalWasInFocus = portal->inFocus;
-    vec3 portalCenterToPlayerView = playerViewPosition - portal->position;
-    b32 portalViewableFromPosition = similarDirection(portalCenterToPlayerView, portal->normal);
-    vec3 viewPositionPerpendicularToPortal = perpendicularTo(portalCenterToPlayerView, portal->normal);
-    f32 widthDistFromCenter = magnitude(viewPositionPerpendicularToPortal.xy);
-    f32 heightDistFromCenter = viewPositionPerpendicularToPortal.z;
-    b32 viewerInsideDimens = widthDistFromCenter < (portal->dimens.x * 0.5f) &&
-                             heightDistFromCenter < (portal->dimens.y * 0.5f);
+    if(enteredPortal){
+      world->currentSceneIndex = scene->portals[portalIndex].sceneDestination;
+      drawScene(world, scene->portals[portalIndex].sceneDestination, scene->portals[portalIndex].stencilMask);
 
-    portal->inFocus = portalViewableFromPosition && viewerInsideDimens;
-    b32 insidePortal = portalWasInFocus && !portalViewableFromPosition; // portal was in focus and now we're on the other side
-
-    if(portal->inFocus || insidePortal) {
-      // NOTE: Stencil function Example
-      // GL_LEQUAL
-      // Passes if ( ref & mask ) <= ( stencil & mask )
-      glStencilFunc(GL_EQUAL, // func
-                    0xFF, // ref
-                    0x00); // mask // Only draw portals where the stencil is cleared
-      glStencilOp(GL_KEEP, // action when stencil fails
-                  GL_KEEP, // action when stencil passes but depth fails
-                  GL_REPLACE); // action when both stencil and depth pass
-
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portal->backingBoxModelMat);
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
-      glUseProgram(stencilShader.id);
-      glStencilMask(portal->stencilMask);
-      drawTriangles(&invertedCubePosVertexAtt);
-    } else if(portalViewableFromPosition) {
-      drawPortal(*portal);
-    }
-
-    if(insidePortal){
-      enteredPortal = true;
-      portalEnteredIndex = portalIndex;
+      for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
+        scene->portals[portalIndex].inFocus = false;
+      }
       break;
     }
   }
 
-  if(enteredPortal){
-    for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
-      scene->portals[portalIndex].inFocus = false;
-    }
+  // turn off writes to the stencil
+  glStencilMask(0x00);
 
-    world->sceneState = scene->portals[portalEnteredIndex].sceneDestination;
+  // Draw portal scenes
+  // We need to clear disable depth values so distant objects through the "portals" still get drawn
+  // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
+  glClear(GL_DEPTH_BUFFER_BIT);
+  for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
+    drawScene(world, scene->portals[portalIndex].sceneDestination, scene->portals[portalIndex].stencilMask);
   }
 }
 
-void drawScene(World* world, const u32 sceneIndex, u32 stencilMask = 0x00) {
+void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
   glStencilFunc(
           GL_EQUAL, // test function applied to stored stencil value and ref [ex: discard when stored value GL_GREATER ref]
           stencilMask, // ref
@@ -253,8 +259,8 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask = 0x00) {
           setUniform(shader.id, "baseColor", mesh->textureData.baseColor.xyz);
         }
         if(mesh->textureData.albedoTextureId != TEXTURE_ID_NO_TEXTURE) {
-            bindActiveTextureSampler2d(0, mesh->textureData.albedoTextureId);
-            setUniform(shader.id, "albedoTex", 0);
+          bindActiveTextureSampler2d(0, mesh->textureData.albedoTextureId);
+          setUniform(shader.id, "albedoTex", 0);
         }
         if(mesh->textureData.normalTextureId != TEXTURE_ID_NO_TEXTURE) {
           bindActiveTextureSampler2d(1, mesh->textureData.normalTextureId);
@@ -272,84 +278,12 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask = 0x00) {
   }
 }
 
-void drawGateScene(World* world, const u32 gateSceneIndex, const u32* fourSceneIndices)
+void drawSceneWithPortals(World* world)
 {
-  // TODO: Move this func_persist data somewhere reasonable
-  func_persist VertexAtt cubePosVertexAtt = cubePosVertexAttBuffers();
-
-  // TODO: OMG move this stuff somewhere else
-  func_persist Portal portals[4] = {};
-  func_persist mat4 portalBackingInvertedCubeModelMat = {};
-  if(portals[0].stencilMask == 0) { // uninitialized
-    portalBackingInvertedCubeModelMat = translate_mat4(portalPosition) * scale_mat4(portalScale);
-    portals[0] = createPortal(
-              (cubeFaceNegativeXCenter * portalScale) + portalPosition,
-              negativeXNormal,
-              vec2{portalScale, portalScale},
-              0x01,
-              SceneState_1
-            );
-
-    portals[1] = createPortal(
-            (cubeFacePositiveXCenter * portalScale) + portalPosition,
-            positiveXNormal,
-            vec2{portalScale, portalScale},
-            0x02,
-            SceneState_2
-    );
-
-    portals[2] = createPortal(
-            (cubeFaceNegativeYCenter * portalScale) + portalPosition,
-            negativeYNormal,
-            vec2{portalScale, portalScale},
-            0x03,
-            SceneState_3
-    );
-
-    portals[3] = createPortal(
-            (cubeFacePositiveYCenter * portalScale) + portalPosition,
-            positiveYNormal,
-            vec2{portalScale, portalScale},
-            0x04,
-            SceneState_4
-    );
-
-    world->scenes[gateSceneIndex].portals[0] = portals[0];
-    world->scenes[gateSceneIndex].portals[1] = portals[1];
-    world->scenes[gateSceneIndex].portals[2] = portals[2];
-    world->scenes[gateSceneIndex].portals[3] = portals[3];
-    world->scenes[gateSceneIndex].portalCount = 4;
-  }
-
-  { // draw gate scene
-    drawScene(world, gateSceneIndex);
-  }
-
-  // draw portal stencils
-  {
-    drawPortals(world, gateSceneIndex);
-  }
-
-  // turn off writes to the stencil
-  glStencilMask(0x00);
-
-  // Draw portal scenes
-  // We need to clear disable depth values so distant objects through the "portals" still get drawn
-  // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
-  glClear(GL_DEPTH_BUFFER_BIT);
-  { // use stencils to draw portals
-    // portal negative x
-    drawScene(world, fourSceneIndices[0], portals[0].stencilMask);
-
-    // portal positive x
-    drawScene(world, fourSceneIndices[1], portals[1].stencilMask);
-
-    // portal negative y
-    drawScene(world, fourSceneIndices[2], portals[2].stencilMask);
-
-    // portal positive y
-    drawScene(world, fourSceneIndices[3], portals[3].stencilMask);
-  }
+  // draw scene
+  drawScene(world, world->currentSceneIndex);
+  // draw portals
+  drawPortals(world, world->currentSceneIndex);
 }
 
 void portalScene(GLFWwindow* window) {
@@ -358,10 +292,10 @@ void portalScene(GLFWwindow* window) {
   f32 aspectRatio = f32(windowExtent.width) / windowExtent.height;
 
   World world{};
-  world.sceneState = SceneState_Gate;
 
   VertexAtt cubePosVertexAtt = cubePosVertexAttBuffers();
   portalVertexAtt = quadPosVertexAttBuffers();
+  portalBackingBoxVertexAtt = cubePosVertexAttBuffers(true);
 
   ShaderProgram albedoNormalTexShader = createShaderProgram(gateVertexShaderFileLoc, gateFragmentShaderFileLoc);
   ShaderProgram singleColorShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
@@ -389,6 +323,12 @@ void portalScene(GLFWwindow* window) {
   projectionViewModelUbo.projection = perspective(fovY, aspectRatio, originalProjectionDepthNear, originalProjectionDepthFar);
 
   u32 gateSceneIndex = addNewScene(&world);
+  u32 tetrahedronSceneIndex = addNewScene(&world);
+  u32 octahedronSceneIndex = addNewScene(&world);
+  u32 cubeSceneIndex = addNewScene(&world);
+  u32 icosahedronSceneIndex = addNewScene(&world);
+
+  world.currentSceneIndex = gateSceneIndex;
   u32 gateEntityIndex;
   {
     gateEntityIndex = addNewEntity(&world, gateSceneIndex);
@@ -408,9 +348,40 @@ void portalScene(GLFWwindow* window) {
     caveSkybox->scale = 1.0f;
     caveSkybox->shaderProgram = skyboxShader;
     caveSkybox->flags = EntityType_Skybox;
+
+    addPortal(&world, gateEntityIndex,
+              (cubeFaceNegativeXCenter * portalScale) + portalPosition,
+              negativeXNormal,
+              vec2{portalScale, portalScale},
+              0x01,
+              cubeSceneIndex
+    );
+
+    addPortal(&world, gateEntityIndex,
+              (cubeFacePositiveXCenter * portalScale) + portalPosition,
+              positiveXNormal,
+              vec2{portalScale, portalScale},
+              0x02,
+              octahedronSceneIndex
+    );
+
+    addPortal(&world, gateEntityIndex,
+              (cubeFaceNegativeYCenter * portalScale) + portalPosition,
+              negativeYNormal,
+              vec2{portalScale, portalScale},
+              0x03,
+              tetrahedronSceneIndex
+    );
+
+    addPortal(&world, gateEntityIndex,
+              (cubeFacePositiveYCenter * portalScale) + portalPosition,
+              positiveYNormal,
+              vec2{portalScale, portalScale},
+              0x04,
+              icosahedronSceneIndex
+    );
   }
 
-  u32 tetrahedronSceneIndex = addNewScene(&world);
   {
     u32 tetrahedronEntityIndex = addNewEntity(&world, tetrahedronSceneIndex);
     Entity* tetrahedron = world.entities + tetrahedronEntityIndex;
@@ -430,7 +401,6 @@ void portalScene(GLFWwindow* window) {
     yellowCloudSkybox->flags = EntityType_Skybox;
   }
 
-  u32 octahedronSceneIndex = addNewScene(&world);
   {
     u32 octahedronEntityIndex = addNewEntity(&world, octahedronSceneIndex);
     Entity* octahedron = world.entities + octahedronEntityIndex;
@@ -450,7 +420,6 @@ void portalScene(GLFWwindow* window) {
     interstellarSkybox->flags = EntityType_Skybox;
   }
 
-  u32 cubeSceneIndex = addNewScene(&world);
   {
     u32 cubeEntityIndex = addNewEntity(&world, cubeSceneIndex);
     Entity* cube = world.entities + cubeEntityIndex;
@@ -470,7 +439,6 @@ void portalScene(GLFWwindow* window) {
     calmSeaSkybox->flags = EntityType_Skybox;
   }
 
-  u32 icosahedronSceneIndex = addNewScene(&world);
   {
     u32 icosahedronEntityIndex = addNewEntity(&world, icosahedronSceneIndex);
     Entity* icosahedron = world.entities + icosahedronEntityIndex;
@@ -676,26 +644,7 @@ void portalScene(GLFWwindow* window) {
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
 
-    switch(world.sceneState) {
-      case SceneState_Gate:
-        drawGateScene(&world, gateSceneIndex, fourSceneIndices);
-        break;
-      case SceneState_1:
-        drawScene(&world, fourSceneIndices[0]);
-        break;
-      case SceneState_2:
-        drawScene(&world, fourSceneIndices[1]);
-        break;
-      case SceneState_3:
-        drawScene(&world, fourSceneIndices[2]);
-        break;
-      case SceneState_4:
-        drawScene(&world, fourSceneIndices[3]);
-        break;
-    }
-
-    if(world.sceneState == SceneState_Gate) {
-    }
+    drawSceneWithPortals(&world);
 
     glfwSwapBuffers(window); // swaps double buffers (call after all render commands are completed)
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
