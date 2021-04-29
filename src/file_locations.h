@@ -66,3 +66,4 @@ const char* dodecahedronModelLoc = COMMON_MODEL_BASE"Dodecahedron.glb";
 const char* icosahedronModelLoc = COMMON_MODEL_BASE"Icosahedron.glb";
 const char* mrSaturnModelLoc = COMMON_MODEL_BASE"Mr-Saturn.glb";
 const char* spike2ModelLoc = COMMON_MODEL_BASE"spike-2.glb";
+const char* paperModelLoc = COMMON_MODEL_BASE"paper.glb";

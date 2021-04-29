@@ -325,7 +325,7 @@ void portalScene(GLFWwindow* window) {
   u32 gateSceneIndex = addNewScene(&world);
   u32 tetrahedronSceneIndex = addNewScene(&world);
   u32 octahedronSceneIndex = addNewScene(&world);
-  u32 cubeSceneIndex = addNewScene(&world);
+  u32 paperSceneIndex = addNewScene(&world);
   u32 icosahedronSceneIndex = addNewScene(&world);
 
   world.currentSceneIndex = gateSceneIndex;
@@ -348,38 +348,6 @@ void portalScene(GLFWwindow* window) {
     caveSkybox->scale = 1.0f;
     caveSkybox->shaderProgram = skyboxShader;
     caveSkybox->flags = EntityType_Skybox;
-
-    addPortal(&world, gateEntityIndex,
-              (cubeFaceNegativeXCenter * portalScale) + portalPosition,
-              negativeXNormal,
-              vec2{portalScale, portalScale},
-              0x01,
-              cubeSceneIndex
-    );
-
-    addPortal(&world, gateEntityIndex,
-              (cubeFacePositiveXCenter * portalScale) + portalPosition,
-              positiveXNormal,
-              vec2{portalScale, portalScale},
-              0x02,
-              octahedronSceneIndex
-    );
-
-    addPortal(&world, gateEntityIndex,
-              (cubeFaceNegativeYCenter * portalScale) + portalPosition,
-              negativeYNormal,
-              vec2{portalScale, portalScale},
-              0x03,
-              tetrahedronSceneIndex
-    );
-
-    addPortal(&world, gateEntityIndex,
-              (cubeFacePositiveYCenter * portalScale) + portalPosition,
-              positiveYNormal,
-              vec2{portalScale, portalScale},
-              0x04,
-              icosahedronSceneIndex
-    );
   }
 
   {
@@ -421,16 +389,16 @@ void portalScene(GLFWwindow* window) {
   }
 
   {
-    u32 cubeEntityIndex = addNewEntity(&world, cubeSceneIndex);
-    Entity* cube = world.entities + cubeEntityIndex;
-    loadModel(cubeModelLoc, &cube->model);
-    cube->model.meshes[0].textureData.baseColor = vec4{0.4f, 0.4f, 1.0f, 1.0f};
-    cube->position = shapePosition;
-    cube->scale = shapeScale;
-    cube->shaderProgram = singleColorShader;
-    cube->flags = EntityType_Rotating | EntityType_Wireframe;
+    u32 paperEntityIndex = addNewEntity(&world, paperSceneIndex);
+    Entity* paper = world.entities + paperEntityIndex;
+    loadModel(paperModelLoc, &paper->model);
+    paper->model.meshes[0].textureData.baseColor = vec4{0.4f, 0.4f, 1.0f, 1.0f};
+    paper->position = shapePosition;
+    paper->scale = shapeScale;
+    paper->shaderProgram = singleColorShader;
+    paper->flags = EntityType_Rotating | EntityType_Wireframe;
 
-    u32 calmSeaSkyboxEntityIndex = addNewEntity(&world, cubeSceneIndex);
+    u32 calmSeaSkyboxEntityIndex = addNewEntity(&world, paperSceneIndex);
     Entity* calmSeaSkybox = world.entities + calmSeaSkyboxEntityIndex;
     skyBoxModel(calmSeaFaceLocations, &calmSeaSkybox->model);
     calmSeaSkybox->position = {0.0f, 0.0f, 0.0f};
@@ -456,6 +424,72 @@ void portalScene(GLFWwindow* window) {
     pollutedEarthSkybox->scale = 1.0f;
     pollutedEarthSkybox->shaderProgram = skyboxShader;
     pollutedEarthSkybox->flags = EntityType_Skybox;
+  }
+
+  { // portals
+    addPortal(&world, gateEntityIndex,
+              (cubeFaceNegativeXCenter * portalScale) + portalPosition,
+              negativeXNormal,
+              vec2{portalScale, portalScale},
+              0x01,
+              paperSceneIndex
+    );
+
+    addPortal(&world, paperSceneIndex,
+              (cubeFaceNegativeXCenter * portalScale) + portalPosition,
+              positiveXNormal,
+              vec2{portalScale, portalScale},
+              0x01,
+              gateEntityIndex
+    );
+
+    addPortal(&world, gateEntityIndex,
+              (cubeFacePositiveXCenter * portalScale) + portalPosition,
+              positiveXNormal,
+              vec2{portalScale, portalScale},
+              0x02,
+              octahedronSceneIndex
+    );
+
+    addPortal(&world, octahedronSceneIndex,
+              (cubeFacePositiveXCenter * portalScale) + portalPosition,
+              negativeXNormal,
+              vec2{portalScale, portalScale},
+              0x02,
+              gateEntityIndex
+    );
+
+    addPortal(&world, gateEntityIndex,
+              (cubeFaceNegativeYCenter * portalScale) + portalPosition,
+              negativeYNormal,
+              vec2{portalScale, portalScale},
+              0x03,
+              tetrahedronSceneIndex
+    );
+
+    addPortal(&world, tetrahedronSceneIndex,
+              (cubeFaceNegativeYCenter * portalScale) + portalPosition,
+              positiveYNormal,
+              vec2{portalScale, portalScale},
+              0x03,
+              gateEntityIndex
+    );
+
+    addPortal(&world, gateEntityIndex,
+              (cubeFacePositiveYCenter * portalScale) + portalPosition,
+              positiveYNormal,
+              vec2{portalScale, portalScale},
+              0x04,
+              icosahedronSceneIndex
+    );
+
+    addPortal(&world, icosahedronSceneIndex,
+              (cubeFacePositiveYCenter * portalScale) + portalPosition,
+              negativeYNormal,
+              vec2{portalScale, portalScale},
+              0x04,
+              gateEntityIndex
+    );
   }
 
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
@@ -493,8 +527,6 @@ void portalScene(GLFWwindow* window) {
     // attach buffer to ubo binding point
     glBindBufferRange(GL_UNIFORM_BUFFER, portalFragUBOBindingIndex, portalFragUBOid, 0, sizeof(PortalFragUBO));
   }
-
-  u32 fourSceneIndices[4] = {cubeSceneIndex, octahedronSceneIndex, tetrahedronSceneIndex, icosahedronSceneIndex};
 
   world.stopWatch = createStopWatch();
   while(glfwWindowShouldClose(window) == GL_FALSE)
