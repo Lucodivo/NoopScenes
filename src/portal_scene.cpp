@@ -201,15 +201,8 @@ void drawPortals(World* world, const u32 sceneIndex){
 
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
     drawPortal(world, scene->portals + portalIndex, &enteredPortal);
-
     if(enteredPortal){
       world->currentSceneIndex = scene->portals[portalIndex].sceneDestination;
-      drawScene(world, scene->portals[portalIndex].sceneDestination, scene->portals[portalIndex].stencilMask);
-
-      for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
-        scene->portals[portalIndex].inFocus = false;
-      }
-      break;
     }
   }
 
@@ -222,6 +215,7 @@ void drawPortals(World* world, const u32 sceneIndex){
   glClear(GL_DEPTH_BUFFER_BIT);
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
     drawScene(world, scene->portals[portalIndex].sceneDestination, scene->portals[portalIndex].stencilMask);
+    if(enteredPortal) { scene->portals[portalIndex].inFocus = false; }
   }
 }
 
@@ -295,7 +289,7 @@ void portalScene(GLFWwindow* window) {
 
   VertexAtt cubePosVertexAtt = cubePosVertexAttBuffers();
   portalVertexAtt = quadPosVertexAttBuffers();
-  portalBackingBoxVertexAtt = cubePosVertexAttBuffers(true);
+  portalBackingBoxVertexAtt = cubePosVertexAttBuffers(true, true);
 
   ShaderProgram albedoNormalTexShader = createShaderProgram(gateVertexShaderFileLoc, gateFragmentShaderFileLoc);
   ShaderProgram singleColorShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);

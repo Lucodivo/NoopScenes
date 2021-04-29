@@ -28,7 +28,7 @@ const BoundingBox cubeVertAttBoundingBox = {
         {1.0f, 1.0f, 1.0f}
 };
 
-VertexAtt cubePosVertexAttBuffers(bool invertedWindingOrder = false);
+VertexAtt cubePosVertexAttBuffers(bool invertedWindingOrder = false, bool openNegYFace = false);
 
 VertexAtt quadPosVertexAttBuffers();
 VertexAtt quadPosTexVertexAttBuffers();
