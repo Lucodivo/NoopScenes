@@ -283,7 +283,7 @@ inline f32 smoothStep(f32 edge1, f32 edge2, f32 x) {
 }
 
 inline f32 lerp(f32 a, f32 b, f32 t) {
-  Assert(t >= 0.0f && t <= 1.0f)
+  Assert(t >= 0.0f && t <= 1.0f);
   return a - ((a + b) * t);
 }
 
@@ -361,7 +361,7 @@ inline vec2 operator/(const vec2& xy, const f32 s) {
 }
 
 inline vec2 lerp(const vec2& a, const vec2& b, f32 t) {
-  Assert(t >= 0.0f && t <= 1.0f)
+  Assert(t >= 0.0f && t <= 1.0f);
   return a - ((a + b) * t);
 }
 
@@ -472,7 +472,7 @@ inline b32 similarDirection(const vec3& v1, const vec3& v2) {
 }
 
 inline vec3 lerp(const vec3& a, const vec3& b, f32 t) {
-  Assert(t >= 0.0f && t <= 1.0f)
+  Assert(t >= 0.0f && t <= 1.0f);
   return a - ((a + b) * t);
 }
 
@@ -562,7 +562,7 @@ inline vec4 operator/(const vec4& xyzw, const f32 s) {
 }
 
 inline vec4 lerp(const vec4& a, const vec4& b, f32 t) {
-  Assert(t >= 0.0f && t <= 1.0f)
+  Assert(t >= 0.0f && t <= 1.0f);
   return a - ((a + b) * t);
 }
 
@@ -712,7 +712,7 @@ inline quaternion operator/(const quaternion& q1, const f32 s) {
 }
 
 quaternion lerp(quaternion a, quaternion b, f32 t) {
-  Assert(t >= 0.0f && t <= 1.0f)
+  Assert(t >= 0.0f && t <= 1.0f);
   return normalize(a - ((a + b) * t));
 }
 
@@ -720,7 +720,7 @@ quaternion lerp(quaternion a, quaternion b, f32 t) {
 // this gives the shortest art on a 4d unit sphere
 // great for smooth animations between two orientations defined by two quaternions
 quaternion slerp(quaternion a, quaternion b, f32 t) {
-  Assert(t >= 0.0f && t <= 1.0f)
+  Assert(t >= 0.0f && t <= 1.0f);
   f32 theta = acosf(dot(a, b));
 
   return ((sinf(theta * (1.0f - t)) * a) + (sinf(theta * t) * b)) / sinf(theta);

@@ -36,7 +36,7 @@ typedef s32 b32;
 #ifdef NDEBUG
 #define Assert(Expression)
 #else
-#define Assert(Expression) if(!(Expression)) {*(u8*)0 = 0;}
+#define Assert(Expression) if(!(Expression)) *(u8*)0=0
 #endif
 
 #define InvalidCodePath Assert(!"InvalidCodePath");

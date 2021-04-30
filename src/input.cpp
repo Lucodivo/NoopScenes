@@ -9,17 +9,17 @@ internal_func void loadXInput();
 internal_func void glfw_mouse_scroll_callback(GLFWwindow* window, f64 xOffset, f64 yOffset);
 internal_func void glfw_framebuffer_size_callback(GLFWwindow* window, s32 width, s32 height);
 
-global_variable b32 windowModeChangeTossNextInput = false;
+global_variable b32 globalWindowModeChangeTossNextInput = false;
 global_variable vec2_u32 globalWindowExtent = vec2_u32{0, 0 };
 global_variable vec2_f64 globalMouseScroll = vec2_f64{0.0, 0.0 };
-global_variable vec2_f64 mousePosition = {0.0, 0.0 };
-global_variable vec2_f64 mouseDelta = {0.0, 0.0 };
-global_variable vec2_s16 analogStickLeft = {0, 0 };
-global_variable vec2_s16 analogStickRight = {0, 0 };
-global_variable f32 mouseScrollY = 0.0f;
-global_variable s8 controller1TriggerLeftValue = 0;
-global_variable s8 controller1TriggerRightValue = 0;
-global_variable windows_size_callback* windowSizeCallback = NULL;
+global_variable vec2_f64 globaleMousePosition = {0.0, 0.0 };
+global_variable vec2_f64 globalMouseDelta = {0.0, 0.0 };
+global_variable vec2_s16 globalAnalogStickLeft = {0, 0 };
+global_variable vec2_s16 globalAnalogStickRight = {0, 0 };
+global_variable f32 globalMouseScrollY = 0.0f;
+global_variable s8 globalController1TriggerLeftValue = 0;
+global_variable s8 globalController1TriggerRightValue = 0;
+global_variable windows_size_callback* globalWindowSizeCallback = NULL;
 
 // initialized to zero is equivalent to InputState_Inactive
 // indices of this array will be accessed through InputType enums
@@ -74,15 +74,15 @@ b32 isActive(InputType inputType) {
 }
 
 vec2_f64 getMousePosition() {
-  return mousePosition;
+  return globaleMousePosition;
 }
 
 vec2_f64 getMouseDelta() {
-  return mouseDelta;
+  return globalMouseDelta;
 }
 
 f32 getMouseScrollY() {
-  return mouseScrollY;
+  return globalMouseScrollY;
 }
 
 vec2_u32 getWindowExtent() {
@@ -90,31 +90,31 @@ vec2_u32 getWindowExtent() {
 }
 
 vec2_s16 getControllerAnalogStickLeft(){
-  return analogStickLeft;
+  return globalAnalogStickLeft;
 }
 
 vec2_s16 getControllerAnalogStickRight() {
-  return analogStickRight;
+  return globalAnalogStickRight;
 }
 
 // NOTE: values range from 0 to 225 (255 minus trigger threshold)
 s8 getControllerTriggerRaw_Right() {
-    return controller1TriggerRightValue;
+    return globalController1TriggerRightValue;
 }
 
 // NOTE: values range from 0 to 225 (255 minus trigger threshold)
 s8 getControllerTriggerRaw_Left() {
-    return controller1TriggerLeftValue;
+    return globalController1TriggerLeftValue;
 }
 
 // NOTE: values range from 0.0 - 1.0
 f32 getControllerTrigger_Right() {
-    return (f32)controller1TriggerRightValue / (255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
+    return (f32)globalController1TriggerRightValue / (255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
 }
 
 // NOTE: values range from 0.0 - 1.0
 f32 getControllerTrigger_Left() {
-    return (f32)controller1TriggerLeftValue / (255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
+    return (f32)globalController1TriggerLeftValue / (255 - XINPUT_GAMEPAD_TRIGGER_THRESHOLD);
 }
 
 void setInputState(InputType inputType, b32 inputIsCurrentlyActive) {
@@ -170,17 +170,17 @@ void loadInputStateForFrame(GLFWwindow* window) {
       glfwGetCursorPos(window, &newMouseCoord.x, &newMouseCoord.y);
 
       // NOTE: We do not consume mouse input on window size changes as it results in unwanted values
-      mouseDelta = consumabool(&windowModeChangeTossNextInput) ? vec2_f64{0.0f, 0.0f} : vec2_f64{newMouseCoord.x - mousePosition.x, newMouseCoord.y - mousePosition.y};
-      mousePosition = newMouseCoord;
-      b32 mouseMovementIsCurrentlyActive = mouseDelta.x != 0.0f || mouseDelta.y != 0.0f;
+      globalMouseDelta = consumabool(&globalWindowModeChangeTossNextInput) ? vec2_f64{0.0f, 0.0f} : vec2_f64{newMouseCoord.x - globaleMousePosition.x, newMouseCoord.y - globaleMousePosition.y};
+      globaleMousePosition = newMouseCoord;
+      b32 mouseMovementIsCurrentlyActive = globalMouseDelta.x != 0.0f || globalMouseDelta.y != 0.0f;
       setInputState(MouseInput_Movement, mouseMovementIsCurrentlyActive);
     }
 
     // mouse scroll state management
     {
-      mouseScrollY = (f32)globalMouseScroll.y;
+      globalMouseScrollY = (f32)globalMouseScroll.y;
       globalMouseScroll.y = 0.0f; // NOTE: Set to 0.0f to signify that the result has been consumed
-      b32 mouseScrollIsCurrentlyActive = mouseScrollY != 0.0f;
+      b32 mouseScrollIsCurrentlyActive = globalMouseScrollY != 0.0f;
       setInputState(MouseInput_Scroll, mouseScrollIsCurrentlyActive);
     }
   }
@@ -205,37 +205,37 @@ void loadInputStateForFrame(GLFWwindow* window) {
     setControllerState(Controller1Input_Start, XINPUT_GAMEPAD_START, gamepadButtonFlags);
     setControllerState(Controller1Input_Select, XINPUT_GAMEPAD_BACK, gamepadButtonFlags);
 
-    analogStickLeft = { controllerState.Gamepad.sThumbLX, controllerState.Gamepad.sThumbLY };
-    if(analogStickLeft.x > -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE && analogStickLeft.x < XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
+    globalAnalogStickLeft = {controllerState.Gamepad.sThumbLX, controllerState.Gamepad.sThumbLY };
+    if(globalAnalogStickLeft.x > -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE && globalAnalogStickLeft.x < XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
     {
-      analogStickLeft.x = 0; // deadzone
+      globalAnalogStickLeft.x = 0; // deadzone
     }
-    if(analogStickLeft.y > -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE && analogStickLeft.y < XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
+    if(globalAnalogStickLeft.y > -XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE && globalAnalogStickLeft.y < XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE)
     {
-      analogStickLeft.y = 0; // deadzone
+      globalAnalogStickLeft.y = 0; // deadzone
     }
-    b32 analogStickLeftIsCurrentlyActive = analogStickLeft.x != 0 || analogStickLeft.y != 0;
+    b32 analogStickLeftIsCurrentlyActive = globalAnalogStickLeft.x != 0 || globalAnalogStickLeft.y != 0;
     setInputState(Controller1Input_Analog_Left, analogStickLeftIsCurrentlyActive);
 
-    analogStickRight = { controllerState.Gamepad.sThumbRX, controllerState.Gamepad.sThumbRY };
-    if(analogStickRight.x > -XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE && analogStickRight.x < XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE)
+    globalAnalogStickRight = {controllerState.Gamepad.sThumbRX, controllerState.Gamepad.sThumbRY };
+    if(globalAnalogStickRight.x > -XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE && globalAnalogStickRight.x < XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE)
     {
-      analogStickRight.x = 0; // deadzone
+      globalAnalogStickRight.x = 0; // deadzone
     }
-    if(analogStickRight.y > -XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE && analogStickRight.y < XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE)
+    if(globalAnalogStickRight.y > -XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE && globalAnalogStickRight.y < XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE)
     {
-      analogStickRight.y = 0; // deadzone
+      globalAnalogStickRight.y = 0; // deadzone
     }
-    b32 analogStickRightIsCurrentlyActive = analogStickRight.x != 0 || analogStickRight.y != 0;
+    b32 analogStickRightIsCurrentlyActive = globalAnalogStickRight.x != 0 || globalAnalogStickRight.y != 0;
     setInputState(Controller1Input_Analog_Right, analogStickRightIsCurrentlyActive);
 
     b32 leftTriggerIsCurrentlyActive = controllerState.Gamepad.bLeftTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
     setInputState(Controller1Input_Trigger_Left, leftTriggerIsCurrentlyActive);
-    controller1TriggerLeftValue = leftTriggerIsCurrentlyActive ? controllerState.Gamepad.bLeftTrigger - XINPUT_GAMEPAD_TRIGGER_THRESHOLD : 0;
+    globalController1TriggerLeftValue = leftTriggerIsCurrentlyActive ? controllerState.Gamepad.bLeftTrigger - XINPUT_GAMEPAD_TRIGGER_THRESHOLD : 0;
 
     b32 rightTriggerIsCurrentlyActive = controllerState.Gamepad.bRightTrigger > XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
     setInputState(Controller1Input_Trigger_Right, rightTriggerIsCurrentlyActive);
-    controller1TriggerRightValue = rightTriggerIsCurrentlyActive ? controllerState.Gamepad.bRightTrigger - XINPUT_GAMEPAD_TRIGGER_THRESHOLD : 0;
+    globalController1TriggerRightValue = rightTriggerIsCurrentlyActive ? controllerState.Gamepad.bRightTrigger - XINPUT_GAMEPAD_TRIGGER_THRESHOLD : 0;
   }
 }
 
@@ -247,7 +247,7 @@ void glfw_mouse_scroll_callback(GLFWwindow* window, f64 xOffset, f64 yOffset)
 
 void subscribeWindowSizeCallback(windows_size_callback* callback)
 {
-  windowSizeCallback = callback;
+  globalWindowSizeCallback = callback;
 }
 
 // NOTE: returns (0,0) when no longer on screen
@@ -267,18 +267,18 @@ void glfw_framebuffer_size_callback(GLFWwindow* window, s32 width, s32 height)
     }
   }
 
-  windowModeChangeTossNextInput = true;
+  globalWindowModeChangeTossNextInput = true;
   globalWindowExtent = {(u32)width, (u32)height };
 
-  if(windowSizeCallback != NULL) {
-    windowSizeCallback();
+  if(globalWindowSizeCallback != NULL) {
+    globalWindowSizeCallback();
   }
 }
 
 void enableCursor(GLFWwindow* window, b32 enable)
 {
   glfwSetInputMode(window, GLFW_CURSOR, enable ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
-  windowModeChangeTossNextInput = true;
+  globalWindowModeChangeTossNextInput = true;
 }
 
 b32 isCursorEnabled(GLFWwindow* window)

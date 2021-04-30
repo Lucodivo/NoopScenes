@@ -225,7 +225,7 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
     if(gltfMaterialIndex >= 0) {
       tinygltf::Material gltfMaterial = gltfModel->materials[gltfMaterialIndex];
       // TODO: Handle more then just TEXCOORD_0 vertex attribute?
-      Assert(gltfMaterial.normalTexture.texCoord == 0 && gltfMaterial.pbrMetallicRoughness.baseColorTexture.texCoord == 0)
+      Assert(gltfMaterial.normalTexture.texCoord == 0 && gltfMaterial.pbrMetallicRoughness.baseColorTexture.texCoord == 0);
 
       f64* baseColor = gltfMaterial.pbrMetallicRoughness.baseColorFactor.data();
       mesh->textureData.baseColor = {(f32)baseColor[0], (f32)baseColor[1], (f32)baseColor[2], (f32)baseColor[3] };
@@ -333,17 +333,27 @@ void drawModel(const Model& model) {
 
 void deleteModels(Model** models, u32 count) {
   std::vector<VertexAtt*> vertexAtts;
-  std::vector<TextureData> textureData;
+  std::vector<GLuint> textureData;
 
   for(u32 i = 0; i < count; ++i) {
     Model* modelPtr = models[i];
     for(u32 i = 0; i < modelPtr->meshCount; ++i) {
       Mesh* meshPtr = modelPtr->meshes;
       vertexAtts.push_back(&meshPtr->vertexAtt);
+      TextureData textureDatum = meshPtr->textureData;
+      if(textureDatum.normalTextureId != TEXTURE_ID_NO_TEXTURE) {
+        textureData.push_back(textureDatum.normalTextureId);
+      }
+      if(textureDatum.albedoTextureId != TEXTURE_ID_NO_TEXTURE) {
+        textureData.push_back(textureDatum.albedoTextureId);
+      }
     }
+    modelPtr->meshCount = 0;
+    delete modelPtr->meshes;
   }
 
   deleteVertexAtts(vertexAtts.data(), (u32)vertexAtts.size());
+  glDeleteTextures((GLsizei)textureData.size(), textureData.data());
 }
 
 void skyBoxModel(const char* const imgLocations[6], Model* model) {
