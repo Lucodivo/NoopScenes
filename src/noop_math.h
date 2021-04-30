@@ -370,6 +370,10 @@ inline vec3 Vec3(vec2 xy, f32 z) {
   return vec3{xy.x, xy.y, z};
 }
 
+inline vec3 Vec3(f32 value) {
+  return vec3{value, value, value};
+}
+
 inline vec3 operator-(const vec3& xyz) {
   return vec3{-xyz.x, -xyz.y, -xyz.z};
 }

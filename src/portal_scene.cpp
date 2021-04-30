@@ -1,8 +1,12 @@
 const vec3 defaultPlayerDimensionInMeters{0.5f, 0.25f, 1.75f}; // NOTE: ~1'7"w, 9"d, 6'h
 
-const f32 portalScale = 3.0f;
-const f32 shapeScale = 1.0f;
-const vec3 portalPosition{0.0f, 0.0f, portalScale * 0.5f};
+const vec3 gateScale{3.0f, 3.0f, 3.0f};
+const vec2 portalScale{gateScale.x, gateScale.z};
+const vec3 shapeScale{1.0f, 1.0f, 1.0f};
+const vec3 gatePosition{0.0f, 0.0f, gateScale.z * 0.5f};
+const vec3 shapePosition = gatePosition;
+const vec3 skyboxPosition{0.0f, 0.0f, 0.0f};
+const vec3 skyboxScale{1.0f, 1.0f, 1.0f};
 global_variable GLuint projViewModelUBOid = 0;
 global_variable ShaderProgram stencilShader{};
 global_variable VertexAtt portalVertexAtt{};
@@ -21,10 +25,11 @@ enum EntityType {
 
 struct Entity {
   ShaderProgram shaderProgram;
-  Model model;
+  BoundingBox boundingBox;
+  u32 modelIndex;
   b32 flags;
   vec3 position;
-  f32 scale;
+  vec3 scale;
 };
 
 struct Portal {
@@ -39,9 +44,10 @@ struct Portal {
 };
 
 struct Scene {
+  // TODO: should the scene keep track of its own index in the world?
   Entity entities[16];
   u32 entityCount;
-  Portal portals[4]; // TODO: actually use these
+  Portal portals[4];
   u32 portalCount;
 };
 
@@ -94,17 +100,40 @@ u32 addNewScene(World* world) {
   return sceneIndex;
 }
 
-u32 addNewEntity(World* world, u32 sceneIndex) {
+u32 addNewEntity(World* world, u32 sceneIndex, u32 modelIndex, vec3 pos, vec3 scale, ShaderProgram shader, b32 entityTypeFlags = 0) {
   Scene* scene = world->scenes + sceneIndex;
   Assert(ArrayCount(scene->entities) > scene->entityCount);
   u32 sceneEntityIndex = scene->entityCount++;
-  scene->entities[sceneEntityIndex] = {};
+  Entity* entity = scene->entities + sceneEntityIndex;
+  *entity = {};
+  entity->modelIndex = modelIndex;
+  entity->boundingBox = world->models[modelIndex].boundingBox;
+  entity->boundingBox.min = hadamard(entity->boundingBox.min, scale);
+  entity->boundingBox.min += pos;
+  entity->boundingBox.diagonal = hadamard(entity->boundingBox.diagonal, scale);
+  entity->position = pos;
+  entity->scale = scale;
+  entity->shaderProgram = shader;
+  entity->flags = entityTypeFlags;
   return sceneEntityIndex;
 }
 
 u32 addNewModel(World* world, const char* modelFileLoc) {
-  // TODO: lol
-  return 0;
+  u32 modelIndex = world->modelCount++;
+  loadModel(modelFileLoc, world->models + modelIndex);
+  return modelIndex;
+}
+
+u32 addNewModel_Skybox(World* world, const char* const imgLocations[6]) {
+  u32 modelIndex = world->modelCount++;
+  Model* model = world->models + modelIndex;
+  model->boundingBox = cubeVertAttBoundingBox;
+  model->meshes = new Mesh[1];
+  model->meshCount = 1;
+  model->meshes[0].vertexAtt = cubePosVertexAttBuffers(true);
+  model->meshes[0].textureData = {};
+  loadCubeMapTexture(imgLocations, &model->meshes[0].textureData.albedoTextureId);
+  return modelIndex;
 }
 
 struct PortalFragUBO {
@@ -224,14 +253,15 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
       modelMatrix = rotate_mat4(30.0f * RadiansPerDegree * world->stopWatch.totalElapsed, {0.0f, 0.0f, 1.0f}) * modelMatrix;
     }
 
-    // all shapes use the same model matrix
+    // all shapes use the same modelIndex matrix
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelUBOid);
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &modelMatrix);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     glUseProgram(shader.id);
-    for(u32 meshIndex = 0; meshIndex < entity->model.meshCount; ++meshIndex) {
-      Mesh* mesh = entity->model.meshes + meshIndex;
+    Model model = world->models[entity->modelIndex];
+    for(u32 meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+      Mesh* mesh = model.meshes + meshIndex;
       if(entity->flags & EntityType_Skybox) {
         bindActiveTextureCubeMap(0, mesh->textureData.albedoTextureId);
         setUniform(shader.id, "albedoTex", 0);
@@ -285,11 +315,6 @@ void portalScene(GLFWwindow* window) {
 
   ProjectionViewModelUBO projectionViewModelUbo;
 
-  const f32 gateScale = portalScale;
-  const vec3 gatePosition = portalPosition;
-
-  const vec3 shapePosition = portalPosition;
-
   world.player.boundingBox.diagonal = defaultPlayerDimensionInMeters;
   world.player.boundingBox.min = {-(world.player.boundingBox.diagonal.x * 0.5f), -10.0f - (world.player.boundingBox.diagonal.y * 0.5f), 0.0f};
 
@@ -312,162 +337,110 @@ void portalScene(GLFWwindow* window) {
   world.currentSceneIndex = gateSceneIndex;
   u32 gateEntityIndex;
   {
-    gateEntityIndex = addNewEntity(&world, gateSceneIndex);
-    Entity* gate = world.scenes[gateSceneIndex].entities + gateEntityIndex;
-    loadModel(gateModelLoc, &gate->model);
-    gate->model.boundingBox.min *= gateScale;
-    gate->model.boundingBox.min += gatePosition;
-    gate->model.boundingBox.diagonal *= gateScale;
-    gate->position = gatePosition;
-    gate->scale = gateScale;
-    gate->shaderProgram = albedoNormalTexShader;
+    u32 gateModelIndex = addNewModel(&world, gateModelLoc);
+    gateEntityIndex = addNewEntity(&world, gateSceneIndex, gateModelIndex, gatePosition, gateScale, albedoNormalTexShader);
 
-    u32 caveSkyboxIndex = addNewEntity(&world, gateSceneIndex);
-    Entity* caveSkybox = world.scenes[gateSceneIndex].entities + caveSkyboxIndex;
-    skyBoxModel(caveFaceLocations, &caveSkybox->model);
-    caveSkybox->position = {0.0f, 0.0f, 0.0f};
-    caveSkybox->scale = 1.0f;
-    caveSkybox->shaderProgram = skyboxShader;
-    caveSkybox->flags = EntityType_Skybox;
+    u32 caveSkyboxModelIndex = addNewModel_Skybox(&world, caveFaceLocations);
+    u32 caveSkyboxIndex = addNewEntity(&world, gateSceneIndex, caveSkyboxModelIndex, skyboxPosition, skyboxScale, skyboxShader, EntityType_Skybox);
   }
 
   {
-    u32 tetrahedronEntityIndex = addNewEntity(&world, tetrahedronSceneIndex);
-    Entity* tetrahedron = world.scenes[tetrahedronSceneIndex].entities + tetrahedronEntityIndex;
-    loadModel(tetrahedronModelLoc, &tetrahedron->model);
-    tetrahedron->model.meshes[0].textureData.baseColor = vec4{1.0f, 0.4f, 0.4f, 1.0f};
-    tetrahedron->position = shapePosition;
-    tetrahedron->scale = shapeScale;
-    tetrahedron->shaderProgram = singleColorShader;
-    tetrahedron->flags = EntityType_Rotating | EntityType_Wireframe;
+    u32 tetrahedronModelIndex = addNewModel(&world, tetrahedronModelLoc);
+    u32 tetrahedronEntityIndex = addNewEntity(&world, tetrahedronSceneIndex, tetrahedronModelIndex, shapePosition, shapeScale, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
+    world.models[tetrahedronModelIndex].meshes[0].textureData.baseColor = vec4{1.0f, 0.4f, 0.4f, 1.0f};
 
-    u32 yellowCloudSkyboxEntityIndex = addNewEntity(&world, tetrahedronSceneIndex);
-    Entity* yellowCloudSkybox = world.scenes[tetrahedronSceneIndex].entities + yellowCloudSkyboxEntityIndex;
-    skyBoxModel(yellowCloudFaceLocations, &yellowCloudSkybox->model);
-    yellowCloudSkybox->position = {0.0f, 0.0f, 0.0f};
-    yellowCloudSkybox->scale = 1.0f;
-    yellowCloudSkybox->shaderProgram = skyboxShader;
-    yellowCloudSkybox->flags = EntityType_Skybox;
+    u32 yellowCloudSkyboxModelIndex = addNewModel_Skybox(&world, yellowCloudFaceLocations);
+    u32 yellowCloudSkyboxIndex = addNewEntity(&world, tetrahedronSceneIndex, yellowCloudSkyboxModelIndex, skyboxPosition, skyboxScale, skyboxShader, EntityType_Skybox);
   }
 
   {
-    u32 octahedronEntityIndex = addNewEntity(&world, octahedronSceneIndex);
-    Entity* octahedron = world.scenes[octahedronSceneIndex].entities + octahedronEntityIndex;
-    loadModel(octahedronModelLoc, &octahedron->model);
-    octahedron->model.meshes[0].textureData.baseColor = vec4{0.4f, 1.0f, 0.4f, 1.0f};
-    octahedron->position = shapePosition;
-    octahedron->scale = shapeScale;
-    octahedron->shaderProgram = singleColorShader;
-    octahedron->flags = EntityType_Rotating | EntityType_Wireframe;
+    u32 octahedronModelIndex = addNewModel(&world, octahedronModelLoc);
+    u32 octahedronEntityIndex = addNewEntity(&world, octahedronSceneIndex, octahedronModelIndex, shapePosition, shapeScale, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
+    world.models[octahedronModelIndex].meshes[0].textureData.baseColor = vec4{0.4f, 1.0f, 0.4f, 1.0f};
 
-    u32 interstellarSkyboxEntityIndex = addNewEntity(&world, octahedronSceneIndex);
-    Entity* interstellarSkybox = world.scenes[octahedronSceneIndex].entities + interstellarSkyboxEntityIndex;
-    skyBoxModel(skyboxInterstellarFaceLocations, &interstellarSkybox->model);
-    interstellarSkybox->position = {0.0f, 0.0f, 0.0f};
-    interstellarSkybox->scale = 1.0f;
-    interstellarSkybox->shaderProgram = skyboxShader;
-    interstellarSkybox->flags = EntityType_Skybox;
+    u32 interstellarSkyboxModelIndex = addNewModel_Skybox(&world, skyboxInterstellarFaceLocations);
+    u32 interstellarSkyboxIndex = addNewEntity(&world, octahedronSceneIndex, interstellarSkyboxModelIndex, skyboxPosition, skyboxScale, skyboxShader, EntityType_Skybox);
   }
 
   {
-    u32 paperEntityIndex = addNewEntity(&world, paperSceneIndex);
-    Entity* paper = world.scenes[paperSceneIndex].entities + paperEntityIndex;
-    loadModel(paperModelLoc, &paper->model);
-    paper->model.meshes[0].textureData.baseColor = vec4{0.4f, 0.4f, 1.0f, 1.0f};
-    paper->position = shapePosition;
-    paper->scale = shapeScale;
-    paper->shaderProgram = singleColorShader;
-    paper->flags = EntityType_Rotating | EntityType_Wireframe;
+    u32 paperModelIndex = addNewModel(&world, paperModelLoc);
+    u32 paperEntityIndex = addNewEntity(&world, paperSceneIndex, paperModelIndex, shapePosition, shapeScale, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
+    world.models[paperModelIndex].meshes[0].textureData.baseColor = vec4{0.4f, 0.4f, 1.0f, 1.0f};
 
-    u32 calmSeaSkyboxEntityIndex = addNewEntity(&world, paperSceneIndex);
-    Entity* calmSeaSkybox = world.scenes[paperSceneIndex].entities + calmSeaSkyboxEntityIndex;
-    skyBoxModel(calmSeaFaceLocations, &calmSeaSkybox->model);
-    calmSeaSkybox->position = {0.0f, 0.0f, 0.0f};
-    calmSeaSkybox->scale = 1.0f;
-    calmSeaSkybox->shaderProgram = skyboxShader;
-    calmSeaSkybox->flags = EntityType_Skybox;
+    u32 interstellarSkyboxModelIndex = addNewModel_Skybox(&world, calmSeaFaceLocations);
+    u32 interstellarSkyboxIndex = addNewEntity(&world, paperSceneIndex, interstellarSkyboxModelIndex, skyboxPosition, skyboxScale, skyboxShader, EntityType_Skybox);
   }
 
   {
-    u32 icosahedronEntityIndex = addNewEntity(&world, icosahedronSceneIndex);
-    Entity* icosahedron = world.scenes[icosahedronSceneIndex].entities + icosahedronEntityIndex;
-    loadModel(icosahedronModelLoc, &icosahedron->model);
-    icosahedron->model.meshes[0].textureData.baseColor = vec4{0.9f, 0.9f, 0.9f, 1.0f};
-    icosahedron->position = shapePosition;
-    icosahedron->scale = shapeScale;
-    icosahedron->shaderProgram = singleColorShader;
-    icosahedron->flags = EntityType_Rotating | EntityType_Wireframe;
+    u32 icosahedronModelIndex = addNewModel(&world, icosahedronModelLoc);
+    u32 icosahedronEntityIndex = addNewEntity(&world, icosahedronSceneIndex, icosahedronModelIndex, shapePosition, shapeScale, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
+    world.models[icosahedronModelIndex].meshes[0].textureData.baseColor = vec4{0.9f, 0.9f, 0.9f, 1.0f};
 
-    u32 pollutedEarthSkyboxEntityIndex = addNewEntity(&world, icosahedronSceneIndex);
-    Entity* pollutedEarthSkybox = world.scenes[icosahedronSceneIndex].entities + pollutedEarthSkyboxEntityIndex;
-    skyBoxModel(pollutedEarthFaceLocations, &pollutedEarthSkybox->model);
-    pollutedEarthSkybox->position = {0.0f, 0.0f, 0.0f};
-    pollutedEarthSkybox->scale = 1.0f;
-    pollutedEarthSkybox->shaderProgram = skyboxShader;
-    pollutedEarthSkybox->flags = EntityType_Skybox;
+    u32 pollutedEarthSkyboxModelIndex = addNewModel_Skybox(&world, pollutedEarthFaceLocations);
+    u32 pollutedEarthSkyboxIndex = addNewEntity(&world, icosahedronSceneIndex, pollutedEarthSkyboxModelIndex, skyboxPosition, skyboxScale, skyboxShader, EntityType_Skybox);
   }
 
   { // portals
     addPortal(&world, gateEntityIndex,
-              (cubeFaceNegativeXCenter * portalScale) + portalPosition,
+              (cubeFaceNegativeXCenter * gateScale.x) + gatePosition,
               negativeXNormal,
-              vec2{portalScale, portalScale},
+              portalScale,
               0x01,
               paperSceneIndex
     );
 
     addPortal(&world, paperSceneIndex,
-              (cubeFaceNegativeXCenter * portalScale) + portalPosition,
+              (cubeFaceNegativeXCenter * gateScale.x) + gatePosition,
               positiveXNormal,
-              vec2{portalScale, portalScale},
+              portalScale,
               0x01,
               gateEntityIndex
     );
 
     addPortal(&world, gateEntityIndex,
-              (cubeFacePositiveXCenter * portalScale) + portalPosition,
+              (cubeFacePositiveXCenter * gateScale.x) + gatePosition,
               positiveXNormal,
-              vec2{portalScale, portalScale},
+              portalScale,
               0x02,
               octahedronSceneIndex
     );
 
     addPortal(&world, octahedronSceneIndex,
-              (cubeFacePositiveXCenter * portalScale) + portalPosition,
+              (cubeFacePositiveXCenter * gateScale.x) + gatePosition,
               negativeXNormal,
-              vec2{portalScale, portalScale},
+              portalScale,
               0x02,
               gateEntityIndex
     );
 
     addPortal(&world, gateEntityIndex,
-              (cubeFaceNegativeYCenter * portalScale) + portalPosition,
+              (cubeFaceNegativeYCenter * gateScale.y) + gatePosition,
               negativeYNormal,
-              vec2{portalScale, portalScale},
+              portalScale,
               0x03,
               tetrahedronSceneIndex
     );
 
     addPortal(&world, tetrahedronSceneIndex,
-              (cubeFaceNegativeYCenter * portalScale) + portalPosition,
+              (cubeFaceNegativeYCenter * gateScale.y) + gatePosition,
               positiveYNormal,
-              vec2{portalScale, portalScale},
+              portalScale,
               0x03,
               gateEntityIndex
     );
 
     addPortal(&world, gateEntityIndex,
-              (cubeFacePositiveYCenter * portalScale) + portalPosition,
+              (cubeFacePositiveYCenter * gateScale.y) + gatePosition,
               positiveYNormal,
-              vec2{portalScale, portalScale},
+              portalScale,
               0x04,
               icosahedronSceneIndex
     );
 
     addPortal(&world, icosahedronSceneIndex,
-              (cubeFacePositiveYCenter * portalScale) + portalPosition,
+              (cubeFacePositiveYCenter * gateScale.y) + gatePosition,
               negativeYNormal,
-              vec2{portalScale, portalScale},
+              portalScale,
               0x04,
               gateEntityIndex
     );
