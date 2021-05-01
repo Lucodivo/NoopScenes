@@ -116,6 +116,7 @@ u32 addNewEntity(World* world, u32 sceneIndex, u32 modelIndex,
   entity->boundingBox.diagonal = hadamard(entity->boundingBox.diagonal, scale);
   entity->position = pos;
   entity->scale = scale;
+  entity->yaw = yaw;
   entity->shaderProgram = shader;
   entity->flags = entityTypeFlags;
   return sceneEntityIndex;
@@ -372,6 +373,8 @@ void portalScene(GLFWwindow* window) {
   vec3 gatePortalPositiveYCenter = (cubeFacePositiveYCenter * gateScale.y) + gatePosition;
 
   u32 skyboxModelIndex = addNewModel_Skybox(&world);
+  u32 portalBackingModelIndex = addNewModel(&world, portalBackingModelLoc);
+  vec3 portalBackingModelScale = vec3{portalDimens.x, 0.5f, portalDimens.y};
 
   world.currentSceneIndex = gateSceneIndex;
   u32 gateEntityIndex;
@@ -410,6 +413,11 @@ void portalScene(GLFWwindow* window) {
     u32 yellowCloudSkyboxIndex = addNewEntity(&world, tetrahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
 
     addPortal(&world, tetrahedronSceneIndex, gatePortalNegativeYCenter, positiveYNormal, portalDimens, destGateStencilMask, gateEntityIndex);
+
+    vec3 portalBackingPosition = gatePortalNegativeYCenter;
+    portalBackingPosition += vec3{0.0f, portalBackingModelScale.y * -0.5f, 0.0f};
+    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&world, tetrahedronSceneIndex, portalBackingModelIndex,
+                                                            portalBackingPosition, portalBackingModelScale, 180.0f * RadiansPerDegree, reflectSkyboxShader);
   }
 
   {
@@ -421,6 +429,11 @@ void portalScene(GLFWwindow* window) {
     u32 interstellarSkyboxIndex = addNewEntity(&world, octahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
 
     addPortal(&world, octahedronSceneIndex, gatePortalPositiveXCenter, negativeXNormal, portalDimens, destGateStencilMask, gateEntityIndex);
+
+    vec3 portalBackingPosition = gatePortalPositiveXCenter;
+    portalBackingPosition += vec3{portalBackingModelScale.y * 0.5f, 0.0f, 0.0f};
+    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&world, octahedronSceneIndex, portalBackingModelIndex,
+                                                            portalBackingPosition, portalBackingModelScale, -90.0f * RadiansPerDegree, reflectSkyboxShader);
   }
 
   {
@@ -432,6 +445,11 @@ void portalScene(GLFWwindow* window) {
     u32 calmSeaSkyboxIndex = addNewEntity(&world, paperSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
 
     addPortal(&world, paperSceneIndex, gatePortalNegativeXCenter, positiveXNormal, portalDimens, destGateStencilMask, gateEntityIndex);
+
+    vec3 portalBackingPosition = gatePortalNegativeXCenter;
+    portalBackingPosition += vec3{portalBackingModelScale.y * -0.5f, 0.0f, 0.0f};
+    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&world, paperSceneIndex, portalBackingModelIndex,
+                                                            portalBackingPosition, portalBackingModelScale, 90.0f * RadiansPerDegree, reflectSkyboxShader);
   }
 
   {
@@ -444,9 +462,10 @@ void portalScene(GLFWwindow* window) {
 
     addPortal(&world, icosahedronSceneIndex, gatePortalPositiveYCenter, negativeYNormal, portalDimens, destGateStencilMask, gateEntityIndex);
 
-    u32 portalBackingModelIndex = addNewModel(&world, portalBackingModelLoc);
-    vec3 portalBackingModelScale = vec3{portalDimens.x, 0.5f, portalDimens.y};
-    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&world, icosahedronSceneIndex, portalBackingModelIndex, gatePortalPositiveYCenter, portalBackingModelScale, 0.0f, reflectSkyboxShader);
+    vec3 portalBackingPosition = gatePortalPositiveYCenter;
+    portalBackingPosition += vec3{0.0f, portalBackingModelScale.y * 0.5f, 0.0f};
+    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&world, icosahedronSceneIndex, portalBackingModelIndex,
+                                                            portalBackingPosition, portalBackingModelScale, 0.0f, reflectSkyboxShader);
   }
 
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
