@@ -1,6 +1,8 @@
 #pragma once
 
-#define TEXTURE_ID_NO_TEXTURE U32_MAX
+// NOTE: "Zero is a reserved texture name and is never returned as a texture name by glGenTextures()"
+// source: Naming A Texture Object in The Official Guide to Learning OpenGL, Version 1.1
+#define TEXTURE_ID_NO_TEXTURE 0
 
 // texture ids set to TEXTURE_ID_NO_TEXTURE when none exists
 // base color alpha set to 0.0 when non exists

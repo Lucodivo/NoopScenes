@@ -1,9 +1,9 @@
 #version 420
 layout (location = 0) in vec3 inPos;
 
-layout (binding = 0, std140) uniform UBO { // base alignment   // aligned offset
-  mat4 projection;                         // 64               // 0
-  mat4 view;                               // 64               // 64
+layout (binding = 0, std140) uniform UBO {
+  mat4 projection;
+  mat4 view;
 //mat4 model; //TODO: Available but not needed
 } ubo;
 

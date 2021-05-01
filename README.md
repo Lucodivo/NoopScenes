@@ -54,6 +54,8 @@ the working directory is at the root directory.
     - Blender and the gltf file format use right-handed coordinate systems and are used for this project
     - ~~Z is up is used in Blender and is a tool used for this project~~ [Working in Blender uses Z-up but Blender exports Y-up by default]
     - Shortening a 3D vector to a 2D by cutting off the third value (z) to acquire "ground coordinates" is appealing
+- Negatives:
+    - When accessing `samplerCube` textures in OpenGL, adjustments need to be made to ensure Y is actually "up".
     
 #### Etc.
 - If a function argument may be modified in the function, it will be passed in as a pointer type.

@@ -153,7 +153,7 @@ const u8 quadIndices[]{
 };
 
 mat4 quadModelMatrix(const vec3& centerPos, const vec3& desiredNormal, const f32 width, const f32 height) {
-  mat4 scaleMat = scale_mat4(vec3{width, 1.0f, height});;
+  mat4 scaleMat = scale_mat4(vec3{width, 1.0f, height});
   mat4 rotationMat = rotate_mat4(orient(quadVertexAttNormal, desiredNormal));
   mat4 translationMat = translate_mat4(centerPos);
   return translationMat * rotationMat * scaleMat;

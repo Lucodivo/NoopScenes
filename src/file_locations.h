@@ -11,6 +11,8 @@ const char* skyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"SkyboxYIsUp.frag";
 const char* gateFragmentShaderFileLoc = COMMON_SHADER_BASE"Gate.frag";
 const char* gateVertexShaderFileLoc = COMMON_SHADER_BASE"Gate.vert";
 const char* blackFragmentShaderFileLoc = COMMON_SHADER_BASE"Black.frag";
+const char* posNormVertexShaderFileLoc = COMMON_SHADER_BASE"PosNorm.vert";
+const char* reflectSkyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"ReflectSkyboxYIsUp.frag";
 
 // Skybox Cube Map textures
 #define skybox(folder, extension) {  \
@@ -67,4 +69,4 @@ const char* icosahedronModelLoc = COMMON_MODEL_BASE"Icosahedron.glb";
 const char* mrSaturnModelLoc = COMMON_MODEL_BASE"Mr-Saturn.glb";
 const char* spike2ModelLoc = COMMON_MODEL_BASE"Spike-2.glb";
 const char* paperModelLoc = COMMON_MODEL_BASE"Paper.glb";
-const char* portalBacking = COMMON_MODEL_BASE"Portal-Backing-Plus-Gate-Insignia.glb";
+const char* portalBackingModelLoc = COMMON_MODEL_BASE"Portal-Backing-Plus-Gate-Insignia.glb";
