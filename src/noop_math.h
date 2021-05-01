@@ -893,6 +893,20 @@ inline mat4 transpose_mat4(const mat4& A) {
 }
 
 // angle in radians
+inline mat4 rotate_xyPlane_mat4(f32 angle) {
+  f32 const cosA = cosf(angle);
+  f32 const sinA = sinf(angle);
+
+  mat4 rotate;
+  rotate.xTransform = {cosA, sinA, 0.0f, 0.0f};
+  rotate.yTransform = {-sinA, cosA, 0.0f, 0.0f};
+  rotate.zTransform = {0.0f, 0.0f, 1.0f, 0.0f};
+  rotate.translation = {0.0f, 0.0f, 0.0f, 1.0f};
+
+  return rotate;
+}
+
+// angle in radians
 inline mat4 rotate_mat4(f32 angle, vec3 v) {
   vec3 axis(normalize(v));
 
