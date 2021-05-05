@@ -144,19 +144,19 @@ mat4 getViewMat(const Camera& camera) {
 
   // The camera matrix "measures" the world against it's axes
   // OpenGL clips down the negative z-axis so we negate our forward to effectively cancel out that negation
-  mat4 measureRotation{
+  mat4 measure{
           camera.right.x, camera.up.x, -camera.forward.x, 0.0f,
           camera.right.y, camera.up.y, -camera.forward.y, 0.0f,
           camera.right.z, camera.up.z, -camera.forward.z, 0.0f,
                     0.0f,        0.0f,              0.0f, 1.0f
   };
 
-  // Return lookAt_FirstPerson matrix as combination of translation and measureRotation matrix
+  // Return lookAt_FirstPerson matrix as combination of translation and measure matrix
   // Since matrices should be read right to left we want to...
   //    - First center the camera at the origin by translating itself and the entire world
   //    - Then we measure how the world lines up with the camera at the origin
   // All rotation vectors in this instance are orthonormal, so no stretching/squashing occurs is present in the
   // resulting matrix. All angles and area preserved.
-  mat4 resultMat = measureRotation * translation;
-  return resultMat; // Remember to read from right to left (first translation then measureRotation)
+  mat4 resultMat = measure * translation;
+  return resultMat; // Remember to read from right to left (first translation then measure)
 }

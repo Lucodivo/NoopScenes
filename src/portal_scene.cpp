@@ -71,6 +71,8 @@ struct World
   u32 sceneCount;
   Model models[128];
   u32 modelCount;
+  f32 fov;
+  f32 aspect;
 };
 
 
@@ -244,6 +246,7 @@ void drawPortals(World* world, const u32 sceneIndex){
   // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
   glClear(GL_DEPTH_BUFFER_BIT);
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
+    // TODO: Update projection matrix for portal
     drawScene(world, scene->portals[portalIndex].sceneDestination, scene->portals[portalIndex].stencilMask);
     if(enteredPortal) { scene->portals[portalIndex].inFocus = false; }
   }
@@ -330,11 +333,11 @@ void updateEntities(World* world) {
 }
 
 void portalScene(GLFWwindow* window) {
+  World world{};
   vec2_u32 windowExtent = getWindowExtent();
   const vec2_u32 initWindowExtent = windowExtent;
-  f32 aspectRatio = f32(windowExtent.width) / windowExtent.height;
+  world.aspect = f32(windowExtent.width) / windowExtent.height;
 
-  World world{};
 
   VertexAtt cubePosVertexAtt = cubePosVertexAttBuffers();
   portalVertexAtt = quadPosVertexAttBuffers(false);
@@ -358,8 +361,8 @@ void portalScene(GLFWwindow* window) {
   mat4 playerBoundingBoxScaleMatrix = scale_mat4(world.player.boundingBox.diagonal);
   const f32 originalProjectionDepthNear = 0.1f;
   const f32 originalProjectionDepthFar = 200.0f;
-  const f32 fovY = fieldOfView(13.5f, 25.0f);
-  projectionViewModelUbo.projection = perspective(fovY, aspectRatio, originalProjectionDepthNear, originalProjectionDepthFar);
+  world.fov = fieldOfView(13.5f, 25.0f);
+  projectionViewModelUbo.projection = perspective(world.fov, world.aspect, originalProjectionDepthNear, originalProjectionDepthFar);
 
   u32 gateSceneIndex = addNewScene(&world);
   u32 tetrahedronSceneIndex = addNewScene(&world);
@@ -507,10 +510,10 @@ void portalScene(GLFWwindow* window) {
     // toggle fullscreen/window mode if alt + enter
     if(isActive(KeyboardInput_Alt_Right) && hotPress(KeyboardInput_Enter)) {
       windowExtent = toggleWindowSize(window, initWindowExtent.width, initWindowExtent.height);
-      aspectRatio = f32(windowExtent.width) / windowExtent.height;
+      world.aspect = f32(windowExtent.width) / windowExtent.height;
       glViewport(0, 0, windowExtent.width, windowExtent.height);
 
-      adjustAspectPerspProj(&projectionViewModelUbo.projection, fovY, aspectRatio);
+      adjustAspectPerspProj(&projectionViewModelUbo.projection, world.fov, world.aspect);
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &projectionViewModelUbo.projection);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);

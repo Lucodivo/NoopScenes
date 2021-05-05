@@ -1,21 +1,50 @@
 #pragma once
 #include <math.h>
 #include <stdio.h>
+#include <windows.h>
+#undef near
+#undef far
 
 #include "../noop_types.h"
 #include "../noop_math.h"
 
+global_variable HANDLE hConsole;
+
+enum ConsoleTextColor {
+  TEXT_ATT_GREEN_TEXT = 10,
+  TEXT_ATT_RED_TEXT = 12,
+  TEXT_ATT_WHITE_TEXT = 15,
+};
+
+void setConsoleTextColor(ConsoleTextColor color = TEXT_ATT_WHITE_TEXT) {
+  SetConsoleTextAttribute(hConsole, color);
+}
+
+void init() {
+  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+  setConsoleTextColor(TEXT_ATT_WHITE_TEXT);
+}
+
+void printVec3(const vec3& v) {
+  printf("[%4.2f, %4.2f, %4.2f]\n", v.x, v.y, v.z);
+}
+
+void printVec3(const char* name, const vec3& v) {
+  printf("%s: [%4.2f, %4.2f, %4.2f]\n", name, v.x, v.y, v.z);
+}
+
+void printVec4(const vec4& v) {
+  printf("[%4.2f, %4.2f, %4.2f, %4.2f]\n", v.x, v.y, v.z, v.w);
+}
 
 void printVec4(const char* name, const vec4& v) {
   printf("%s: [%4.2f, %4.2f, %4.2f, %4.2f]\n", name, v.x, v.y, v.z, v.w);
 }
 
 void printMat4(const char* name, const mat4& M) {
-  printf("===%s (transposed)===", name);
-  char* columnString = "column X";
+  printf("===%s===\n", name);
   for(u32 i = 0; i < 4; i++) {
-    columnString[7] = '0' + i;
-    printVec4(columnString, M.col[0]);
+    printVec4(M.col[i]);
   }
 }
 
@@ -317,6 +346,146 @@ void quaternionOrientTest() {
   Assert(resultOrientationMat2to1 == orientation1);
 }
 
+struct PortalCorners {
+  vec4 bottomLeft;
+  vec4 bottomRight;
+  vec4 topLeft;
+  vec4 topRight;
+};
+
+mat4 portalPerspective(f32 fov, f32 aspect, f32 far, vec4 portalCorners[4],  mat4 viewMat) {
+  // TODO: first transform the corners by the view matrix
+  vec4 minVec = min(min(min(portalCorners[0], portalCorners[1]), portalCorners[2]), portalCorners[3]);
+  vec4 maxVec = max(max(max(portalCorners[0], portalCorners[1]), portalCorners[2]), portalCorners[3]);
+
+
+  mat4 persp = perspective(fov, aspect, minVec.z, far); // TODO: Would actually be maxVec for z due to negative Z
+  return persp;
+}
+
+void projectionMatSanityChecking() {
+//  f32 left = -1.0f;
+//  f32 right = 1.0f;
+//  f32 bottom = -0.5f;
+//  f32 top = 0.5f;
+//  f32 near = 2.0f;
+//  f32 far = 10.0f;
+//  mat4 persp = perspective(left, right, bottom, top, near, far);
+
+  vec4 portalCenter = {0.0f, 0.0f, -5.5f, 1.0f};
+  vec4 portalLeft{-2.0f, 0.0f, -5.0f, 1.0f};
+  vec4 portalRight{2.0f, 0.0f, -6.0f, 1.0f};
+  vec4 portalBottom{0.0f, -1.0f, -5.5f, 1.0f};
+  vec4 portalTop{0.0f, 1.0f, -5.5f, 1.0f};
+  vec4 portalLeft2{-1.0f, 0.0f, -5.25f, 1.0f};
+  vec4 portalTooLeft{-3.0f, 0.0f, -4.75f, 1.0f};
+  vec4 portalRight2{1.0f, 0.0f, -5.75f, 1.0f};
+  vec4 beyondPortalPass1 = portalCenter + vec4{0.0f, 0.0f, -0.5f, 0.0f};
+  vec4 beyondPortalPass2 = portalCenter + vec4{portalLeft.x, 0.0f, -0.5f, 0.0f};
+  vec4 beyondPortalPass3 = portalCenter + vec4{0.0f, portalTop.y, -0.5f, 0.0f};
+
+  f32 fov = fieldOfView(13.5f, 25.0f);
+  f32 aspect = 1920.0f / 1080.0f;
+  f32 nearPlaneLeft = -portalLeft.z;
+  f32 nearPlaneRight = -portalRight.z;
+  f32 nearPlaneBottom = -portalBottom.z;
+  f32 nearPlaneTop = -portalTop.z;
+  f32 far = 10.0f;
+  mat4 persp = perspective(fov, aspect, nearPlaneLeft, far);
+
+//  printf("Perspective Matrix Values\n Left: %4.2f,\n Right: %4.2f,\n Bottom: %4.2f,\n Top: %4.2f,\n Near: %4.2f,\n Far: %4.2f\n", left, right, bottom, top, near, far);
+  printf("Perspective Matrix Values\n FOV: %4.2f,\n Aspect: %4.2f,\n Near: %4.2f,\n Far: %4.2f\n", fov, aspect, nearPlaneLeft, far);
+
+  printMat4("Perspective Mat", persp);
+
+  // homogenous valuesCameraSpace
+  vec4 valuesCameraSpace[] = {
+          portalLeft,
+          portalRight,
+          portalBottom,
+          portalTop,
+          portalLeft2,
+          portalRight2,
+          portalTooLeft,
+          beyondPortalPass1,
+          beyondPortalPass2,
+          beyondPortalPass3,
+  };
+  printf("\nCamera Space Points (Homogenous)\n");
+  for(u32 i = 0; i < ArrayCount(valuesCameraSpace); ++i) {
+    printVec4(valuesCameraSpace[i]);
+  }
+
+  // homogenous valuesCameraSpace after projection matrix
+  vec4 valuesClipSpace[ArrayCount(valuesCameraSpace)];
+  printf("\nClip Space Points (post-perspective matrix/pre-perspective divide)\n");
+  for(u32 i = 0; i < ArrayCount(valuesCameraSpace); ++i) {
+    valuesClipSpace[i] = persp * valuesCameraSpace[i];
+    vec4 v = valuesClipSpace[i];
+    printf("[%4.2f, %4.2f, %4.2f, %4.2f]", v.x, v.y, v.z, v.w);
+    b32 clipPass = (v.x < v.w && v.x > -v.w) &&
+                   (v.y < v.w && v.y > -v.w) &&
+                   (v.z < v.w && v.z > -v.w);
+    if(clipPass) {
+      setConsoleTextColor(TEXT_ATT_GREEN_TEXT);
+      printf(" +PASS+\n");
+    } else {
+      setConsoleTextColor(TEXT_ATT_RED_TEXT);
+      printf(" -FAIL-\n");
+    }
+    setConsoleTextColor(TEXT_ATT_WHITE_TEXT);
+  }
+
+  vec4 portalLeftClip = valuesClipSpace[0];
+  vec4 portalRightClip = valuesClipSpace[1];
+  vec4 portalBottomClip = valuesClipSpace[2];
+  vec4 portalTopClip = valuesClipSpace[3];
+  // Take the right portal from it's current position to the negative z clip zone
+  mat4 translation_test = persp;
+  f32 portalRightClipToNearClip = -(-portalRightClip.w - portalRightClip.z);
+  translation_test.xTransform.z -= portalRightClipToNearClip * (1 / (portalRight.x - portalLeft.x));
+  translation_test.translation.z += portalRightClipToNearClip * ((portalLeft.x) / (portalRight.x - portalLeft.x));
+
+  vec4 valuesTranslationTest[ArrayCount(valuesCameraSpace)];
+  printf("\nClip Space Translated\n");
+  for(u32 i = 0; i < ArrayCount(valuesCameraSpace); ++i) {
+    valuesTranslationTest[i] = translation_test * valuesCameraSpace[i];
+    vec4 v = valuesTranslationTest[i];
+    printf("[%4.2f, %4.2f, %4.2f, %4.2f]", v.x, v.y, v.z, v.w);
+    b32 clipPass = (v.x < v.w && v.x > -v.w) &&
+                   (v.y < v.w && v.y > -v.w) &&
+                   (v.z < v.w && v.z > -v.w);
+    if(clipPass) {
+      setConsoleTextColor(TEXT_ATT_GREEN_TEXT);
+      printf(" +PASS+\n");
+    } else {
+      setConsoleTextColor(TEXT_ATT_RED_TEXT);
+      printf(" -FAIL-\n");
+    }
+    setConsoleTextColor(TEXT_ATT_WHITE_TEXT);
+  }
+
+  // homogenous valuesCameraSpace after perspective divide
+  vec3 valuesNDC[ArrayCount(valuesCameraSpace)];
+  printf("\nNDC Points (post-perspective divide)\n");
+  for(u32 i = 0; i < ArrayCount(valuesCameraSpace); ++i) {
+    valuesNDC[i] = valuesClipSpace[i].xyz / valuesClipSpace[i].w;
+    vec3 v = valuesNDC[i];
+    printf("[%4.2f, %4.2f, %4.2f]", v.x, v.y, v.z);
+    b32 ndcPass = (v.x < 1.0 && v.x > -1.0) &&
+                   (v.y < 1.0 && v.y > -1.0) &&
+                   (v.z < 1.0 && v.z > -1.0);
+    if(ndcPass) {
+      setConsoleTextColor(TEXT_ATT_GREEN_TEXT);
+      printf(" +PASS+\n");
+    } else {
+      setConsoleTextColor(TEXT_ATT_RED_TEXT);
+      printf(" -FAIL-\n");
+    }
+    setConsoleTextColor(TEXT_ATT_WHITE_TEXT);
+  }
+}
+
 void runAllMathTests()
 {
   translateTest();
@@ -329,9 +498,12 @@ void runAllMathTests()
   slerpTest();
   orthographicTest();
   bracketAssignmentOperatorsSanityCheck();
+  quaternionOrientTest();
+  projectionMatSanityChecking();
 }
 
 void runMathTests() {
 //  runAllMathTests();
-  quaternionOrientTest();
+  init();
+  projectionMatSanityChecking();
 }

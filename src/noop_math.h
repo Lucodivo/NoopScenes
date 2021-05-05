@@ -3,6 +3,8 @@
 // TODO: No optimizations have been made in this file. Ideas: intrinsics, sse, better usage of temporary memory.
 // TODO: Translation and scaling are two things that happen all the time. Create translateScale_mat4/mat3(); (maybe also rotate)
 
+#undef min
+#undef max
 #define Min(x, y) (x < y ? x : y)
 #define Max(x, y) (x > y ? x : y)
 
@@ -570,6 +572,19 @@ inline vec4 lerp(const vec4& a, const vec4& b, f32 t) {
   return a - ((a + b) * t);
 }
 
+inline vec4 operator/(const vec4& xyzw1, const vec4& xyzw2) {
+  Assert(xyzw2.x != 0 && xyzw2.y != 0 && xyzw2.z != 0 && xyzw2.w != 0);
+  return {xyzw1.x / xyzw2.x, xyzw1.y / xyzw2.y, xyzw1.z / xyzw2.z, xyzw1.w / xyzw2.w};
+}
+
+inline vec4 min(const vec4& xyzw1, const vec4& xyzw2) {
+  return { Min(xyzw1.x, xyzw2.x), Min(xyzw1.y, xyzw2.y), Min(xyzw1.z, xyzw2.z), Min(xyzw1.w, xyzw2.w) };
+}
+
+inline vec4 max(const vec4& xyzw1, const vec4& xyzw2) {
+  return { Max(xyzw1.x, xyzw2.x), Max(xyzw1.y, xyzw2.y), Max(xyzw1.z, xyzw2.z), Max(xyzw1.w, xyzw2.w) };
+}
+
 // Complex
 // This angle represents a counter-clockwise rotation
 complex Complex(f32 angle){
@@ -1016,10 +1031,10 @@ inline mat4 orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
 // real-time rendering 4.7.2
 inline mat4 perspective(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
   return {
-          (2.0f * n) / (r - l),                    0,      -(r + l) / (r - l),                         0,
-                             0, (2.0f * n) / (t - b),      -(t + b) / (t - b),                         0,
-                             0,                    0,      -(f + n) / (f - n), -(2.0f * f * n) / (f - n),
-                             0,                    0,                  -(1/n),                         0
+    (2.0f * n) / (r - l),                    0,                      0.0f,     0,
+                       0, (2.0f * n) / (t - b),                      0.0f,     0,
+       (r + l) / (r - l),    (t + b) / (t - b),        -(f + n) / (f - n), -1.0f,
+                       0,                    0, -(2.0f * f * n) / (f - n),     0,
   };
 }
 
@@ -1028,8 +1043,8 @@ inline mat4 perspective(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
 inline mat4 perspective(f32 fovVert, f32 aspect, f32 n, f32 f) {
   const f32 c = 1.0f / tanf(fovVert / 2.0f);
   return {
-          (c / aspect), 0.0f,                      0.0f,                      0.0f,
-                  0.0f,    c,                      0.0f,                      0.0f,
+          (c / aspect), 0.0f,          0.0f,                      0.0f,
+                  0.0f,                c,           0.0f,                      0.0f,
                   0.0f, 0.0f,        -(f + n) / (f - n),                     -1.0f,
                   0.0f, 0.0f, -(2.0f * f * n) / (f - n),                      0.0f,
   };
