@@ -353,17 +353,132 @@ struct PortalCorners {
   vec4 topRight;
 };
 
-mat4 portalPerspective(f32 fov, f32 aspect, f32 far, vec4 portalCorners[4],  mat4 viewMat) {
+mat4 portalPerspective(f32 fov, f32 aspect, f32 far, vec4 planePoint, vec4 planeNormal,  mat4 viewMat) {
   // TODO: first transform the corners by the view matrix
-  vec4 minVec = min(min(min(portalCorners[0], portalCorners[1]), portalCorners[2]), portalCorners[3]);
-  vec4 maxVec = max(max(max(portalCorners[0], portalCorners[1]), portalCorners[2]), portalCorners[3]);
+  mat4 persp = perspective(fov, aspect, -planePoint.z, far);
 
+  vec4 rightView = planePoint + vec4{1.0f, 0.0f, -planeNormal.x/planeNormal.z, 0.0f};
+  vec4 upView = planePoint + vec4{0.0f, 1.0f, -planeNormal.y/planeNormal.z, 0.0f};
 
-  mat4 persp = perspective(fov, aspect, minVec.z, far); // TODO: Would actually be maxVec for z due to negative Z
+  vec4 rightClip = persp * rightView;
+  vec4 upClip = persp * upView;
+
+  f32 portalRightClipToNearClip = -(-rightClip.w - rightClip.z);
+  f32 portalUpClipToNearClip = -(-upClip.w - upClip.z);
+  persp.xTransform.z -= portalRightClipToNearClip;
+  persp.yTransform.z -= portalUpClipToNearClip;
+  persp.translation.z += (portalRightClipToNearClip * planePoint.x) + (portalUpClipToNearClip * planePoint.y);
+
   return persp;
 }
 
 void projectionMatSanityChecking() {
+  f32 fov = fieldOfView(13.5f, 25.0f);
+  f32 aspect = 1920.0f / 1080.0f;
+  f32 far = 10.0f;
+  vec4 portalCenter = {0.0f, 0.0f, -5.0f, 1.0f};
+  vec4 portalNormal = normalize(vec4{1.0f, 1.0f, 1.0f, 0.0f});
+
+
+  vec4 portalLeft{-1.0f, 0.0f, -4.0f, 1.0f};
+  vec4 portalRight{1.0f, 0.0f, -6.0f, 1.0f};
+  vec4 portalBottom{0.0f, -1.0f, -4.0f, 1.0f};
+  vec4 portalTop{0.0f, 1.0f, -6.0f, 1.0f};
+  vec4 portalLeft2{-0.5f, 0.0f, -4.5f, 1.0f};
+  vec4 portalTooLeft{-2.0f, 0.0f, -3.0f, 1.0f};
+  vec4 portalRight2{0.5f, 0.0f, -4.5f, 1.0f};
+  vec4 beyondPortalPass1 = vec4{portalCenter.x, portalCenter.y, portalCenter.z - 0.5f, 1.0f};
+  vec4 beyondPortalPass2 = vec4{portalLeft.x, portalCenter.y, portalLeft.z - 0.5f, 1.0f};
+  vec4 beyondPortalPass3 = vec4{portalCenter.x, portalTop.y, portalTop.z - 0.5f, 1.0f};
+
+  mat4 persp = perspective(fov, aspect, -portalCenter.z, far);
+
+//  printf("Perspective Matrix Values\n Left: %4.2f,\n Right: %4.2f,\n Bottom: %4.2f,\n Top: %4.2f,\n Near: %4.2f,\n Far: %4.2f\n", left, right, bottom, top, near, far);
+  printf("Perspective Matrix Values\n FOV: %4.2f,\n Aspect: %4.2f,\n Near: %4.2f,\n Far: %4.2f\n", fov, aspect, -portalCenter.z, far);
+
+  printMat4("Perspective Mat", persp);
+
+  // homogenous valuesCameraSpace
+  vec4 valuesCameraSpace[] = {
+          portalLeft,
+          portalRight,
+          portalBottom,
+          portalTop,
+          portalLeft2,
+          portalRight2,
+          portalTooLeft,
+          beyondPortalPass1,
+          beyondPortalPass2,
+          beyondPortalPass3,
+  };
+  printf("\nCamera Space Points (Homogenous)\n");
+  for(u32 i = 0; i < ArrayCount(valuesCameraSpace); ++i) {
+    printVec4(valuesCameraSpace[i]);
+  }
+
+  // homogenous valuesCameraSpace after projection matrix
+  vec4 valuesClipSpace[ArrayCount(valuesCameraSpace)];
+  printf("\nClip Space Points (post-perspective matrix/pre-perspective divide)\n");
+  for(u32 i = 0; i < ArrayCount(valuesCameraSpace); ++i) {
+    valuesClipSpace[i] = persp * valuesCameraSpace[i];
+    vec4 v = valuesClipSpace[i];
+    printf("[%4.2f, %4.2f, %4.2f, %4.2f]", v.x, v.y, v.z, v.w);
+    b32 clipPass = (v.x < v.w && v.x > -v.w) &&
+                   (v.y < v.w && v.y > -v.w) &&
+                   (v.z < v.w && v.z > -v.w);
+    if(clipPass) {
+      setConsoleTextColor(TEXT_ATT_GREEN_TEXT);
+      printf(" +PASS+\n");
+    } else {
+      setConsoleTextColor(TEXT_ATT_RED_TEXT);
+      printf(" -FAIL-\n");
+    }
+    setConsoleTextColor(TEXT_ATT_WHITE_TEXT);
+  }
+
+  mat4 experimentPersp = portalPerspective(fov, aspect, far, portalCenter, portalNormal, mat4{});
+
+  vec4 valuesTranslationTest[ArrayCount(valuesCameraSpace)];
+  printf("\nClip Space Translated\n");
+  for(u32 i = 0; i < ArrayCount(valuesCameraSpace); ++i) {
+    valuesTranslationTest[i] = experimentPersp * valuesCameraSpace[i];
+    vec4 v = valuesTranslationTest[i];
+    printf("[%4.2f, %4.2f, %4.2f, %4.2f]", v.x, v.y, v.z, v.w);
+    b32 clipPass = (v.x < v.w && v.x > -v.w) &&
+                   (v.y < v.w && v.y > -v.w) &&
+                   (v.z < v.w && v.z > -v.w);
+    if(clipPass) {
+      setConsoleTextColor(TEXT_ATT_GREEN_TEXT);
+      printf(" +PASS+\n");
+    } else {
+      setConsoleTextColor(TEXT_ATT_RED_TEXT);
+      printf(" -FAIL-\n");
+    }
+    setConsoleTextColor(TEXT_ATT_WHITE_TEXT);
+  }
+
+  // homogenous valuesCameraSpace after perspective divide
+  vec3 valuesNDC[ArrayCount(valuesCameraSpace)];
+  printf("\nNDC Points (post-perspective divide)\n");
+  for(u32 i = 0; i < ArrayCount(valuesCameraSpace); ++i) {
+    valuesNDC[i] = valuesClipSpace[i].xyz / valuesClipSpace[i].w;
+    vec3 v = valuesNDC[i];
+    printf("[%4.2f, %4.2f, %4.2f]", v.x, v.y, v.z);
+    b32 ndcPass = (v.x < 1.0 && v.x > -1.0) &&
+                  (v.y < 1.0 && v.y > -1.0) &&
+                  (v.z < 1.0 && v.z > -1.0);
+    if(ndcPass) {
+      setConsoleTextColor(TEXT_ATT_GREEN_TEXT);
+      printf(" +PASS+\n");
+    } else {
+      setConsoleTextColor(TEXT_ATT_RED_TEXT);
+      printf(" -FAIL-\n");
+    }
+    setConsoleTextColor(TEXT_ATT_WHITE_TEXT);
+  }
+}
+
+void projectionMatSanityChecking_old() {
 //  f32 left = -1.0f;
 //  f32 right = 1.0f;
 //  f32 bottom = -0.5f;
@@ -443,7 +558,7 @@ void projectionMatSanityChecking() {
   // Take the right portal from it's current position to the negative z clip zone
   mat4 translation_test = persp;
   f32 portalRightClipToNearClip = -(-portalRightClip.w - portalRightClip.z);
-  translation_test.xTransform.z -= portalRightClipToNearClip * (1 / (portalRight.x - portalLeft.x));
+  translation_test.xTransform.z -= portalRightClipToNearClip * (1 / (portalRight.x - portalLeft.x)); // TODO: don't divide by zero
   translation_test.translation.z += portalRightClipToNearClip * ((portalLeft.x) / (portalRight.x - portalLeft.x));
 
   vec4 valuesTranslationTest[ArrayCount(valuesCameraSpace)];

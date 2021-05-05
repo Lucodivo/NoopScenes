@@ -1,3 +1,6 @@
+#undef far
+#undef near
+
 #define PORTAL_BACKING_BOX_DEPTH 0.5f
 
 const vec3 defaultPlayerDimensionInMeters{0.5f, 0.25f, 1.75f}; // NOTE: ~1'7"w, 9"d, 6'h
@@ -225,6 +228,27 @@ void drawPortal(const World* world, Portal* portal, Out b32* enteredPortal) {
   *enteredPortal = insidePortal;
 }
 
+mat4 portalPerspective(f32 fov, f32 aspect, f32 far, vec3 planePoint, vec3 planeNormal, mat4 viewMat) {
+  vec4 pointView = viewMat * Vec4(planePoint, 1.0f);
+  vec4 normalView = viewMat * Vec4(planeNormal, 1.0f);
+
+  mat4 persp = perspective(fov, aspect, -pointView.z, far);
+
+  vec4 rightView = pointView + vec4{1.0f, 0.0f, -normalView.x/normalView.z, 0.0f};
+  vec4 upView = pointView + vec4{0.0f, 1.0f, -normalView.y/normalView.z, 0.0f};
+
+  vec4 rightClip = persp * rightView;
+  vec4 upClip = persp * upView;
+
+  f32 portalRightClipToNearClip = -(-rightClip.w - rightClip.z);
+  f32 portalUpClipToNearClip = -(-upClip.w - upClip.z);
+  persp.xTransform.z -= portalRightClipToNearClip;
+  persp.yTransform.z -= portalUpClipToNearClip;
+  persp.translation.z += (portalRightClipToNearClip * pointView.x) + (portalUpClipToNearClip * pointView.y);
+
+  return persp;
+}
+
 void drawPortals(World* world, const u32 sceneIndex){
 
   Scene* scene = world->scenes + sceneIndex;
@@ -247,8 +271,15 @@ void drawPortals(World* world, const u32 sceneIndex){
   glClear(GL_DEPTH_BUFFER_BIT);
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
     // TODO: Update projection matrix for portal
-    drawScene(world, scene->portals[portalIndex].sceneDestination, scene->portals[portalIndex].stencilMask);
-    if(enteredPortal) { scene->portals[portalIndex].inFocus = false; }
+    Portal portal = scene->portals[portalIndex];
+    mat4 portalProjectionMat = portalPerspective(world->fov, world->aspect, 200.0f, portal.centerPosition, portal.normal, getViewMat(world->camera));
+
+    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+    glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &portalProjectionMat);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    drawScene(world, scene->portals[portalIndex].sceneDestination, portal.stencilMask);
+    if(enteredPortal) { portal.inFocus = false; }
   }
 }
 
