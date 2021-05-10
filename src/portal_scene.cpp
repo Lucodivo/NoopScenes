@@ -17,6 +17,8 @@ const u32 destTetrahedronStencilMask = 0x02;
 const u32 destOctahedronStencilMask = 0x03;
 const u32 destIcosahedronStencilMask = 0x04;
 const u32 destPaperStencilMask = 0x05;
+const f32 near = 0.1f;
+const f32 far = 200.0f;
 
 const s32 skyboxActiveTextureIndex = 0;
 const s32 albedoActiveTextureIndex = 1;
@@ -76,6 +78,7 @@ struct World
   u32 modelCount;
   f32 fov;
   f32 aspect;
+  ProjectionViewModelUBO projectionViewModelUbo;
 };
 
 
@@ -228,15 +231,29 @@ void drawPortal(const World* world, Portal* portal, Out b32* enteredPortal) {
   *enteredPortal = insidePortal;
 }
 
-mat4 portalPerspective(f32 fov, f32 aspect, f32 far, vec3 planePoint, vec3 planeNormal, mat4 viewMat) {
-  vec4 pointView = viewMat * Vec4(planePoint, 1.0f);
-  vec4 normalView = viewMat * Vec4(planeNormal, 1.0f);
+mat4 portalPerspective(f32 fov, f32 aspect, f32 far, Portal portal, mat4 viewMat) {
 
-  mat4 persp = perspective(fov, aspect, -pointView.z, far);
+  // Calc portal corners
+  vec3 bottomLeft;
+  vec3 bottomRight;
+  vec3 topLeft;
+  vec3 topRight;
 
-  vec4 rightView = pointView + vec4{1.0f, 0.0f, -normalView.x/normalView.z, 0.0f};
-  vec4 upView = pointView + vec4{0.0f, 1.0f, -normalView.y/normalView.z, 0.0f};
+  vec3 normalizedNormal = normalize(portal.normal);
+  vec3 right = cross(normalizedNormal, vec3{0.0f, 1.0f, 0.0f});
+  vec3 up = cross(right, normalizedNormal);
 
+  vec4 pointView = viewMat * Vec4(portal.centerPosition, 1.0f);
+  vec4 normalView = viewMat * Vec4(portal.normal, 0.0f);
+  f32 rightSlopeDepthPerX = -normalView.x/normalView.z;
+  f32 upSlopeDepthPerY = -normalView.y/normalView.z;
+//  vec4 leftEdgeView = pointView + vec4{portal.dimens.x, 0.0f, portal.dimens.x * rightSlopeDepthPerX, 0.0f};
+  vec4 rightView = pointView + vec4{1.0f, 0.0f, rightSlopeDepthPerX, 0.0f};
+  vec4 upView = pointView + vec4{0.0f, 1.0f, upSlopeDepthPerY, 0.0f};
+
+  mat4 persp = perspective(fov, aspect, -pointView.z, 10000.0f);
+
+  vec4 pointClip = persp * pointView;
   vec4 rightClip = persp * rightView;
   vec4 upClip = persp * upView;
 
@@ -245,6 +262,12 @@ mat4 portalPerspective(f32 fov, f32 aspect, f32 far, vec3 planePoint, vec3 plane
   persp.xTransform.z -= portalRightClipToNearClip;
   persp.yTransform.z -= portalUpClipToNearClip;
   persp.translation.z += (portalRightClipToNearClip * pointView.x) + (portalUpClipToNearClip * pointView.y);
+//  persp.translation.x += pointClip.x;
+//  persp.translation.y += pointClip.y;
+
+  vec4 pointNewClip = persp * pointView;
+  vec4 rightNewClip = persp * rightView;
+  vec4 upNewClip = persp * upView;
 
   return persp;
 }
@@ -253,11 +276,13 @@ void drawPortals(World* world, const u32 sceneIndex){
 
   Scene* scene = world->scenes + sceneIndex;
 
-  b32 enteredPortal = false;
+  b32 portalEntered = false;
 
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
-    drawPortal(world, scene->portals + portalIndex, &enteredPortal);
-    if(enteredPortal){
+    b32 insidePortal = false;
+    drawPortal(world, scene->portals + portalIndex, &insidePortal);
+    if(insidePortal){
+      portalEntered = true;
       world->currentSceneIndex = scene->portals[portalIndex].sceneDestination;
     }
   }
@@ -272,14 +297,19 @@ void drawPortals(World* world, const u32 sceneIndex){
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
     // TODO: Update projection matrix for portal
     Portal portal = scene->portals[portalIndex];
-    mat4 portalProjectionMat = portalPerspective(world->fov, world->aspect, 200.0f, portal.centerPosition, portal.normal, getViewMat(world->camera));
+
+    vec3 portalCenterToCamera = world->camera.origin - portal.centerPosition;
+    vec3 projectionAlongNormal = projection(portalCenterToCamera, portal.normal);
+    f32 distCameraToPlane = magnitude(projectionAlongNormal);
+    bool useGlobalProjection = portalEntered || (portal.inFocus && (distCameraToPlane < 0.5f));
+    mat4 portalProjectionMat = useGlobalProjection ? world->projectionViewModelUbo.projection : portalPerspective(world->fov, world->aspect, far, portal, getViewMat(world->camera));;
 
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &portalProjectionMat);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     drawScene(world, scene->portals[portalIndex].sceneDestination, portal.stencilMask);
-    if(enteredPortal) { portal.inFocus = false; }
+    if(portalEntered) { portal.inFocus = false; }
   }
 }
 
@@ -364,10 +394,10 @@ void updateEntities(World* world) {
 }
 
 void portalScene(GLFWwindow* window) {
-  World world{};
+  World* world = new World();
   vec2_u32 windowExtent = getWindowExtent();
   const vec2_u32 initWindowExtent = windowExtent;
-  world.aspect = f32(windowExtent.width) / windowExtent.height;
+  world->aspect = f32(windowExtent.width) / windowExtent.height;
 
 
   VertexAtt cubePosVertexAtt = cubePosVertexAttBuffers();
@@ -380,49 +410,45 @@ void portalScene(GLFWwindow* window) {
   ShaderProgram reflectSkyboxShader = createShaderProgram(posNormVertexShaderFileLoc, reflectSkyboxFragmentShaderFileLoc);
   stencilShader = createShaderProgram(posVertexShaderFileLoc, blackFragmentShaderFileLoc);
 
-  ProjectionViewModelUBO projectionViewModelUbo;
+  world->player.boundingBox.diagonal = defaultPlayerDimensionInMeters;
+  world->player.boundingBox.min = {-(world->player.boundingBox.diagonal.x * 0.5f), -10.0f - (world->player.boundingBox.diagonal.y * 0.5f), 0.0f};
 
-  world.player.boundingBox.diagonal = defaultPlayerDimensionInMeters;
-  world.player.boundingBox.min = {-(world.player.boundingBox.diagonal.x * 0.5f), -10.0f - (world.player.boundingBox.diagonal.y * 0.5f), 0.0f};
-
-  vec3 firstPersonCameraInitPosition = calcPlayerViewingPosition(&world.player);
+  vec3 firstPersonCameraInitPosition = calcPlayerViewingPosition(&world->player);
   vec3 firstPersonCameraInitFocus{gatePosition.x, gatePosition.y, firstPersonCameraInitPosition.z};
-  lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, &world.camera);
+  lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, &world->camera);
 
-  mat4 playerBoundingBoxScaleMatrix = scale_mat4(world.player.boundingBox.diagonal);
-  const f32 originalProjectionDepthNear = 0.1f;
-  const f32 originalProjectionDepthFar = 200.0f;
-  world.fov = fieldOfView(13.5f, 25.0f);
-  projectionViewModelUbo.projection = perspective(world.fov, world.aspect, originalProjectionDepthNear, originalProjectionDepthFar);
+  mat4 playerBoundingBoxScaleMatrix = scale_mat4(world->player.boundingBox.diagonal);
+  world->fov = fieldOfView(13.5f, 25.0f);
+  world->projectionViewModelUbo.projection = perspective(world->fov, world->aspect, near, far);
 
-  u32 gateSceneIndex = addNewScene(&world);
-  u32 tetrahedronSceneIndex = addNewScene(&world);
-  u32 octahedronSceneIndex = addNewScene(&world);
-  u32 paperSceneIndex = addNewScene(&world);
-  u32 icosahedronSceneIndex = addNewScene(&world);
+  u32 gateSceneIndex = addNewScene(world);
+  u32 tetrahedronSceneIndex = addNewScene(world);
+  u32 octahedronSceneIndex = addNewScene(world);
+  u32 paperSceneIndex = addNewScene(world);
+  u32 icosahedronSceneIndex = addNewScene(world);
 
   vec3 gatePortalNegativeXCenter = (cubeFaceNegativeXCenter * gateScale.x) + gatePosition;
   vec3 gatePortalPositiveXCenter = (cubeFacePositiveXCenter * gateScale.x) + gatePosition;
   vec3 gatePortalNegativeYCenter = (cubeFaceNegativeYCenter * gateScale.y) + gatePosition;
   vec3 gatePortalPositiveYCenter = (cubeFacePositiveYCenter * gateScale.y) + gatePosition;
 
-  u32 skyboxModelIndex = addNewModel_Skybox(&world);
-  u32 portalBackingModelIndex = addNewModel(&world, portalBackingModelLoc);
+  u32 skyboxModelIndex = addNewModel_Skybox(world);
+  u32 portalBackingModelIndex = addNewModel(world, portalBackingModelLoc);
   vec3 portalBackingModelScale = vec3{portalDimens.x, 0.5f, portalDimens.y};
 
-  world.currentSceneIndex = gateSceneIndex;
+  world->currentSceneIndex = gateSceneIndex;
   u32 gateEntityIndex;
   {
-    u32 gateModelIndex = addNewModel(&world, gateModelLoc);
-    gateEntityIndex = addNewEntity(&world, gateSceneIndex, gateModelIndex, gatePosition, gateScale, gateYaw, albedoNormalTexShader);
+    u32 gateModelIndex = addNewModel(world, gateModelLoc);
+    gateEntityIndex = addNewEntity(world, gateSceneIndex, gateModelIndex, gatePosition, gateScale, gateYaw, albedoNormalTexShader);
 
-    loadCubeMapTexture(caveFaceLocations, &world.scenes[gateSceneIndex].skyboxTexture);
-    u32 caveSkyboxIndex = addNewEntity(&world, gateSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
+    loadCubeMapTexture(caveFaceLocations, &world->scenes[gateSceneIndex].skyboxTexture);
+    u32 caveSkyboxIndex = addNewEntity(world, gateSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
 
-    addPortal(&world, gateEntityIndex, gatePortalNegativeXCenter, negativeXNormal, portalDimens, destPaperStencilMask, paperSceneIndex);
-    addPortal(&world, gateEntityIndex, gatePortalPositiveXCenter, positiveXNormal, portalDimens, destOctahedronStencilMask, octahedronSceneIndex);
-    addPortal(&world, gateEntityIndex, gatePortalNegativeYCenter, negativeYNormal, portalDimens, destTetrahedronStencilMask, tetrahedronSceneIndex);
-    addPortal(&world, gateEntityIndex, gatePortalPositiveYCenter, positiveYNormal, portalDimens, destIcosahedronStencilMask, icosahedronSceneIndex);
+    addPortal(world, gateEntityIndex, gatePortalNegativeXCenter, negativeXNormal, portalDimens, destPaperStencilMask, paperSceneIndex);
+    addPortal(world, gateEntityIndex, gatePortalPositiveXCenter, positiveXNormal, portalDimens, destOctahedronStencilMask, octahedronSceneIndex);
+    addPortal(world, gateEntityIndex, gatePortalNegativeYCenter, negativeYNormal, portalDimens, destTetrahedronStencilMask, tetrahedronSceneIndex);
+    addPortal(world, gateEntityIndex, gatePortalPositiveYCenter, positiveYNormal, portalDimens, destIcosahedronStencilMask, icosahedronSceneIndex);
 
     gateSceneFragUbo.directionalLightColor = {0.5f, 0.5f, 0.5f};
     gateSceneFragUbo.ambientLightColor = {0.2f, 0.2f, 0.2f};
@@ -439,66 +465,66 @@ void portalScene(GLFWwindow* window) {
   }
 
   {
-    u32 tetrahedronModelIndex = addNewModel(&world, tetrahedronModelLoc);
-    u32 tetrahedronEntityIndex = addNewEntity(&world, tetrahedronSceneIndex, tetrahedronModelIndex, shapePosition, shapeScale, 0.0f, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
-    world.models[tetrahedronModelIndex].meshes[0].textureData.baseColor = vec4{1.0f, 0.4f, 0.4f, 1.0f};
+    u32 tetrahedronModelIndex = addNewModel(world, tetrahedronModelLoc);
+    u32 tetrahedronEntityIndex = addNewEntity(world, tetrahedronSceneIndex, tetrahedronModelIndex, shapePosition, shapeScale, 0.0f, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
+    world->models[tetrahedronModelIndex].meshes[0].textureData.baseColor = vec4{1.0f, 0.4f, 0.4f, 1.0f};
 
-    loadCubeMapTexture(yellowCloudFaceLocations, &world.scenes[tetrahedronSceneIndex].skyboxTexture);
-    u32 yellowCloudSkyboxIndex = addNewEntity(&world, tetrahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
+    loadCubeMapTexture(yellowCloudFaceLocations, &world->scenes[tetrahedronSceneIndex].skyboxTexture);
+    u32 yellowCloudSkyboxIndex = addNewEntity(world, tetrahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
 
-    addPortal(&world, tetrahedronSceneIndex, gatePortalNegativeYCenter, positiveYNormal, portalDimens, destGateStencilMask, gateEntityIndex);
+    addPortal(world, tetrahedronSceneIndex, gatePortalNegativeYCenter, positiveYNormal, portalDimens, destGateStencilMask, gateEntityIndex);
 
     vec3 portalBackingPosition = gatePortalNegativeYCenter;
     portalBackingPosition += vec3{0.0f, portalBackingModelScale.y * -0.5f, 0.0f};
-    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&world, tetrahedronSceneIndex, portalBackingModelIndex,
+    u32 portalSceneToGatePortalBackingEntity = addNewEntity(world, tetrahedronSceneIndex, portalBackingModelIndex,
                                                             portalBackingPosition, portalBackingModelScale, 180.0f * RadiansPerDegree, reflectSkyboxShader);
   }
 
   {
-    u32 octahedronModelIndex = addNewModel(&world, octahedronModelLoc);
-    u32 octahedronEntityIndex = addNewEntity(&world, octahedronSceneIndex, octahedronModelIndex, shapePosition, shapeScale, 0.0f, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
-    world.models[octahedronModelIndex].meshes[0].textureData.baseColor = vec4{0.4f, 1.0f, 0.4f, 1.0f};
+    u32 octahedronModelIndex = addNewModel(world, octahedronModelLoc);
+    u32 octahedronEntityIndex = addNewEntity(world, octahedronSceneIndex, octahedronModelIndex, shapePosition, shapeScale, 0.0f, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
+    world->models[octahedronModelIndex].meshes[0].textureData.baseColor = vec4{0.4f, 1.0f, 0.4f, 1.0f};
 
-    loadCubeMapTexture(skyboxInterstellarFaceLocations, &world.scenes[octahedronSceneIndex].skyboxTexture);
-    u32 interstellarSkyboxIndex = addNewEntity(&world, octahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
+    loadCubeMapTexture(skyboxInterstellarFaceLocations, &world->scenes[octahedronSceneIndex].skyboxTexture);
+    u32 interstellarSkyboxIndex = addNewEntity(world, octahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
 
-    addPortal(&world, octahedronSceneIndex, gatePortalPositiveXCenter, negativeXNormal, portalDimens, destGateStencilMask, gateEntityIndex);
+    addPortal(world, octahedronSceneIndex, gatePortalPositiveXCenter, negativeXNormal, portalDimens, destGateStencilMask, gateEntityIndex);
 
     vec3 portalBackingPosition = gatePortalPositiveXCenter;
     portalBackingPosition += vec3{portalBackingModelScale.y * 0.5f, 0.0f, 0.0f};
-    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&world, octahedronSceneIndex, portalBackingModelIndex,
+    u32 portalSceneToGatePortalBackingEntity = addNewEntity(world, octahedronSceneIndex, portalBackingModelIndex,
                                                             portalBackingPosition, portalBackingModelScale, -90.0f * RadiansPerDegree, reflectSkyboxShader);
   }
 
   {
-    u32 paperModelIndex = addNewModel(&world, paperModelLoc);
-    u32 paperEntityIndex = addNewEntity(&world, paperSceneIndex, paperModelIndex, shapePosition, shapeScale, 0.0f, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
-    world.models[paperModelIndex].meshes[0].textureData.baseColor = vec4{0.4f, 0.4f, 1.0f, 1.0f};
+    u32 paperModelIndex = addNewModel(world, paperModelLoc);
+    u32 paperEntityIndex = addNewEntity(world, paperSceneIndex, paperModelIndex, shapePosition, shapeScale, 0.0f, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
+    world->models[paperModelIndex].meshes[0].textureData.baseColor = vec4{0.4f, 0.4f, 1.0f, 1.0f};
 
-    loadCubeMapTexture(calmSeaFaceLocations, &world.scenes[paperSceneIndex].skyboxTexture);
-    u32 calmSeaSkyboxIndex = addNewEntity(&world, paperSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
+    loadCubeMapTexture(calmSeaFaceLocations, &world->scenes[paperSceneIndex].skyboxTexture);
+    u32 calmSeaSkyboxIndex = addNewEntity(world, paperSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
 
-    addPortal(&world, paperSceneIndex, gatePortalNegativeXCenter, positiveXNormal, portalDimens, destGateStencilMask, gateEntityIndex);
+    addPortal(world, paperSceneIndex, gatePortalNegativeXCenter, positiveXNormal, portalDimens, destGateStencilMask, gateEntityIndex);
 
     vec3 portalBackingPosition = gatePortalNegativeXCenter;
     portalBackingPosition += vec3{portalBackingModelScale.y * -0.5f, 0.0f, 0.0f};
-    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&world, paperSceneIndex, portalBackingModelIndex,
+    u32 portalSceneToGatePortalBackingEntity = addNewEntity(world, paperSceneIndex, portalBackingModelIndex,
                                                             portalBackingPosition, portalBackingModelScale, 90.0f * RadiansPerDegree, reflectSkyboxShader);
   }
 
   {
-    u32 icosahedronModelIndex = addNewModel(&world, icosahedronModelLoc);
-    u32 icosahedronEntityIndex = addNewEntity(&world, icosahedronSceneIndex, icosahedronModelIndex, shapePosition, shapeScale, 0.0f, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
-    world.models[icosahedronModelIndex].meshes[0].textureData.baseColor = vec4{0.9f, 0.9f, 0.9f, 1.0f};
+    u32 icosahedronModelIndex = addNewModel(world, icosahedronModelLoc);
+    u32 icosahedronEntityIndex = addNewEntity(world, icosahedronSceneIndex, icosahedronModelIndex, shapePosition, shapeScale, 0.0f, singleColorShader, EntityType_Rotating | EntityType_Wireframe);
+    world->models[icosahedronModelIndex].meshes[0].textureData.baseColor = vec4{0.9f, 0.9f, 0.9f, 1.0f};
 
-    loadCubeMapTexture(pollutedEarthFaceLocations, &world.scenes[icosahedronSceneIndex].skyboxTexture);
-    u32 pollutedEarthSkyboxIndex = addNewEntity(&world, icosahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
+    loadCubeMapTexture(pollutedEarthFaceLocations, &world->scenes[icosahedronSceneIndex].skyboxTexture);
+    u32 pollutedEarthSkyboxIndex = addNewEntity(world, icosahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, skyboxShader);
 
-    addPortal(&world, icosahedronSceneIndex, gatePortalPositiveYCenter, negativeYNormal, portalDimens, destGateStencilMask, gateEntityIndex);
+    addPortal(world, icosahedronSceneIndex, gatePortalPositiveYCenter, negativeYNormal, portalDimens, destGateStencilMask, gateEntityIndex);
 
     vec3 portalBackingPosition = gatePortalPositiveYCenter;
     portalBackingPosition += vec3{0.0f, portalBackingModelScale.y * 0.5f, 0.0f};
-    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&world, icosahedronSceneIndex, portalBackingModelIndex,
+    u32 portalSceneToGatePortalBackingEntity = addNewEntity(world, icosahedronSceneIndex, portalBackingModelIndex,
                                                             portalBackingPosition, portalBackingModelScale, 0.0f, reflectSkyboxShader);
   }
 
@@ -523,14 +549,14 @@ void portalScene(GLFWwindow* window) {
     glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, projViewModelGlobalUBOid, 0, sizeof(ProjectionViewModelUBO));
   }
 
-  world.stopWatch = createStopWatch();
+  world->stopWatch = createStopWatch();
   while(glfwWindowShouldClose(window) == GL_FALSE)
   {
     loadInputStateForFrame(window);
-    updateStopWatch(&world.stopWatch);
+    updateStopWatch(&world->stopWatch);
 
     vec3 playerCenter;
-    vec3 playerViewPosition = calcPlayerViewingPosition(&world.player);
+    vec3 playerViewPosition = calcPlayerViewingPosition(&world->player);
 
     if (isActive(KeyboardInput_Esc))
     {
@@ -541,12 +567,12 @@ void portalScene(GLFWwindow* window) {
     // toggle fullscreen/window mode if alt + enter
     if(isActive(KeyboardInput_Alt_Right) && hotPress(KeyboardInput_Enter)) {
       windowExtent = toggleWindowSize(window, initWindowExtent.width, initWindowExtent.height);
-      world.aspect = f32(windowExtent.width) / windowExtent.height;
+      world->aspect = f32(windowExtent.width) / windowExtent.height;
       glViewport(0, 0, windowExtent.width, windowExtent.height);
 
-      adjustAspectPerspProj(&projectionViewModelUbo.projection, world.fov, world.aspect);
+      adjustAspectPerspProj(&world->projectionViewModelUbo.projection, world->fov, world->aspect);
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &projectionViewModelUbo.projection);
+      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &world->projectionViewModelUbo.projection);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 
@@ -572,41 +598,41 @@ void portalScene(GLFWwindow* window) {
         vec3 playerMovementDirection{};
         if (lateralMovement)
         {
-          playerMovementDirection += rightIsActive ? world.camera.right : -world.camera.right;
+          playerMovementDirection += rightIsActive ? world->camera.right : -world->camera.right;
         }
 
         if (forwardMovement)
         {
-          playerMovementDirection += upIsActive ? world.camera.forward : -world.camera.forward;
+          playerMovementDirection += upIsActive ? world->camera.forward : -world->camera.forward;
         }
 
         playerMovementDirection = normalize(playerMovementDirection.x, playerMovementDirection.y, 0.0);
-        playerDelta = playerMovementDirection * playerMovementSpeed * world.stopWatch.delta;
+        playerDelta = playerMovementDirection * playerMovementSpeed * world->stopWatch.delta;
       }
 
       // TODO: Do not apply immediately, check for collisions
-      world.player.boundingBox.min += playerDelta;
-      playerCenter = calcBoundingBoxCenterPosition(world.player.boundingBox);
+      world->player.boundingBox.min += playerDelta;
+      playerCenter = calcBoundingBoxCenterPosition(world->player.boundingBox);
 
       if(tabHotPress) { // switch between third and first person
-        vec3 xyForward = normalize(world.camera.forward.x, world.camera.forward.y, 0.0f);
+        vec3 xyForward = normalize(world->camera.forward.x, world->camera.forward.y, 0.0f);
 
-        if(!world.camera.thirdPerson) {
-          lookAt_ThirdPerson(playerCenter, xyForward, &world.camera);
+        if(!world->camera.thirdPerson) {
+          lookAt_ThirdPerson(playerCenter, xyForward, &world->camera);
         } else { // camera is first person now
           vec3 focus = playerViewPosition + xyForward;
-          lookAt_FirstPerson(playerViewPosition, focus, &world.camera);
+          lookAt_FirstPerson(playerViewPosition, focus, &world->camera);
         }
       }
 
       const f32 mouseDeltaMultConst = 0.001f;
-      if(world.camera.thirdPerson) {
-        updateCamera_ThirdPerson(&world.camera, playerCenter, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * 0.001f));
+      if(world->camera.thirdPerson) {
+        updateCamera_ThirdPerson(&world->camera, playerCenter, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * 0.001f));
       } else {
-        updateCamera_FirstPerson(&world.camera, playerDelta, f32(-mouseDelta.y * mouseDeltaMultConst), f32(-mouseDelta.x * 0.001f));
+        updateCamera_FirstPerson(&world->camera, playerDelta, f32(-mouseDelta.y * mouseDeltaMultConst), f32(-mouseDelta.x * 0.001f));
       }
 
-      projectionViewModelUbo.view = getViewMat(world.camera);
+      world->projectionViewModelUbo.view = getViewMat(world->camera);
     }
 
     // draw
@@ -618,12 +644,11 @@ void portalScene(GLFWwindow* window) {
 
     // universal matrices in UBO
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-    // TODO: don't need to set projection matrix right now but will in the future so keeping
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &projectionViewModelUbo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &world->projectionViewModelUbo);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    if(world.camera.thirdPerson) { // draw player if third person
-      vec3 playerViewCenter = calcPlayerViewingPosition(&world.player);
+    if(world->camera.thirdPerson) { // draw player if third person
+      vec3 playerViewCenter = calcPlayerViewingPosition(&world->player);
       vec3 playerBoundingBoxColor_Red{1.0f, 0.0f, 0.0f};
       vec3 playerViewBoxColor_White{1.0f, 1.0f, 1.0f};
       vec3 playerMinCoordBoxColor_Green{0.0f, 1.0f, 0.0f};
@@ -653,7 +678,7 @@ void portalScene(GLFWwindow* window) {
 
       // debug player min coordinate box
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-      thirdPersonPlayerBoxesModelMatrix = translate_mat4(world.player.boundingBox.min) * scale_mat4(0.1f);
+      thirdPersonPlayerBoxesModelMatrix = translate_mat4(world->player.boundingBox.min) * scale_mat4(0.1f);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
       setUniform(singleColorShader.id, "baseColor", playerMinCoordBoxColor_Green);
@@ -671,8 +696,8 @@ void portalScene(GLFWwindow* window) {
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
 
-    updateEntities(&world);
-    drawSceneWithPortals(&world);
+    updateEntities(world);
+    drawSceneWithPortals(world);
 
     glfwSwapBuffers(window); // swaps double buffers (call after all render commands are completed)
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
