@@ -1,6 +1,3 @@
-#include <windows.h>
-#include <Xinput.h>
-
 internal_func void setKeyState(InputType keyboardInput, s32 glfwKey, GLFWwindow* window);
 internal_func void setMouseState(InputType mouseInput, s32 glfwKey, GLFWwindow* window);
 internal_func void setControllerState(InputType controllerInput, u16 xInputButtonFlag, s16 gamepadFlags);

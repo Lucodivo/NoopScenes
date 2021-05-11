@@ -1,6 +1,3 @@
-#undef far
-#undef near
-
 #define PORTAL_BACKING_BOX_DEPTH 0.5f
 
 const vec3 defaultPlayerDimensionInMeters{0.5f, 0.25f, 1.75f}; // NOTE: ~1'7"w, 9"d, 6'h
@@ -231,38 +228,6 @@ void drawPortal(const World* world, Portal* portal, Out b32* enteredPortal) {
   *enteredPortal = insidePortal;
 }
 
-// NOTE: Oblique View Frustum Depth Projection and Clipping by Eric Lengyel (Terathon Software)
-// NOTE: Portal normal MUST be normalized
-mat4 portalPerspective(f32 fov, f32 aspect, f32 far, Portal portal, mat4 viewMat) {
-
-  mat4 result{};
-  mat4 persp = perspective(fov, aspect, near, far);
-  mat4 perspInv = perspectiveInverse(fov, aspect, near, far);
-
-  // plane = {normal.x, normal.y, normal.z, dist} // TODO: dist is sus?
-  vec4 plane_normalViewSpace = viewMat * Vec4(-portal.normal, 0.0f);
-  vec4 plane_posViewSpace = viewMat * Vec4(portal.centerPosition, 1.0f);
-  vec4 plane_viewSpace = Vec4(plane_normalViewSpace.xyz, dot(-plane_normalViewSpace.xyz, plane_posViewSpace.xyz));
-
-  // clip space plane
-  vec4 plane_clipSpace = transpose(perspInv) * plane_viewSpace;
-  // TODO: This is a very general solution. The sign of view space should work for us just fine with our persp matrix.
-  vec4 oppositeFrustumCorner_clipSpace = {sign(plane_clipSpace.x), sign(plane_clipSpace.y), 1.0f, 1.0f};
-  vec4 oppositeFrustumCorner_viewSpace = perspInv * oppositeFrustumCorner_clipSpace;
-
-  vec4 perspRow4 = vec4{persp[0][3], persp[1][3],persp[2][3], persp[3][3]};
-  f32 planeScale_viewSpace = (2.0f * dot(perspRow4, oppositeFrustumCorner_viewSpace)) / dot(plane_viewSpace, oppositeFrustumCorner_viewSpace);
-
-  vec4 newThirdRow = (planeScale_viewSpace * plane_viewSpace) - perspRow4;
-  result = persp;
-  result[0][2] = newThirdRow[0];
-  result[1][2] = newThirdRow[1];
-  result[2][2] = newThirdRow[2];
-  result[3][2] = newThirdRow[3];
-
-  return result;
-}
-
 void drawPortals(World* world, const u32 sceneIndex){
 
   Scene* scene = world->scenes + sceneIndex;
@@ -285,10 +250,15 @@ void drawPortals(World* world, const u32 sceneIndex){
   // We need to clear disable depth values so distant objects through the "portals" still get drawn
   // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
   glClear(GL_DEPTH_BUFFER_BIT);
+
+  mat4 viewMat = getViewMat(world->camera);
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
     Portal portal = scene->portals[portalIndex];
 
-    mat4 portalProjectionMat = portalEntered ? world->projectionViewModelUbo.projection : portalPerspective(world->fov, world->aspect, far, portal, getViewMat(world->camera));;
+    vec3 portalNormal_viewSpace = (viewMat * Vec4(-portal.normal, 0.0f)).xyz;
+    vec3 portalCenterPos_viewSpace = (viewMat * Vec4(portal.centerPosition, 1.0f)).xyz;
+    //mat4 portalProjectionMat = portalEntered ? world->projectionViewModelUbo.projection : obliquePerspective(world->projectionViewModelUbo.projection, portalNormal_viewSpace, portalCenterPos_viewSpace, far);
+    mat4 portalProjectionMat = portalEntered ? world->projectionViewModelUbo.projection : obliquePerspective(world->fov, world->aspect, near, far, portalNormal_viewSpace, portalCenterPos_viewSpace);
 
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &portalProjectionMat);
@@ -578,7 +548,7 @@ void portalScene(GLFWwindow* window) {
       vec3 playerDelta{};
       if (lateralMovement || forwardMovement)
       {
-        f32 playerMovementSpeed = leftShiftIsActive ? 5.0f : 1.0f;
+        f32 playerMovementSpeed = leftShiftIsActive ? 8.0f : 4.0f;
 
         // Camera movement direction
         vec3 playerMovementDirection{};
@@ -611,11 +581,11 @@ void portalScene(GLFWwindow* window) {
         }
       }
 
-      const f32 mouseDeltaMultConst = 0.001f;
+      const f32 mouseDeltaMultConst = 0.0005f;
       if(world->camera.thirdPerson) {
-        updateCamera_ThirdPerson(&world->camera, playerCenter, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * 0.001f));
+        updateCamera_ThirdPerson(&world->camera, playerCenter, f32(-mouseDelta.y * mouseDeltaMultConst),f32(-mouseDelta.x * mouseDeltaMultConst));
       } else {
-        updateCamera_FirstPerson(&world->camera, playerDelta, f32(-mouseDelta.y * mouseDeltaMultConst), f32(-mouseDelta.x * 0.001f));
+        updateCamera_FirstPerson(&world->camera, playerDelta, f32(-mouseDelta.y * mouseDeltaMultConst), f32(-mouseDelta.x * mouseDeltaMultConst));
       }
 
       world->projectionViewModelUbo.view = getViewMat(world->camera);

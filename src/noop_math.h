@@ -1083,6 +1083,69 @@ inline mat4 perspectiveInverse(f32 fovVert, f32 aspect, f32 n, f32 f) {
   return result;
 }
 
+/*
+ * // NOTE: Oblique View Frustum Depth Projection and Clipping by Eric Lengyel (Terathon Software)
+ * Arguments:
+ * mat4 perspectiveMat: Perspective matrix that is being used for the rest of the scene
+ * vec3 planeNormal_viewSpace: Plane normal in view space. MUST be normalized. This is a normal that points INTO the frustum, NOT one that is generally pointing towards the camera.
+ * vec3 planePos_viewSpace: Any position on the plane in view space.
+ */
+mat4 obliquePerspective(const mat4& perspectiveMat, vec3 planeNormal_viewSpace, vec3 planePos_viewSpace, f32 far) {
+
+  mat4 persp = perspectiveMat;
+
+  // plane = {normal.x, normal.y, normal.z, dist}
+  vec4 plane_viewSpace = Vec4(planeNormal_viewSpace, dot(-planeNormal_viewSpace, planePos_viewSpace));
+
+  // clip space plane
+  vec4 oppositeFrustumCorner_viewSpace = {
+          sign(plane_viewSpace.x) * (1.0f / perspectiveMat.xTransform.x),
+          sign(plane_viewSpace.y) * (1.0f / perspectiveMat.yTransform.y),
+          -1.0f,
+          1.0f / far
+  };
+
+  vec4 scaledPlane_viewSpace = ((2.0f * -oppositeFrustumCorner_viewSpace.z) / dot(plane_viewSpace, oppositeFrustumCorner_viewSpace)) * plane_viewSpace;
+
+  persp[0][2] = scaledPlane_viewSpace.x;
+  persp[1][2] = scaledPlane_viewSpace.y;
+  persp[2][2] = scaledPlane_viewSpace.z + 1.0f;
+  persp[3][2] = scaledPlane_viewSpace.w;
+
+  return persp;
+}
+
+/*
+ * // NOTE: Oblique View Frustum Depth Projection and Clipping by Eric Lengyel (Terathon Software)
+ * Arguments:
+ * vec3 planeNormal_viewSpace: Plane normal in view space. MUST be normalized. This is a normal that points INTO the frustum, NOT one that is generally pointing towards the camera.
+ * vec3 planePos_viewSpace: Any position on the plane in view space.
+ */
+mat4 obliquePerspective(f32 fovVert, f32 aspect, f32 near, f32 far, vec3 planeNormal_viewSpace, vec3 planePos_viewSpace) {
+  const f32 c = 1.0f / tanf(fovVert / 2.0f);
+
+  // plane = {normal.x, normal.y, normal.z, dist}
+  vec4 plane_viewSpace = Vec4(planeNormal_viewSpace, dot(-planeNormal_viewSpace, planePos_viewSpace));
+
+  // clip space plane
+  vec4 oppositeFrustumCorner_viewSpace = {
+          sign(plane_viewSpace.x) * (aspect / c),
+          sign(plane_viewSpace.y) * (1.0f / c),
+          -1.0f,
+          1.0f / far
+  };
+
+  vec4 scaledPlane_viewSpace = ((2.0f * -oppositeFrustumCorner_viewSpace.z) / dot(plane_viewSpace, oppositeFrustumCorner_viewSpace)) * plane_viewSpace;
+
+  mat4 resultMat = {
+          (c / aspect), 0.0f, scaledPlane_viewSpace.x, 0.0f,
+          0.0f, c, scaledPlane_viewSpace.y, 0.0f,
+          0.0f, 0.0f, scaledPlane_viewSpace.z + 1.0f, -1.0f,
+          0.0f, 0.0f, scaledPlane_viewSpace.w, 0.0f
+  };
+
+  return resultMat;
+}
 
 
 void adjustAspectPerspProj(mat4* projectionMatrix, f32 fovVert, f32 aspect) {
