@@ -231,45 +231,36 @@ void drawPortal(const World* world, Portal* portal, Out b32* enteredPortal) {
   *enteredPortal = insidePortal;
 }
 
+// NOTE: Oblique View Frustum Depth Projection and Clipping by Eric Lengyel (Terathon Software)
+// NOTE: Portal normal MUST be normalized
 mat4 portalPerspective(f32 fov, f32 aspect, f32 far, Portal portal, mat4 viewMat) {
 
-  // Calc portal corners
-  vec3 bottomLeft;
-  vec3 bottomRight;
-  vec3 topLeft;
-  vec3 topRight;
+  mat4 result{};
+  mat4 persp = perspective(fov, aspect, near, far);
+  mat4 perspInv = perspectiveInverse(fov, aspect, near, far);
 
-  vec3 normalizedNormal = normalize(portal.normal);
-  vec3 right = cross(normalizedNormal, vec3{0.0f, 1.0f, 0.0f});
-  vec3 up = cross(right, normalizedNormal);
+  // plane = {normal.x, normal.y, normal.z, dist} // TODO: dist is sus?
+  vec4 plane_normalViewSpace = viewMat * Vec4(-portal.normal, 0.0f);
+  vec4 plane_posViewSpace = viewMat * Vec4(portal.centerPosition, 1.0f);
+  vec4 plane_viewSpace = Vec4(plane_normalViewSpace.xyz, dot(-plane_normalViewSpace.xyz, plane_posViewSpace.xyz));
 
-  vec4 pointView = viewMat * Vec4(portal.centerPosition, 1.0f);
-  vec4 normalView = viewMat * Vec4(portal.normal, 0.0f);
-  f32 rightSlopeDepthPerX = -normalView.x/normalView.z;
-  f32 upSlopeDepthPerY = -normalView.y/normalView.z;
-//  vec4 leftEdgeView = pointView + vec4{portal.dimens.x, 0.0f, portal.dimens.x * rightSlopeDepthPerX, 0.0f};
-  vec4 rightView = pointView + vec4{1.0f, 0.0f, rightSlopeDepthPerX, 0.0f};
-  vec4 upView = pointView + vec4{0.0f, 1.0f, upSlopeDepthPerY, 0.0f};
+  // clip space plane
+  vec4 plane_clipSpace = transpose(perspInv) * plane_viewSpace;
+  // TODO: This is a very general solution. The sign of view space should work for us just fine with our persp matrix.
+  vec4 oppositeFrustumCorner_clipSpace = {sign(plane_clipSpace.x), sign(plane_clipSpace.y), 1.0f, 1.0f};
+  vec4 oppositeFrustumCorner_viewSpace = perspInv * oppositeFrustumCorner_clipSpace;
 
-  mat4 persp = perspective(fov, aspect, -pointView.z, 10000.0f);
+  vec4 perspRow4 = vec4{persp[0][3], persp[1][3],persp[2][3], persp[3][3]};
+  f32 planeScale_viewSpace = (2.0f * dot(perspRow4, oppositeFrustumCorner_viewSpace)) / dot(plane_viewSpace, oppositeFrustumCorner_viewSpace);
 
-  vec4 pointClip = persp * pointView;
-  vec4 rightClip = persp * rightView;
-  vec4 upClip = persp * upView;
+  vec4 newThirdRow = (planeScale_viewSpace * plane_viewSpace) - perspRow4;
+  result = persp;
+  result[0][2] = newThirdRow[0];
+  result[1][2] = newThirdRow[1];
+  result[2][2] = newThirdRow[2];
+  result[3][2] = newThirdRow[3];
 
-  f32 portalRightClipToNearClip = -(-rightClip.w - rightClip.z);
-  f32 portalUpClipToNearClip = -(-upClip.w - upClip.z);
-  persp.xTransform.z -= portalRightClipToNearClip;
-  persp.yTransform.z -= portalUpClipToNearClip;
-  persp.translation.z += (portalRightClipToNearClip * pointView.x) + (portalUpClipToNearClip * pointView.y);
-//  persp.translation.x += pointClip.x;
-//  persp.translation.y += pointClip.y;
-
-  vec4 pointNewClip = persp * pointView;
-  vec4 rightNewClip = persp * rightView;
-  vec4 upNewClip = persp * upView;
-
-  return persp;
+  return result;
 }
 
 void drawPortals(World* world, const u32 sceneIndex){
@@ -295,20 +286,15 @@ void drawPortals(World* world, const u32 sceneIndex){
   // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
   glClear(GL_DEPTH_BUFFER_BIT);
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
-    // TODO: Update projection matrix for portal
     Portal portal = scene->portals[portalIndex];
 
-    vec3 portalCenterToCamera = world->camera.origin - portal.centerPosition;
-    vec3 projectionAlongNormal = projection(portalCenterToCamera, portal.normal);
-    f32 distCameraToPlane = magnitude(projectionAlongNormal);
-    bool useGlobalProjection = portalEntered || (portal.inFocus && (distCameraToPlane < 0.5f));
-    mat4 portalProjectionMat = useGlobalProjection ? world->projectionViewModelUbo.projection : portalPerspective(world->fov, world->aspect, far, portal, getViewMat(world->camera));;
+    mat4 portalProjectionMat = portalEntered ? world->projectionViewModelUbo.projection : portalPerspective(world->fov, world->aspect, far, portal, getViewMat(world->camera));;
 
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &portalProjectionMat);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    drawScene(world, scene->portals[portalIndex].sceneDestination, portal.stencilMask);
+    drawScene(world, portal.sceneDestination, portal.stencilMask);
     if(portalEntered) { portal.inFocus = false; }
   }
 }

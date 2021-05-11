@@ -601,6 +601,26 @@ void projectionMatSanityChecking_old() {
   }
 }
 
+void inversePerspectiveTests() {
+  f32 l = 10.0f;
+  f32 r = 30.0f;
+  f32 b = -50.0f;
+  f32 t = 50.0f;
+  f32 n = 1.0f;
+  f32 f = 70.0f;
+  f32 fovy = fieldOfView(13.5f, 25.0f);
+  f32 aspect = 1920.0f / 1080.0f;
+  mat4 perspLRBT = perspective(l, r, b, t, n, f);
+  mat4 perspFOV = perspective(fovy, aspect, n, f);
+  mat4 inverseLRBT = perspectiveInverse(l, r, b, t, n, f);
+  mat4 inverseFOV = perspectiveInverse(fovy, aspect, n, f);
+
+  mat4 shouldBeIdentityLRBT = inverseLRBT * perspLRBT;
+  printIfNotEqual(shouldBeIdentityLRBT, identity_mat4());
+  mat4 shouldBeIdentityFOV = inverseFOV * perspFOV;
+  printIfNotEqual(shouldBeIdentityFOV, identity_mat4());
+}
+
 void runAllMathTests()
 {
   translateTest();
@@ -620,5 +640,5 @@ void runAllMathTests()
 void runMathTests() {
 //  runAllMathTests();
   init();
-  projectionMatSanityChecking();
+  inversePerspectiveTests();
 }

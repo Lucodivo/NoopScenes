@@ -289,6 +289,12 @@ inline f32 lerp(f32 a, f32 b, f32 t) {
   return a - ((a + b) * t);
 }
 
+inline f32 sign(f32 x) {
+  if (x > 0.0f) return (1.0f);
+  if (x < 0.0f) return (-1.0f);
+  return (0.0f);
+}
+
 // vec2
 inline f32 dot(vec2 xy1, vec2 xy2) {
   return (xy1.x * xy2.x) + (xy1.y * xy2.y);
@@ -788,7 +794,7 @@ inline mat3 scale_mat3(vec3 scale) {
   };
 }
 
-inline mat3 transpose_mat3(const mat3& A) {
+inline mat3 transpose(const mat3& A) {
   return mat3 {
           A[0][0], A[1][0], A[2][0],
           A[0][1], A[1][1], A[2][1],
@@ -838,7 +844,7 @@ inline vec3 operator*(const mat3& M, const vec3& v) {
 mat3 operator*(const mat3& A, const mat3& B) {
   mat3 result;
 
-  mat3 transposeA = transpose_mat3(A); // cols <=> rows
+  mat3 transposeA = transpose(A); // cols <=> rows
   result[0][0] = dot(transposeA.col[0], B.col[0]);
   result[0][1] = dot(transposeA.col[1], B.col[0]);
   result[0][2] = dot(transposeA.col[2], B.col[0]);
@@ -898,7 +904,7 @@ inline mat4 translate_mat4(vec3 translation) {
   };
 }
 
-inline mat4 transpose_mat4(const mat4& A) {
+inline mat4 transpose(const mat4& A) {
   return mat4 {
           A[0][0], A[1][0], A[2][0], A[3][0],
           A[0][1], A[1][1], A[2][1], A[3][1],
@@ -970,7 +976,7 @@ inline vec4 operator*(const mat4& M, const vec4& v) {
 mat4 operator*(const mat4& A, const mat4& B) {
   mat4 result;
 
-  mat4 transposeA = transpose_mat4(A); // cols <=> rows
+  mat4 transposeA = transpose(A); // cols <=> rows
   result[0][0] = dot(transposeA.col[0], B.col[0]);
   result[0][1] = dot(transposeA.col[1], B.col[0]);
   result[0][2] = dot(transposeA.col[2], B.col[0]);
@@ -1030,25 +1036,54 @@ inline mat4 orthographic(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
 
 // real-time rendering 4.7.2
 inline mat4 perspective(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
-  return {
-    (2.0f * n) / (r - l),                    0,                      0.0f,     0,
-                       0, (2.0f * n) / (t - b),                      0.0f,     0,
-       (r + l) / (r - l),    (t + b) / (t - b),        -(f + n) / (f - n), -1.0f,
-                       0,                    0, -(2.0f * f * n) / (f - n),     0,
-  };
+  mat4 result;
+
+  result.xTransform = {(2.0f * n) / (r - l), 0.0f, 0.0f, 0.0f};
+  result.yTransform = {0.0f, (2.0f * n) / (t - b), 0.0f, 0.0f};
+  result.zTransform = {(r + l) / (r - l), (t + b) / (t - b), -(f + n) / (f - n), -1.0f};
+  result.translation = {0.0f, 0.0f, -(2.0f * f * n) / (f - n), 0.0f};
+
+  return result;
+}
+
+inline mat4 perspectiveInverse(f32 l, f32 r, f32 b, f32 t, f32 n, f32 f) {
+  mat4 result;
+
+  result.xTransform = {(r - l) / (2.0f * n), 0.0f, 0.0f, 0.0f};
+  result.yTransform = {0.0f, (t - b) / (2.0f * n), 0.0f, 0.0f};
+  result.zTransform = {0.0f, 0.0f, 0.0f, -(f - n) / (2 * f * n)};
+  result.translation = {(r + l) / (2.0f * n), (t + b) / (2.0f * n), -1.0f, (f + n) / (2 * f * n)};
+
+  return result;
 }
 
 // real-time rendering 4.7.2
 // aspect ratio is equivalent to width / height
 inline mat4 perspective(f32 fovVert, f32 aspect, f32 n, f32 f) {
+  mat4 result;
+
   const f32 c = 1.0f / tanf(fovVert / 2.0f);
-  return {
-          (c / aspect), 0.0f,          0.0f,                      0.0f,
-                  0.0f,                c,           0.0f,                      0.0f,
-                  0.0f, 0.0f,        -(f + n) / (f - n),                     -1.0f,
-                  0.0f, 0.0f, -(2.0f * f * n) / (f - n),                      0.0f,
-  };
+  result.xTransform = {(c / aspect), 0.0f, 0.0f, 0.0f};
+  result.yTransform = {0.0f, c, 0.0f, 0.0f};
+  result.zTransform = {0.0f, 0.0f, -(f + n) / (f - n), -1.0f};
+  result.translation = {0.0f, 0.0f, -(2.0f * f * n) / (f - n), 0.0f};
+
+  return result;
 }
+
+inline mat4 perspectiveInverse(f32 fovVert, f32 aspect, f32 n, f32 f) {
+  mat4 result;
+
+  const f32 c = 1.0f / tanf(fovVert / 2.0f);
+  result.xTransform = {aspect / c, 0.0f, 0.0f, 0.0f};
+  result.yTransform = {0.0f, 1.0f / c, 0.0f, 0.0f};
+  result.zTransform = {0.0f, 0.0f, 0.0f, -(f - n) / (2.0f * f * n)};
+  result.translation = {0.0f, 0.0f, -1.0f, (f + n) / (2.0f * f * n)};
+
+  return result;
+}
+
+
 
 void adjustAspectPerspProj(mat4* projectionMatrix, f32 fovVert, f32 aspect) {
   const f32 c = 1.0f / tanf(fovVert / 2.0f);
