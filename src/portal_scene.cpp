@@ -39,7 +39,7 @@ struct Entity {
   ShaderProgram shaderProgram;
   BoundingBox boundingBox;
   u32 modelIndex;
-  b32 flags;
+  b32 flags; // EntityType flags
   vec3 position;
   vec3 scale;
   f32 yaw; // NOTE: Radians. 0 rads starts at {0, -1} and goes around the xy-plane in a CCW as seen from above
@@ -251,12 +251,11 @@ void drawPortals(World* world, const u32 sceneIndex){
   // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
   glClear(GL_DEPTH_BUFFER_BIT);
 
-  mat4 viewMat = getViewMat(world->camera);
   for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
     Portal portal = scene->portals[portalIndex];
 
-    vec3 portalNormal_viewSpace = (viewMat * Vec4(-portal.normal, 0.0f)).xyz;
-    vec3 portalCenterPos_viewSpace = (viewMat * Vec4(portal.centerPosition, 1.0f)).xyz;
+    vec3 portalNormal_viewSpace = (world->projectionViewModelUbo.view * Vec4(-portal.normal, 0.0f)).xyz;
+    vec3 portalCenterPos_viewSpace = (world->projectionViewModelUbo.view * Vec4(portal.centerPosition, 1.0f)).xyz;
     //mat4 portalProjectionMat = portalEntered ? world->projectionViewModelUbo.projection : obliquePerspective(world->projectionViewModelUbo.projection, portalNormal_viewSpace, portalCenterPos_viewSpace, far);
     mat4 portalProjectionMat = portalEntered ? world->projectionViewModelUbo.projection : obliquePerspective(world->fov, world->aspect, near, far, portalNormal_viewSpace, portalCenterPos_viewSpace);
 
@@ -295,7 +294,7 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
 //      absoluteScale = hadamard(traversalEntity->scale, absoluteScale);
 //    }
 
-    mat4 modelMatrix = translate_mat4(entity->position) * rotate_xyPlane_mat4(entity->yaw) * scale_mat4(entity->scale);
+    mat4 modelMatrix = scaleRotTrans_mat4(entity->scale, vec3{0.0f, 0.0f, 1.0f}, entity->yaw, entity->position);
 
     // all shapes use the same modelIndex matrix
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
@@ -373,7 +372,6 @@ void portalScene(GLFWwindow* window) {
   vec3 firstPersonCameraInitFocus{gatePosition.x, gatePosition.y, firstPersonCameraInitPosition.z};
   lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, &world->camera);
 
-  mat4 playerBoundingBoxScaleMatrix = scale_mat4(world->player.boundingBox.diagonal);
   world->fov = fieldOfView(13.5f, 25.0f);
   world->projectionViewModelUbo.projection = perspective(world->fov, world->aspect, near, far);
 
@@ -618,7 +616,7 @@ void portalScene(GLFWwindow* window) {
 
       // debug player bounding box
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-      thirdPersonPlayerBoxesModelMatrix = translate_mat4(playerCenter) * playerBoundingBoxScaleMatrix;
+      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(world->player.boundingBox.diagonal, playerCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
       setUniform(singleColorShader.id, "baseColor", playerBoundingBoxColor_Red);
@@ -626,7 +624,7 @@ void portalScene(GLFWwindow* window) {
 
       // debug player center
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-      thirdPersonPlayerBoxesModelMatrix = translate_mat4(playerCenter) * scale_mat4(0.05f);
+      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.05f, playerCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
       setUniform(singleColorShader.id, "baseColor", playerMinCoordBoxColor_Black);
@@ -634,7 +632,7 @@ void portalScene(GLFWwindow* window) {
 
       // debug player min coordinate box
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-      thirdPersonPlayerBoxesModelMatrix = translate_mat4(world->player.boundingBox.min) * scale_mat4(0.1f);
+      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, world->player.boundingBox.min);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
       setUniform(singleColorShader.id, "baseColor", playerMinCoordBoxColor_Green);
@@ -642,7 +640,7 @@ void portalScene(GLFWwindow* window) {
 
       // debug player view
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-      thirdPersonPlayerBoxesModelMatrix = translate_mat4(playerViewCenter) * scale_mat4(0.1f);
+      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, playerViewCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
       setUniform(singleColorShader.id, "baseColor", playerViewBoxColor_White);

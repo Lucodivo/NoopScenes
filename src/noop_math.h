@@ -753,8 +753,7 @@ quaternion slerp(quaternion a, quaternion b, f32 t) {
 
 // TODO: There is a whole 360 degrees of rotation around the endOrientation axis that will all result in a "correct"
 // TODO: end orientation as described by the function parameters.
-// TODO: We only consider the forward orientation atm. Consider adjusting the up or right "orientation" if this function
-// TODO: no longer fits our needs. A reasonable approach would be ensuring the result is essentially a yaw/pitch with no roll.
+// TODO: A reasonable approach might be ensuring the result is essentially a yaw followed by a pitch with no roll.
 quaternion orient(const vec3& startOrientation, const vec3& endOrientation) {
   // TODO: more robust handling of close orientations
   if(startOrientation == endOrientation) {
@@ -954,6 +953,68 @@ inline mat4 rotate_mat4(f32 angle, vec3 v) {
   rotate.col[3] = {0.0f, 0.0f, 0.0f, 1.0f};
 
   return rotate;
+}
+
+inline mat4 scaleTrans_mat4(const f32 scale, const vec3& translation) {
+  return mat4 {
+          scale,    0.0f,    0.0f, 0.0f,
+          0.0f, scale,    0.0f, 0.0f,
+          0.0f,    0.0f, scale, 0.0f,
+          translation.x, translation.y, translation.z, 1.0f,
+  };
+}
+
+inline mat4 scaleTrans_mat4(const vec3& scale, const vec3& translation) {
+  return mat4 {
+          scale.x,    0.0f,    0.0f, 0.0f,
+          0.0f, scale.y,    0.0f, 0.0f,
+          0.0f,    0.0f, scale.z, 0.0f,
+          translation.x, translation.y, translation.z, 1.0f,
+  };
+}
+
+inline mat4 scaleRotTrans_mat4(const vec3& scale, const vec3& rotAxis, const f32 angle, const vec3& translation) {
+  vec3 axis(normalize(rotAxis));
+
+  f32 const cosA = cosf(angle);
+  f32 const sinA = sinf(angle);
+  vec3 const axisTimesOneMinusCos = axis * (1.0f - cosA);
+
+  mat4 scaleRotTransMat;
+  scaleRotTransMat[0][0] = (axis.x * axisTimesOneMinusCos.x + cosA) * scale.x;
+  scaleRotTransMat[0][1] = (axis.x * axisTimesOneMinusCos.y + sinA * axis.z) * scale.x;
+  scaleRotTransMat[0][2] = (axis.x * axisTimesOneMinusCos.z - sinA * axis.y) * scale.x;
+  scaleRotTransMat[0][3] = 0;
+
+  scaleRotTransMat[1][0] = (axis.y * axisTimesOneMinusCos.x - sinA * axis.z) * scale.y;
+  scaleRotTransMat[1][1] = (axis.y * axisTimesOneMinusCos.y + cosA) * scale.y;
+  scaleRotTransMat[1][2] = (axis.y * axisTimesOneMinusCos.z + sinA * axis.x) * scale.y;
+  scaleRotTransMat[1][3] = 0;
+
+  scaleRotTransMat[2][0] = (axis.z * axisTimesOneMinusCos.x + sinA * axis.y) * scale.z;
+  scaleRotTransMat[2][1] = (axis.z * axisTimesOneMinusCos.y - sinA * axis.x) * scale.z;
+  scaleRotTransMat[2][2] = (axis.z * axisTimesOneMinusCos.z + cosA) * scale.z;
+  scaleRotTransMat[2][3] = 0;
+
+  scaleRotTransMat.translation.xyz = translation;
+  scaleRotTransMat[3][3] = 1.0f;
+
+  return scaleRotTransMat;
+}
+
+inline mat4 scaleRotTrans_mat4(const vec3& scale, const quaternion& q, const vec3& translation) {
+  mat4 scaleRotTransMat;
+  scaleRotTransMat.xTransform.xyz = (q * vec3{1.0f, 0.0f, 0.0f}) * scale.x;
+  scaleRotTransMat.yTransform.xyz = (q * vec3{0.0f, 1.0f, 0.0f}) * scale.y;
+  scaleRotTransMat.zTransform.xyz = (q * vec3{0.0f, 0.0f, 1.0f}) * scale.z;
+  scaleRotTransMat.translation.xyz = translation;
+
+  scaleRotTransMat[0][3] = 0.0f;
+  scaleRotTransMat[1][3] = 0.0f;
+  scaleRotTransMat[2][3] = 0.0f;
+  scaleRotTransMat[3][3] = 1.0f;
+
+  return scaleRotTransMat;
 }
 
 inline mat4 rotate_mat4(quaternion q) {
