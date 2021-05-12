@@ -20,11 +20,13 @@ const f32 far = 200.0f;
 const s32 skyboxActiveTextureIndex = 0;
 const s32 albedoActiveTextureIndex = 1;
 const s32 normalActiveTextureIndex = 2;
+const s32 tiledNoiseActiveTextureIndex = 3;
 
 global_variable GLuint projViewModelGlobalUBOid = 0;
+global_variable GLuint fragUBOid = 0;
 global_variable ShaderProgram stencilShader{};
-global_variable VertexAtt portalVertexAtt{};
-global_variable VertexAtt portalBackingBoxVertexAtt{};
+global_variable VertexAtt portalQuadVertexAtt{};
+global_variable VertexAtt portalBoxVertexAtt{};
 
 struct Player {
   BoundingBox boundingBox;
@@ -76,6 +78,7 @@ struct World
   f32 fov;
   f32 aspect;
   ProjectionViewModelUBO projectionViewModelUbo;
+  FragUBO fragUbo;
 };
 
 
@@ -174,8 +177,8 @@ void drawTrianglesWireframe(const VertexAtt* vertexAtt) {
   glEnable(GL_DEPTH_TEST);
 }
 
-void calcBackingBoxStencilModelMatFromPortalModelMat(const mat4& portalModelMat, mat4* outModelMat) {
-  *outModelMat = portalModelMat * scale_mat4(vec3{1.0f, PORTAL_BACKING_BOX_DEPTH, 1.0f}) * translate_mat4(-cubeFaceNegativeYCenter);
+mat4 calcBoxStencilModelMatFromPortalModelMat(const mat4& portalModelMat) {
+  return portalModelMat * scale_mat4(vec3{1.0f, PORTAL_BACKING_BOX_DEPTH, 1.0f}) * translate_mat4(-cubeFaceNegativeYCenter);
 }
 
 void drawPortal(const World* world, Portal* portal, Out b32* enteredPortal) {
@@ -194,6 +197,7 @@ void drawPortal(const World* world, Portal* portal, Out b32* enteredPortal) {
   // TODO: avoid calculating this multiple times a frame
   vec3 playerViewPosition = calcPlayerViewingPosition(&world->player);
 
+  // TODO: determining whether the portal is visible or whether the player is in the portal should maybe be done when updating player position
   b32 portalWasInFocus = portal->inFocus;
   vec3 portalCenterToPlayerView = playerViewPosition - portal->centerPosition;
   b32 portalViewableFromPosition = similarDirection(portalCenterToPlayerView, portal->normal);
@@ -207,23 +211,18 @@ void drawPortal(const World* world, Portal* portal, Out b32* enteredPortal) {
   b32 insidePortal = portalWasInFocus && !portalViewableFromPosition; // portal was in focus and now we're on the other side
 
   mat4 portalModelMat = quadModelMatrix(portal->centerPosition, portal->normal, portal->dimens.x, portal->dimens.y);
+  VertexAtt* portalVertexAtt = &portalQuadVertexAtt;
   if(portal->inFocus || insidePortal) {
-    mat4 portalBackingBoxStencilModelMat;
-    calcBackingBoxStencilModelMatFromPortalModelMat(portalModelMat, &portalBackingBoxStencilModelMat);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-    glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portalBackingBoxStencilModelMat);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    glUseProgram(stencilShader.id);
-    glStencilMask(portal->stencilMask);
-    drawTriangles(&portalBackingBoxVertexAtt);
-  } else if(portalViewableFromPosition) {
-    glStencilMask(portal->stencilMask);
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-    glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portalModelMat);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    drawTriangles(&portalVertexAtt);
+    portalModelMat = calcBoxStencilModelMatFromPortalModelMat(portalModelMat);
+    portalVertexAtt = &portalBoxVertexAtt;
   }
+
+  glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+  glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portalModelMat);
+  glBindBuffer(GL_UNIFORM_BUFFER, 0);
+  glUseProgram(stencilShader.id);
+  glStencilMask(portal->stencilMask);
+  drawTriangles(portalVertexAtt);
 
   *enteredPortal = insidePortal;
 }
@@ -256,7 +255,6 @@ void drawPortals(World* world, const u32 sceneIndex){
 
     vec3 portalNormal_viewSpace = (world->projectionViewModelUbo.view * Vec4(-portal.normal, 0.0f)).xyz;
     vec3 portalCenterPos_viewSpace = (world->projectionViewModelUbo.view * Vec4(portal.centerPosition, 1.0f)).xyz;
-    //mat4 portalProjectionMat = portalEntered ? world->projectionViewModelUbo.projection : obliquePerspective(world->projectionViewModelUbo.projection, portalNormal_viewSpace, portalCenterPos_viewSpace, far);
     mat4 portalProjectionMat = portalEntered ? world->projectionViewModelUbo.projection : obliquePerspective(world->fov, world->aspect, near, far, portalNormal_viewSpace, portalCenterPos_viewSpace);
 
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
@@ -281,18 +279,6 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
   for(u32 sceneEntityIndex = 0; sceneEntityIndex < scene->entityCount; ++sceneEntityIndex) {
     Entity* entity = &scene->entities[sceneEntityIndex];
     ShaderProgram shader = entity->shaderProgram;
-
-    // TODO: Dead logic for parent entities, bring back when looked into further
-//    vec3 absolutePos = entity->position;
-//    vec3 absoluteScale = entity->scale;
-//    Entity* traversalEntity = entity;
-//    while(traversalEntity->parentEntityIndex != NULL_INDEX) {
-//      u32 parentEntityIndex = traversalEntity->parentEntityIndex;
-//      Assert(parentEntityIndex < scene->entityCount);
-//      traversalEntity = scene->entities + parentEntityIndex;
-//      absolutePos += traversalEntity->position;
-//      absoluteScale = hadamard(traversalEntity->scale, absoluteScale);
-//    }
 
     mat4 modelMatrix = scaleRotTrans_mat4(entity->scale, vec3{0.0f, 0.0f, 1.0f}, entity->yaw, entity->position);
 
@@ -356,8 +342,8 @@ void portalScene(GLFWwindow* window) {
 
 
   VertexAtt cubePosVertexAtt = cubePosVertexAttBuffers();
-  portalVertexAtt = quadPosVertexAttBuffers(false);
-  portalBackingBoxVertexAtt = cubePosVertexAttBuffers(true, true);
+  portalQuadVertexAtt = quadPosVertexAttBuffers(false);
+  portalBoxVertexAtt = cubePosVertexAttBuffers(true, true);
 
   ShaderProgram albedoNormalTexShader = createShaderProgram(gateVertexShaderFileLoc, gateFragmentShaderFileLoc);
   ShaderProgram singleColorShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
@@ -407,15 +393,6 @@ void portalScene(GLFWwindow* window) {
     gateSceneFragUbo.directionalLightColor = {0.5f, 0.5f, 0.5f};
     gateSceneFragUbo.ambientLightColor = {0.2f, 0.2f, 0.2f};
     gateSceneFragUbo.directionalLightDirToSource = {1.0f, 1.0f, 1.0f};
-    u32 portalFragUBOBindingIndex = 1;
-    GLuint gateSceneFragUBOid;
-    glGenBuffers(1, &gateSceneFragUBOid);
-    // allocate size for buffer
-    glBindBuffer(GL_UNIFORM_BUFFER, gateSceneFragUBOid);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(gateSceneFragUbo), &gateSceneFragUbo, GL_STATIC_DRAW);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    // attach buffer to ubo binding point
-    glBindBufferRange(GL_UNIFORM_BUFFER, portalFragUBOBindingIndex, gateSceneFragUBOid, 0, sizeof(gateSceneFragUbo));
   }
 
   {
@@ -492,15 +469,38 @@ void portalScene(GLFWwindow* window) {
   glEnable(GL_STENCIL_TEST);
   glViewport(0, 0, windowExtent.width, windowExtent.height);
 
+  u32 tiledTextureId;
+  load2DTexture(tiledDisplacementTextureFileLoc, &tiledTextureId);
+  glUseProgram(albedoNormalTexShader.id);
+  bindActiveTextureSampler2d(tiledNoiseActiveTextureIndex, tiledTextureId);
+  setSampler2D(albedoNormalTexShader.id, "tiledNoiseTex", tiledNoiseActiveTextureIndex);
+
   // UBOs
   {
     glGenBuffers(1, &projViewModelGlobalUBOid);
     // allocate size for buffer
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(ProjectionViewModelUBO), NULL, GL_STREAM_DRAW);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
     // attach buffer to ubo binding point
     glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, projViewModelGlobalUBOid, 0, sizeof(ProjectionViewModelUBO));
+
+    u32 fragUBOBindingIndex = 1;
+    glGenBuffers(1, &fragUBOid);
+    // allocate size for buffer
+    glBindBuffer(GL_UNIFORM_BUFFER, fragUBOid);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(FragUBO), NULL, GL_STREAM_DRAW);
+    // attach buffer to ubo binding point
+    glBindBufferRange(GL_UNIFORM_BUFFER, fragUBOBindingIndex, fragUBOid, 0, sizeof(FragUBO));
+
+    u32 portalFragUBOBindingIndex = 2;
+    GLuint gateSceneFragUBOid;
+    glGenBuffers(1, &gateSceneFragUBOid);
+    // allocate size for buffer
+    glBindBuffer(GL_UNIFORM_BUFFER, gateSceneFragUBOid);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(gateSceneFragUbo), &gateSceneFragUbo, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    // attach buffer to ubo binding point
+    glBindBufferRange(GL_UNIFORM_BUFFER, portalFragUBOBindingIndex, gateSceneFragUBOid, 0, sizeof(gateSceneFragUbo));
   }
 
   world->stopWatch = createStopWatch();
@@ -508,6 +508,7 @@ void portalScene(GLFWwindow* window) {
   {
     loadInputStateForFrame(window);
     updateStopWatch(&world->stopWatch);
+    world->fragUbo.time = world->stopWatch.totalElapsed;
 
     vec3 playerCenter;
     vec3 playerViewPosition = calcPlayerViewingPosition(&world->player);
@@ -525,9 +526,6 @@ void portalScene(GLFWwindow* window) {
       glViewport(0, 0, windowExtent.width, windowExtent.height);
 
       adjustAspectPerspProj(&world->projectionViewModelUbo.projection, world->fov, world->aspect);
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &world->projectionViewModelUbo.projection);
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 
     // gather input
@@ -599,6 +597,9 @@ void portalScene(GLFWwindow* window) {
     // universal matrices in UBO
     glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &world->projectionViewModelUbo);
+
+    glBindBuffer(GL_UNIFORM_BUFFER, fragUBOid);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(FragUBO), &world->fragUbo);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     if(world->camera.thirdPerson) { // draw player if third person
@@ -618,7 +619,6 @@ void portalScene(GLFWwindow* window) {
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(world->player.boundingBox.diagonal, playerCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
       setUniform(singleColorShader.id, "baseColor", playerBoundingBoxColor_Red);
       drawTriangles(&cubePosVertexAtt);
 
@@ -626,7 +626,6 @@ void portalScene(GLFWwindow* window) {
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.05f, playerCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
       setUniform(singleColorShader.id, "baseColor", playerMinCoordBoxColor_Black);
       drawTriangles(&cubePosVertexAtt);
 
@@ -634,7 +633,6 @@ void portalScene(GLFWwindow* window) {
       glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, world->player.boundingBox.min);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
       setUniform(singleColorShader.id, "baseColor", playerMinCoordBoxColor_Green);
       drawTriangles(&cubePosVertexAtt);
 

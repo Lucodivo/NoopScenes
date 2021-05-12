@@ -62,7 +62,7 @@ void loadModelTexture(u32* textureId, tinygltf::Image* image, b32 inputSRGB = fa
         dataComponentComposition = GL_RGBA;
         break;
       default:
-        Assert(false);
+        InvalidCodePath;
     }
 
     glTexImage2D(GL_TEXTURE_2D, // target

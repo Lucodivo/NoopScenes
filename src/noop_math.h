@@ -1,7 +1,6 @@
 #pragma once
 
 // TODO: No optimizations have been made in this file. Ideas: intrinsics, sse, better usage of temporary memory.
-// TODO: Translation and scaling are two things that happen all the time. Create translateScale_mat4/mat3(); (maybe also rotate)
 
 #undef min
 #undef max
@@ -1166,7 +1165,7 @@ mat4 obliquePerspective(const mat4& perspectiveMat, vec3 planeNormal_viewSpace, 
           1.0f / far
   };
 
-  vec4 scaledPlane_viewSpace = ((2.0f * -oppositeFrustumCorner_viewSpace.z) / dot(plane_viewSpace, oppositeFrustumCorner_viewSpace)) * plane_viewSpace;
+  vec4 scaledPlane_viewSpace = ((-2.0f * oppositeFrustumCorner_viewSpace.z) / dot(plane_viewSpace, oppositeFrustumCorner_viewSpace)) * plane_viewSpace;
 
   persp[0][2] = scaledPlane_viewSpace.x;
   persp[1][2] = scaledPlane_viewSpace.y;
@@ -1196,7 +1195,7 @@ mat4 obliquePerspective(f32 fovVert, f32 aspect, f32 near, f32 far, vec3 planeNo
           1.0f / far
   };
 
-  vec4 scaledPlane_viewSpace = ((2.0f * -oppositeFrustumCorner_viewSpace.z) / dot(plane_viewSpace, oppositeFrustumCorner_viewSpace)) * plane_viewSpace;
+  vec4 scaledPlane_viewSpace = ((-2.0f * oppositeFrustumCorner_viewSpace.z) / dot(plane_viewSpace, oppositeFrustumCorner_viewSpace)) * plane_viewSpace;
 
   mat4 resultMat = {
           (c / aspect), 0.0f, scaledPlane_viewSpace.x, 0.0f,

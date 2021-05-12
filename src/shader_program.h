@@ -26,6 +26,7 @@ ShaderProgram createShaderProgram(const char* vertexPath, const char* fragmentPa
     char infoLog[512];
     glGetProgramInfoLog(shaderProgram.id, 512, NULL, infoLog);
     std::cout << "ERROR::PROGRAM::SHADER::LINK_FAILED\n" << infoLog << std::endl;
+    exit(-1);
   }
 
   glDetachShader(shaderProgram.id, shaderProgram.vertexShader);

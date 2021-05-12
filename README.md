@@ -178,6 +178,9 @@ layout (location = 6) in float instScale;
 
 ### Special Thanks
 
+#### Model Textures
+- [FreePBR](https://freepbr.com/)
+
 #### Environment Skyboxes
 - [3delyvisions](https://opengameart.org/content/elyvisions-skyboxes)
 - [Xonotic](https://opengameart.org/content/xonotic-skyboxes)

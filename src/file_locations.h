@@ -13,6 +13,11 @@ const char* gateVertexShaderFileLoc = COMMON_SHADER_BASE"Gate.vert";
 const char* blackFragmentShaderFileLoc = COMMON_SHADER_BASE"Black.frag";
 const char* posNormVertexShaderFileLoc = COMMON_SHADER_BASE"PosNorm.vert";
 const char* reflectSkyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"ReflectSkyboxYIsUp.frag";
+const char* refractSkyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"RefractSkyboxYIsUp.frag";
+
+// Textures
+#define COMMON_TEXTURE_BASE "src/data/textures/"
+const char* tiledDisplacementTextureFileLoc = COMMON_TEXTURE_BASE"tiled_musgrave_texture_1.png";
 
 // Skybox Cube Map textures
 #define skybox(folder, extension) {  \
