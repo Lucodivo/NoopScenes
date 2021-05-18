@@ -19,25 +19,27 @@ uniform sampler2D albedoTex;
 uniform sampler2D normalTex;
 uniform sampler2D tiledNoiseTex;
 
+const float noiseStength = 40.0;
+
 layout (location = 0) out vec4 outColor;
 
 vec3 getNormal(vec2 texCoord);
 
 void main() {
-  vec2 time = vec2(fragUbo.time * 5.0);
+  vec2 time = vec2(fragUbo.time * 10.0);
   vec2 albedoTexSize = textureSize(albedoTex, 0);
   vec2 tiledNoiseTexSize = textureSize(tiledNoiseTex, 0);
 
-  vec2 texCoordTime = inTexCoord + (time / albedoTexSize);
+  vec2 noiseTexCoord = ((inTexCoord * albedoTexSize) / tiledNoiseTexSize) + (vec2(-time.x, time.y) / tiledNoiseTexSize);
+  float noise = texture(tiledNoiseTex, noiseTexCoord * 0.4).r;
+  noise = (noise - 0.5) * 2.0; // [-1,1]
+  noise = noise * noiseStength;
+  vec2 texCoordNoise = inTexCoord + (vec2(noise) / albedoTexSize);
+  vec2 texCoordNoiseTime = texCoordNoise + (time / albedoTexSize);
 
-  vec2 noiseTexCoord = (inTexCoord * albedoTexSize) / tiledNoiseTexSize;
-  float noise = texture(tiledNoiseTex, inTexCoord + (vec2(-time.x, time.y) / tiledNoiseTexSize)).r;
-  noise = noise - 0.5;
-  vec2 texCoordTimeNoise = inTexCoord + (vec2(noise) * tiledNoiseTexSize / albedoTexSize) * 0.005;
+  vec3 albedoColor = texture(albedoTex, texCoordNoiseTime).rgb;
 
-  vec3 albedoColor = texture(albedoTex, texCoordTimeNoise).rgb;
-
-  vec3 surfaceNormal = getNormal(texCoordTimeNoise);
+  vec3 surfaceNormal = getNormal(texCoordNoiseTime);
   float directLightContribution = max(dot(surfaceNormal, lightInfoUbo.directionalLightDirToSource), 0.0);
   vec3 lightContribution = vec3(lightInfoUbo.ambientLightColor + (lightInfoUbo.directionalLightColor * directLightContribution));
   outColor = vec4(lightContribution * albedoColor, 1.0);

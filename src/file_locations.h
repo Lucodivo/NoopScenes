@@ -17,7 +17,7 @@ const char* refractSkyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"RefractSkybo
 
 // Textures
 #define COMMON_TEXTURE_BASE "src/data/textures/"
-const char* tiledDisplacementTextureFileLoc = COMMON_TEXTURE_BASE"tiled_musgrave_texture_1.png";
+const char* tiledDisplacement1TextureFileLoc = COMMON_TEXTURE_BASE"tiled_musgrave_texture_1_blur.png";
 
 // Skybox Cube Map textures
 #define skybox(folder, extension) {  \

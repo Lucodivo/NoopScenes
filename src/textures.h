@@ -37,7 +37,7 @@ void load2DTexture(const char* imgLocation, u32* textureId, bool flipImageVert =
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // disables bilinear filtering (creates sharp edges when magnifying texture)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
   // load image data
   s32 w, h, numChannels;
@@ -75,6 +75,7 @@ void load2DTexture(const char* imgLocation, u32* textureId, bool flipImageVert =
                  dataComponentComposition, // How are the components of the data composed
                  GL_UNSIGNED_BYTE, // specifies data type of pixel data
                  data); // pointer to the image data
+    glGenerateMipmap(GL_TEXTURE_2D);
 
     if (width != NULL) *width = w;
     if (height != NULL) *height = h;
@@ -141,8 +142,8 @@ Framebuffer initializeFramebuffer(vec2_u32 framebufferExtent, FramebufferCreatio
   glActiveTexture(GL_TEXTURE0);
   glGetIntegerv(GL_TEXTURE_BINDING_2D, &originalTexture0);
   glBindTexture(GL_TEXTURE_2D, resultBuffer.colorAttachment);
-  GLint ernalFormat = (flags & FramebufferCreate_color_sRGB) ? GL_SRGB : GL_RGB;
-  glTexImage2D(GL_TEXTURE_2D, 0/*LoD*/, ernalFormat, framebufferExtent.width, framebufferExtent.height, 0/*border*/, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+  GLint internalFormat = (flags & FramebufferCreate_color_sRGB) ? GL_SRGB : GL_RGB;
+  glTexImage2D(GL_TEXTURE_2D, 0/*LoD*/, internalFormat, framebufferExtent.width, framebufferExtent.height, 0/*border*/, GL_RGB, GL_UNSIGNED_BYTE, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
