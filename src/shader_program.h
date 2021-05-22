@@ -42,6 +42,12 @@ void deleteShaderProgram(ShaderProgram shaderProgram)
   glDeleteProgram(shaderProgram.id);
 }
 
+void deleteShaderPrograms(ShaderProgram* shaderPrograms, u32 count) {
+  for(u32 i = 0; i < count; i++) {
+    deleteShaderProgram(shaderPrograms[i]);
+  }
+}
+
 // utility uniform functions
 inline void setUniform(GLuint shaderId, const std::string& name, bool value)
 {

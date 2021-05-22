@@ -3,7 +3,6 @@
 #define VIEWPORT_INIT_WIDTH 1920
 #define VIEWPORT_INIT_HEIGHT 1080
 
-int main();
 void loadGLFW();
 GLFWwindow* createWindow();
 void initializeGLAD();
