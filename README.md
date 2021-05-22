@@ -1,10 +1,17 @@
 ## Purpose
 
-The spirit of the creation of this project is to experiment with creating 3D scenes while attempting to play outside of
-the OOP mindset where I have control. This is not due to a belief that objects or classes are bad, but as an attempt to
-not limit my thought process to a single way of creating software. It is about personal experimentation and investigation.
+The spirit of the creation of this project was to experiment with creating 3D scenes while attempting to play outside of
+the OOP mindset where I have control. This was not due to a belief that objects or classes are bad, but as an attempt to
+not limit my thought process to a single way of creating software. It was about personal experimentation and investigation.
 In the future, I ideally use classes for things I know they are wonderful at and use a better tool for things they aren't.
-At the time of starting this project I feel fairly tied down to the OOP way of thinking.
+At the time of starting this project I felt fairly tied down to the OOP way of thinking.
+
+### Final Result
+
+The final result is a scene containing a "gate" with portals that lead to other space-defying scenes. \
+[Here is a YouTube video link that shows the final result of the project.](https://www.youtube.com/watch?v=iAz9by0D5xM) \
+The following is a single snapshot (although unable to really capture the project):
+![Noop Scenes Example](https://raw.githubusercontent.com/Lucodivo/RepoSampleImages/master/NoopScenes/octahedron.png)
 
 ### Building
 1) Cloning the project will include most dependencies: [tinygltf](https://github.com/syoyo/tinygltf), [stb](https://github.com/nothings/stb), [glad](https://github.com/Dav1dde/glad), [json](https://github.com/nlohmann/json#examples)
@@ -39,6 +46,9 @@ the working directory is at the root directory.
 ### Standards
 *In this project, consistency is often valued over absolute best convention.*
 
+#### Testing
+- Tests were written as a separate project and are exclusively for testing the custom math written for this project.
+
 #### Dimensions
 - Any dimensions/positions in the code will always refer to length in meters where a concrete unit matters.
 
@@ -49,13 +59,13 @@ the working directory is at the root directory.
 
 
 #### Coordinate System
-- Right handed-coordinate system with the z-axis representing the upward/downward movement. Although mostly
-  arbitrary, here are my justifications:
-    - Blender and the gltf file format use right-handed coordinate systems and are used for this project
-    - ~~Z is up is used in Blender and is a tool used for this project~~ [Working in Blender uses Z-up but Blender exports Y-up by default]
-    - Shortening a 3D vector to a 2D by cutting off the third value (z) to acquire "ground coordinates" is appealing
-- Negatives:
-    - When accessing `samplerCube` textures in OpenGL, adjustments need to be made to ensure Y is actually "up".
+- Right handed-coordinate system with the z-axis representing the upward/downward movement. 
+    - Although mostly arbitrary, here are my justifications:
+        - Blender and the gltf file format use right-handed coordinate systems and are used for this project.
+        - ~~Z is up is used in Blender and is a tool used for this project.~~ [Working in Blender uses Z-up but Blender exports Y-up by default.]
+        - Shortening a 3D vector to a 2D by cutting off the third value (z) to acquire "ground coordinates" is appealing.
+    - And the negatives:
+        - When accessing `samplerCube` textures in OpenGL, adjustments need to be made to ensure Y is actually "up".
     
 #### Etc.
 - If a function argument may be modified in the function, it will be passed in as a pointer type.
@@ -81,12 +91,12 @@ void main() {
 ```
 
 #### Vertex & Fragment Shaders
+- Standards for vertex/fragment shaders make it so that swapping in/out shaders is as simple as possible
 - Using binding points for uniform buffer objects requires us to use at least GLSL #version 420
 
 Vertex attribute input variables:
 - According to documentation for glGet, GL_MAX_VERTEX_ATTRIBS must be at least 16.
 - Four indices are reserved and will be using the following naming convention.
-
 ```
 layout(location = 0) in vec3 inPos;
 layout(location = 1) in vec3 inNormal;
@@ -101,7 +111,6 @@ Vertex uniform variables:
   - [Reference on GLSL structure alignment - LearnOpenGL: Advanced GLSL](https://learnopengl.com/Advanced-OpenGL/Advanced-GLSL)
   - [Reference for C/C++ structure packing - The Lost Art of Structure Packing by Eric S. Raymond](http://www.catb.org/esr/structure-packing/)
 - Also be cognizant of the use of `vec3` and float arrays as they can easily lead to mismatched packing between C++/GLSL
-
 ```
 // glsl vertex shader
 layout (binding = 0, std140) uniform UBO { // base alignment   // aligned offset
@@ -131,7 +140,6 @@ Vertex/Fragment shader output/input variables:
 - Three layout location indices currently reserved for output/input vertex/fragment shader variables for normals, 
   texture coordinates, and color.
 - The following naming convention and explicit prefix with layout location is enforced.
-
 ```
 // glsl vertex shader
 layout (location = 0) out vec3 outNormal;
@@ -155,7 +163,6 @@ uniform sampler2D noiseTexture
 Fragment shader output variables:
 - No indices currently reserved for fragment shaders as render buffers vary greatly.
 - The following naming convention and explicit prefix of layout location is enforced.
-
 ```
 layout (location = 0) out vec4 outColor;
 layout (location = 1) out vec4 outPosition;
@@ -163,12 +170,9 @@ layout (location = 2) out vec4 outNormal;
 layout (location = 3) out vec4 outAlbedo;
 ```
 
-
-#### ⚠️WORK IN PROGRESS STANDARDS⚠️
-
 Vertex instance input variables:
 - No indices currently reserved for input instance variables.
-
+- The following naming convention and explicit prefix of layout location is enforced.
 ```
 layout (location = 4) in vec3 instPos;
 layout (location = 5) in vec3 instRot;
@@ -186,3 +190,7 @@ layout (location = 6) in float instScale;
 - [Xonotic](https://opengameart.org/content/xonotic-skyboxes)
 - [Ulukai - Jonathan Denil](https://opengameart.org/content/ulukais-space-skyboxes)
 - [Mayhem](https://opengameart.org/content/mayhems-skyboxes)
+
+#### Papers
+- [Oblique View Frustum Depth Projection and Clipping by Eric Lengyel](http://www.terathon.com/lengyel/Lengyel-Oblique.pdf)
+- [How scrolling textures gave Super Mario Galaxy 2 its charm by Jasper](https://www.youtube.com/watch?v=8rCRsOLiO7k)

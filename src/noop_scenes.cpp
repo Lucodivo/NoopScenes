@@ -53,7 +53,7 @@ GLFWwindow* createWindow()
   // create window
   GLFWwindow* window = glfwCreateWindow(VIEWPORT_INIT_WIDTH, // int Width
                                         VIEWPORT_INIT_HEIGHT, // int Height
-                                        "LearnOpenGL", // const char* Title
+                                        "Noop Scenes", // const char* Title
                                         NULL, // GLFWmonitor* Monitor: Specified for which monitor for fullscreen, NULL for windowed mode
                                         NULL); // GLFWwindow* Share: window to share resources with
   if (window == NULL)
