@@ -3,10 +3,10 @@ layout(location = 0) in vec3 inPos;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inTexCoord;
 
-layout (binding = 0, std140) uniform UBO { // base alignment   // aligned offset
-  mat4 projection;                         // 64               // 0
-  mat4 view;                               // 64               // 64
-  mat4 model;                              // 64             // 128
+layout (binding = 0, std140) uniform UBO {
+  mat4 projection;
+  mat4 view;
+  mat4 model;
 } ubo;
 
 layout (location = 0) out vec3 outNormal;

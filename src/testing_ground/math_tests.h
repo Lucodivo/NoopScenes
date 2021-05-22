@@ -1,51 +1,55 @@
 #pragma once
+#include <math.h>
+#include <stdio.h>
+#include <windows.h>
+#undef near
+#undef far
 
+#include "../noop_types.h"
 #include "../noop_math.h"
 
-#include <stdio.h>
+global_variable HANDLE hConsole;
+
+enum ConsoleTextColor {
+  TEXT_ATT_GREEN_TEXT = 10,
+  TEXT_ATT_RED_TEXT = 12,
+  TEXT_ATT_WHITE_TEXT = 15,
+};
+
+void setConsoleTextColor(ConsoleTextColor color = TEXT_ATT_WHITE_TEXT) {
+  SetConsoleTextAttribute(hConsole, color);
+}
+
+void init() {
+  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+  setConsoleTextColor(TEXT_ATT_WHITE_TEXT);
+}
+
+void printVec3(const vec3& v) {
+  printf("[%4.2f, %4.2f, %4.2f]\n", v.x, v.y, v.z);
+}
+
+void printVec3(const char* name, const vec3& v) {
+  printf("%s: [%4.2f, %4.2f, %4.2f]\n", name, v.x, v.y, v.z);
+}
+
+void printVec4(const vec4& v) {
+  printf("[%4.2f, %4.2f, %4.2f, %4.2f]\n", v.x, v.y, v.z, v.w);
+}
 
 void printVec4(const char* name, const vec4& v) {
   printf("%s: [%4.2f, %4.2f, %4.2f, %4.2f]\n", name, v.x, v.y, v.z, v.w);
 }
 
 void printMat4(const char* name, const mat4& M) {
-  printf("===%s (transposed)===", name);
-  char* columnString = "column X";
+  printf("===%s===\n", name);
   for(u32 i = 0; i < 4; i++) {
-    columnString[7] = '0' + i;
-    printVec4(columnString, M.col[0]);
+    printVec4(M.col[i]);
   }
-}
-
-b32 equals(const vec4& v1, const vec4& v2, f32 epsilon = 0.001f) {
-  b32 pass = true;
-  for(u32 i = 0; i < 4; ++i) {
-    f32 diff = (v1.c[i] - v2.c[i]);
-    pass = pass && (diff <= epsilon && diff >= -epsilon);
-  }
-  return pass;
-}
-
-b32 equals(const vec3& v1, const vec3& v2, f32 epsilon = 0.001f) {
-  b32 pass = true;
-  for(u32 i = 0; i < 3; ++i) {
-    f32 diff = (v1.c[i] - v2.c[i]);
-    pass = pass && (diff <= epsilon && diff >= -epsilon);
-  }
-  return pass;
-}
-
-b32 equals(const mat4& A, const mat4& B) {
-  b32 pass = true;
-  for(u32 i = 0; i < 4; ++i)
-  {
-    pass = pass && equals(A.col[i], B.col[i]);
-  }
-  return pass;
 }
 
 b32 printIfNotEqual(const mat4& A, const mat4& B) {
-  b32 equal = equals(A, B);
+  b32 equal = A == B;
   if(!equal) {
     printf("Two mat4s are not equal");
     printMat4("mat1", A);
@@ -55,7 +59,7 @@ b32 printIfNotEqual(const mat4& A, const mat4& B) {
 }
 
 b32 printIfNotEqual(const vec4& v1, const vec4& v2) {
-  b32 equal = equals(v1, v2);
+  b32 equal = v1 == v2;
   if(!equal) {
     printf("Two vec4s are not equal");
     printVec4("vec1", v1);
@@ -129,10 +133,52 @@ void mat4RotateTest() {
   vec4 rotatedZ = rotationMat * z;
   vec4 rotatedAxis = rotationMat * vec4{rotationAxis.x, rotationAxis.y, rotationAxis.y, 1.0f};
 
-  Assert(equals(rotatedX, y));
-  Assert(equals(rotatedY, z));
-  Assert(equals(rotatedZ, x));
-  Assert(equals(rotatedAxis.xyz, rotationAxis));
+  Assert(rotatedX == y);
+  Assert(rotatedY == z);
+  Assert(rotatedZ == x);
+  Assert(rotatedAxis.xyz == rotationAxis);
+}
+
+void complexVec2RotationTest(){
+  vec2 x{1.0f, 0.0f};
+  vec2 y{0.0f, 1.0f};
+  complex c0 = Complex(0.0f);
+  complex c30 = Complex(30.0f * RadiansPerDegree);
+  complex c45 = Complex(45.0f * RadiansPerDegree);
+  complex c60 = Complex(60.0f * RadiansPerDegree);
+  complex c90 = Complex(90.0f * RadiansPerDegree);
+  vec2 expectedRotatedX0 = x;
+  vec2 expectedRotatedX30 = {cos30, sin30};
+  vec2 expectedRotatedX45 = {cos45, sin45};
+  vec2 expectedRotatedX60 = {cos60, sin60};
+  vec2 expectedRotatedX90 = y;
+  vec2 expectedRotatedY0 = y;
+  vec2 expectedRotatedY30 = {-sin30, cos30};
+  vec2 expectedRotatedY45 = {-sin45, cos45};
+  vec2 expectedRotatedY60 = {-sin60, cos60};
+  vec2 expectedRotatedY90 = -x;
+
+  vec2 rotatedX0 = c0 * x;
+  vec2 rotatedX30 = c30 * x;
+  vec2 rotatedX45 = c45 * x;
+  vec2 rotatedX60 = c60 * x;
+  vec2 rotatedX90 = c90 * x;
+  vec2 rotatedY0 = c0 * y;
+  vec2 rotatedY30 = c30 * y;
+  vec2 rotatedY45 = c45 * y;
+  vec2 rotatedY60 = c60 * y;
+  vec2 rotatedY90 = c90 * y;
+
+  Assert(rotatedX0 == expectedRotatedX0);
+  Assert(rotatedX30 == expectedRotatedX30);
+  Assert(rotatedX45 == expectedRotatedX45);
+  Assert(rotatedX60 == expectedRotatedX60);
+  Assert(rotatedX90 == expectedRotatedX90);
+  Assert(rotatedY0 == expectedRotatedY0);
+  Assert(rotatedY30 == expectedRotatedY30);
+  Assert(rotatedY45 == expectedRotatedY45);
+  Assert(rotatedY60 == expectedRotatedY60);
+  Assert(rotatedY90 == expectedRotatedY90);
 }
 
 void quaternionVec3RotationTest(){
@@ -142,17 +188,17 @@ void quaternionVec3RotationTest(){
   vec3 y{0.0f, 1.0f, 0.0f};
   vec3 z{0.0f, 0.0f, 1.0f};
 
-  quaternion q = Quaternion(angle, rotationAxis);
+  quaternion q = Quaternion(rotationAxis, angle);
 
   vec3 rotatedX = q * x;
   vec3 rotatedY = q * y;
   vec3 rotatedZ = q * z;
   vec3 rotatedAxis = q * rotationAxis;
 
-  Assert(equals(rotatedX, y));
-  Assert(equals(rotatedY, z));
-  Assert(equals(rotatedZ, x));
-  Assert(equals(rotatedAxis, rotationAxis));
+  Assert(rotatedX == y);
+  Assert(rotatedY == z);
+  Assert(rotatedZ == x);
+  Assert(rotatedAxis == rotationAxis);
 }
 
 void crossProductTest() {
@@ -167,18 +213,18 @@ void crossProductTest() {
   vec3 zCrossX = cross(z, x);
   vec3 zCrossY = cross(z, y);
 
-  Assert(equals(xCrossY, z));
-  Assert(equals(xCrossZ, -y));
-  Assert(equals(yCrossZ, x));
-  Assert(equals(yCrossX, -z));
-  Assert(equals(zCrossX, y));
-  Assert(equals(zCrossY, -x));
+  Assert(xCrossY == z);
+  Assert(xCrossZ == -y);
+  Assert(yCrossZ == x);
+  Assert(yCrossX == -z);
+  Assert(zCrossX == y);
+  Assert(zCrossY == -x);
 }
 
 void slerpTest() {
   vec3 rotationAxis{0.0f, 0.0f, 1.0f};
   quaternion q1 = identity_quaternion();
-  quaternion q2 = Quaternion(RadiansPerDegree * 90, rotationAxis);
+  quaternion q2 = Quaternion(rotationAxis, RadiansPerDegree * 90);
   vec3 vector{1.0f, 0.0f, 0.0f};
   vec3 expectedVectorZero = vector;
   vec3 expectedVectorThirtyOverNinety{cos30, sin30, 0.0f};
@@ -197,14 +243,14 @@ void slerpTest() {
   vec3 vectorSixetyOverNinety = qSixetyOverNinety * vector;
   vec3 vectorOne = qOne * vector;
 
-  Assert(equals(vectorZero, expectedVectorZero));
-  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety));
-  Assert(equals(vectorHalf, expectedVectorHalf));
-  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety));
-  Assert(equals(vectorOne, expectedVectorOne));
+  Assert(vectorZero == expectedVectorZero);
+  Assert(vectorThirtyOver90 == expectedVectorThirtyOverNinety);
+  Assert(vectorHalf == expectedVectorHalf);
+  Assert(vectorSixetyOverNinety == expectedSixetyOverNinety);
+  Assert(vectorOne == expectedVectorOne);
 
   // also test counter-clockwise slerp works as intended
-  quaternion q3 = Quaternion(RadiansPerDegree * -90, rotationAxis);
+  quaternion q3 = Quaternion(rotationAxis, RadiansPerDegree * -90);
   expectedVectorZero = vector;
   expectedVectorThirtyOverNinety = {cos30, -sin30, 0.0f};
   expectedVectorHalf = {cos45, -sin45, 0.0f};
@@ -222,11 +268,11 @@ void slerpTest() {
   vectorSixetyOverNinety = qSixetyOverNinety * vector;
   vectorOne = qOne * vector;
 
-  Assert(equals(vectorZero, expectedVectorZero));
-  Assert(equals(vectorThirtyOver90, expectedVectorThirtyOverNinety));
-  Assert(equals(vectorHalf, expectedVectorHalf));
-  Assert(equals(vectorSixetyOverNinety, expectedSixetyOverNinety));
-  Assert(equals(vectorOne, expectedVectorOne));
+  Assert(vectorZero == expectedVectorZero);
+  Assert(vectorThirtyOver90 == expectedVectorThirtyOverNinety);
+  Assert(vectorHalf == expectedVectorHalf);
+  Assert(vectorSixetyOverNinety == expectedSixetyOverNinety);
+  Assert(vectorOne == expectedVectorOne);
 }
 
 void orthographicTest() {
@@ -239,18 +285,85 @@ void orthographicTest() {
   f32 f = 500.0f;
   vec4 expectedCanonicalViewPoint{
           (point.x - ((r + l) / 2.0f)) // move origin to center
-              * (2.0f / (r - l)), // scale desired dimens between -1 and 1
+              * (2.0f / (r - l)), // dimens desired dimens between -1 and 1
           (point.y - ((t + b) / 2.0f)) // move origin to center
-              * (2.0f / (t - b)), // scale desired dimens between -1 and 1
+              * (2.0f / (t - b)), // dimens desired dimens between -1 and 1
           (point.z - ((f + n) / 2.0f)) // move origin to center
-              * (2.0f / (f - n)), // scale desired dimens between -1 and 1
+              * (2.0f / (f - n)), // dimens desired dimens between -1 and 1
           1.0f
   };
   mat4 ortho = orthographic(l, r, b, t, n, f);
 
   vec4 transformedPoint = ortho * point;
 
-  Assert(equals(transformedPoint, expectedCanonicalViewPoint));
+  Assert(transformedPoint == expectedCanonicalViewPoint);
+}
+
+void bracketAssignmentOperatorsSanityCheck() {
+  f32 zanyWhackyNum = 123.456f;
+  u32 indexOfInterest = 1;
+  vec2 v2{};
+  vec3 v3{};
+  vec4 v4{};
+  mat3 m3{};
+  mat4 m4{};
+  quaternion q{};
+  complex c{};
+
+  v2[indexOfInterest] = zanyWhackyNum;
+  v3[indexOfInterest] = zanyWhackyNum;
+  v4[indexOfInterest] = zanyWhackyNum;
+  m3[indexOfInterest][indexOfInterest] = zanyWhackyNum;
+  m4[indexOfInterest][indexOfInterest] = zanyWhackyNum;
+  q[indexOfInterest] = zanyWhackyNum;
+  c[indexOfInterest] = zanyWhackyNum;
+
+  Assert(v2[indexOfInterest] == zanyWhackyNum);
+  Assert(v3[indexOfInterest] == zanyWhackyNum);
+  Assert(v4[indexOfInterest] == zanyWhackyNum);
+  Assert(m3[indexOfInterest][indexOfInterest] == zanyWhackyNum);
+  Assert(m4[indexOfInterest][indexOfInterest] == zanyWhackyNum);
+  Assert(q[indexOfInterest] == zanyWhackyNum);
+  Assert(c[indexOfInterest] == zanyWhackyNum);
+}
+
+void quaternionOrientTest() {
+  vec3 orientation1 = normalize(1.0f, 1.0f, 1.0f);
+  vec3 orientation2 = normalize(1.0, 3.0f, -6.0f);
+  quaternion orientQuaternion1to2 = orient(orientation1, orientation2);
+  quaternion orientQuaternion2to1 = orient(orientation2, orientation1);
+  mat3 matrix1to2 = rotate_mat3(orientQuaternion1to2);
+  mat3 matrix2to1 = rotate_mat3(orientQuaternion2to1);
+
+  vec3 resultOrientationQuaternion1to2 = orientQuaternion1to2 * orientation1;
+  vec3 resultOrientationQuaternion2to1 = orientQuaternion2to1 * orientation2;
+  vec3 resultOrientationMat1to2 = matrix1to2 * orientation1;
+  vec3 resultOrientationMat2to1 = matrix2to1 * orientation2;
+
+  Assert(resultOrientationQuaternion1to2 == orientation2);
+  Assert(resultOrientationQuaternion2to1 == orientation1);
+  Assert(resultOrientationMat1to2 == orientation2);
+  Assert(resultOrientationMat2to1 == orientation1);
+}
+
+void inversePerspectiveTests() {
+  f32 l = 10.0f;
+  f32 r = 30.0f;
+  f32 b = -50.0f;
+  f32 t = 50.0f;
+  f32 n = 1.0f;
+  f32 f = 70.0f;
+  f32 fovy = fieldOfView(13.5f, 25.0f);
+  f32 aspect = 1920.0f / 1080.0f;
+  mat4 perspLRBT = perspective(l, r, b, t, n, f);
+  mat4 perspFOV = perspective(fovy, aspect, n, f);
+  mat4 inverseLRBT = perspectiveInverse(l, r, b, t, n, f);
+  mat4 inverseFOV = perspectiveInverse(fovy, aspect, n, f);
+
+  mat4 shouldBeIdentityLRBT = inverseLRBT * perspLRBT;
+  printIfNotEqual(shouldBeIdentityLRBT, identity_mat4());
+  mat4 shouldBeIdentityFOV = inverseFOV * perspFOV;
+  printIfNotEqual(shouldBeIdentityFOV, identity_mat4());
 }
 
 void runAllMathTests()
@@ -259,12 +372,17 @@ void runAllMathTests()
   mat4Vec4MultTest();
   mat4MultTest();
   mat4RotateTest();
+  complexVec2RotationTest();
   quaternionVec3RotationTest();
   crossProductTest();
   slerpTest();
   orthographicTest();
+  bracketAssignmentOperatorsSanityCheck();
+  quaternionOrientTest();
+  inversePerspectiveTests();
 }
 
 void runMathTests() {
-//  runAllMathTests();
+  init();
+  runAllMathTests();
 }

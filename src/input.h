@@ -1,17 +1,7 @@
 #pragma once
 
-#define GLFW_INCLUDE_NONE // ensure GLFW doesn't load OpenGL headers
-#include <glfw3.h>
-
-#include "noop_types.h"
-
-typedef void (*WindowSizeCallback)(void);
-
-struct ControllerAnalogStick
-{
-  s16 x;
-  s16 y;
-};
+#define WINDOW_SIZE_CALLBACK(name) void name(void)
+typedef WINDOW_SIZE_CALLBACK(windows_size_callback);
 
 /*
  * These enums are used for array indices
@@ -20,15 +10,9 @@ struct ControllerAnalogStick
  */
 enum InputType
 {
-  KeyboardInput_Q = 0,
-
-  KeyboardInput_W, KeyboardInput_E, KeyboardInput_R,
-  KeyboardInput_A, KeyboardInput_S, KeyboardInput_D, KeyboardInput_F,
-  KeyboardInput_J, KeyboardInput_K, KeyboardInput_L, KeyboardInput_Semicolon,
-  KeyboardInput_Shift_Left, KeyboardInput_Ctrl_Left, KeyboardInput_Alt_Left, KeyboardInput_Tab,
-  KeyboardInput_Shift_Right, KeyboardInput_Ctrl_Right, KeyboardInput_Alt_Right, KeyboardInput_Enter,
-  KeyboardInput_Esc, KeyboardInput_Backtick, KeyboardInput_1, KeyboardInput_2, KeyboardInput_3,
-  KeyboardInput_Up, KeyboardInput_Down, KeyboardInput_Left, KeyboardInput_Right, KeyboardInput_Space,
+#define KeyboardInput(name, input_code) KeyboardInput_##name,
+#include "keyboard_input_list.inc"
+#undef KeyboardInput
 
   MouseInput_Left, MouseInput_Right, MouseInput_Middle, MouseInput_Back, MouseInput_Forward,
   MouseInput_Scroll, MouseInput_Movement,
@@ -54,24 +38,24 @@ void initializeInput(GLFWwindow* window);
 void deinitializeInput(GLFWwindow* window);
 void loadInputStateForFrame(GLFWwindow* window);
 
-inline b32 hotPress(InputType key); // returns true if input was just activated
-inline b32 hotRelease(InputType key); // returns true if input was just deactivated
-inline b32 isActive(InputType key); // returns true if key is pressed or held down
-inline InputState getInputState(InputType key); // Note: for special use cases (ex: double click), use hotPress/hotRelease/isActive in most cases
+b32 hotPress(InputType key); // returns true if input was just activated
+b32 hotRelease(InputType key); // returns true if input was just deactivated
+b32 isActive(InputType key); // returns true if key is pressed or held down
+InputState getInputState(InputType key); // Note: for special use cases (ex: double click), use hotPress/hotRelease/isActive in most cases
 
-inline vec2_64 getMousePosition();
-inline vec2_64 getMouseDelta();
-inline f32 getMouseScrollY();
-inline s8 getControllerTriggerRaw_Left(); // NOTE: values range from 0 - 225 (255 minus trigger threshold)
-inline s8 getControllerTriggerRaw_Right(); // NOTE: values range from 0 - 225 (255 minus trigger threshold)
-inline f32 getControllerTrigger_Left(); // NOTE: values range from 0.0 - 1.0
-inline f32 getControllerTrigger_Right(); // NOTE: values range from 0.0 - 1.0
-inline Extent2D getWindowExtent();
-inline ControllerAnalogStick getControllerAnalogStickLeft();
-inline ControllerAnalogStick getControllerAnalogStickRight();
+vec2_f64 getMousePosition();
+vec2_f64 getMouseDelta();
+f32 getMouseScrollY();
+s8 getControllerTriggerRaw_Left(); // NOTE: values range from 0 - 225 (255 minus trigger threshold)
+s8 getControllerTriggerRaw_Right(); // NOTE: values range from 0 - 225 (255 minus trigger threshold)
+f32 getControllerTrigger_Left(); // NOTE: values range from 0.0 - 1.0
+f32 getControllerTrigger_Right(); // NOTE: values range from 0.0 - 1.0
+vec2_u32 getWindowExtent();
+vec2_s16 getControllerAnalogStickLeft();
+vec2_s16 getControllerAnalogStickRight();
 
 void enableCursor(GLFWwindow* window, b32 enable);
 b32 isCursorEnabled(GLFWwindow* window);
 
 // NOTE: Call with NULL to unsubscribe
-void subscribeWindowSizeCallback(WindowSizeCallback callback);
+void subscribeWindowSizeCallback(windows_size_callback callback);

@@ -8,12 +8,14 @@ f32 getTime() {
 }
 
 struct StopWatch {
+  f32 totalElapsed;
   f32 lastFrame;
   f32 delta;
 };
 
 StopWatch createStopWatch() {
   StopWatch stopWatch;
+  stopWatch.totalElapsed = 0.0f;
   stopWatch.lastFrame = getTime();
   stopWatch.delta = 0.0f;
   return stopWatch;
@@ -23,4 +25,5 @@ void updateStopWatch(StopWatch* stopWatch) {
   f32 t = getTime();
   stopWatch->delta = t - stopWatch->lastFrame;
   stopWatch->lastFrame = t;
+  stopWatch->totalElapsed += stopWatch->delta;
 }

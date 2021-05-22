@@ -6,17 +6,17 @@ void toWindowedMode(GLFWwindow* window, const u32 width, const u32 height) {
   glfwSetWindowMonitor(window, NULL/*Null for windowed mode*/, centeringUpperLeftX, centeringUpperLeftY, width, height, GLFW_DONT_CARE);
 }
 
-Extent2D toFullScreenMode(GLFWwindow* window) {
+vec2_u32 toFullScreenMode(GLFWwindow* window) {
   GLFWmonitor* monitor = glfwGetPrimaryMonitor();
   const GLFWvidmode* mode = glfwGetVideoMode(monitor);
   glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, GLFW_DONT_CARE);
-  return Extent2D{ (u32)Max(0, mode->width), (u32)Max(0, mode->height) };
+  return vec2_u32{(u32)Max(0, mode->width), (u32)Max(0, mode->height) };
 }
 
-Extent2D toggleWindowSize(GLFWwindow* window, const u32 width, const u32 height)
+vec2_u32 toggleWindowSize(GLFWwindow* window, const u32 width, const u32 height)
 {
-  Extent2D resultWindowExtent{ width, height };
-  local_access bool windowMode = true;
+  vec2_u32 resultWindowExtent{width, height };
+  func_persist bool windowMode = true;
   if (windowMode) {
     resultWindowExtent = toFullScreenMode(window);
   } else{

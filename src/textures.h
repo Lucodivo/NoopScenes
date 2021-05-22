@@ -1,15 +1,12 @@
 #pragma once
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
 #define NO_FRAMEBUFFER_ATTACHMENT 0
 
 struct Framebuffer {
   u32 id;
   u32 colorAttachment;
   u32 depthStencilAttachment;
-  Extent2D extent;
+  vec2_u32 extent;
 };
 
 enum FramebufferCreationFlags {
@@ -18,7 +15,7 @@ enum FramebufferCreationFlags {
   FramebufferCreate_color_sRGB = 1 << 1,
 };
 
-file_access inline void bindActiveTexture(s32 activeIndex, GLuint textureId, GLenum target) {
+internal_func inline void bindActiveTexture(s32 activeIndex, GLuint textureId, GLenum target) {
   glActiveTexture(GL_TEXTURE0 + activeIndex);
   glBindTexture(target, textureId);
 }
@@ -31,15 +28,16 @@ void inline bindActiveTextureCubeMap(s32 activeIndex, GLuint textureId) {
   bindActiveTexture(activeIndex, textureId, GL_TEXTURE_CUBE_MAP);
 }
 
-void load2DTexture(const char* imgLocation, u32& textureId, bool flipImageVert, bool inputSRGB, u32* width, u32* height)
+void load2DTexture(const char* imgLocation, u32* textureId, bool flipImageVert = false, bool inputSRGB = false, u32* width = NULL, u32* height = NULL)
 {
-  glGenTextures(1, &textureId);
-  glBindTexture(GL_TEXTURE_2D, textureId);
+  glGenTextures(1, textureId);
+  glBindTexture(GL_TEXTURE_2D, *textureId);
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // disables bilinear filtering (creates sharp edges when magnifying texture)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // disables bilinear filtering (creates sharp edges when magnifying texture)
 
   // load image data
   s32 w, h, numChannels;
@@ -49,18 +47,23 @@ void load2DTexture(const char* imgLocation, u32& textureId, bool flipImageVert, 
   {
     u32 dataColorSpace;
     u32 dataComponentComposition;
-    if (numChannels == 3)
-    {
-      dataColorSpace = inputSRGB ? GL_SRGB : GL_RGB;
-      dataComponentComposition = GL_RGB;
-    } else if(numChannels == 4)
-    {
-      dataColorSpace = inputSRGB ? GL_SRGB_ALPHA : GL_RGBA;
-      dataComponentComposition = GL_RGBA;
-    } else if(numChannels == 1) {
-      dataColorSpace = dataComponentComposition = GL_RED;
-    } else if(numChannels == 2) {
-      dataColorSpace = dataComponentComposition = GL_RG;
+    switch(numChannels) {
+      case 1:
+        dataColorSpace = dataComponentComposition = GL_RED;
+        break;
+      case 2:
+        dataColorSpace = dataComponentComposition = GL_RG;
+        break;
+      case 3:
+        dataColorSpace = inputSRGB ? GL_SRGB : GL_RGB;
+        dataComponentComposition = GL_RGB;
+        break;
+      case 4:
+        dataColorSpace = inputSRGB ? GL_SRGB_ALPHA : GL_RGBA;
+        dataComponentComposition = GL_RGBA;
+        break;
+      default:
+        InvalidCodePath;
     }
 
     glTexImage2D(GL_TEXTURE_2D, // target
@@ -80,6 +83,7 @@ void load2DTexture(const char* imgLocation, u32& textureId, bool flipImageVert, 
   {
     std::cout << "Failed to load texture" << std::endl;
   }
+  glBindTexture(GL_TEXTURE_2D, 0);
   stbi_image_free(data); // free texture image memory
 }
 
@@ -116,7 +120,7 @@ void loadCubeMapTexture(const char* const imgLocations[6], GLuint* textureId, bo
   loadCubeMapFace(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, imgLocations[SKYBOX_TEXTURE_LOCATION_INDEX_RIGHT]);
 }
 
-Framebuffer initializeFramebuffer(Extent2D framebufferExtent, FramebufferCreationFlags flags = FramebufferCreate_NoValue)
+Framebuffer initializeFramebuffer(vec2_u32 framebufferExtent, FramebufferCreationFlags flags = FramebufferCreate_NoValue)
 {
   Framebuffer resultBuffer;
   resultBuffer.extent = framebufferExtent;
@@ -138,8 +142,8 @@ Framebuffer initializeFramebuffer(Extent2D framebufferExtent, FramebufferCreatio
   glActiveTexture(GL_TEXTURE0);
   glGetIntegerv(GL_TEXTURE_BINDING_2D, &originalTexture0);
   glBindTexture(GL_TEXTURE_2D, resultBuffer.colorAttachment);
-  GLint ernalFormat = (flags & FramebufferCreate_color_sRGB) ? GL_SRGB : GL_RGB;
-  glTexImage2D(GL_TEXTURE_2D, 0/*LoD*/, ernalFormat, framebufferExtent.width, framebufferExtent.height, 0/*border*/, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+  GLint internalFormat = (flags & FramebufferCreate_color_sRGB) ? GL_SRGB : GL_RGB;
+  glTexImage2D(GL_TEXTURE_2D, 0/*LoD*/, internalFormat, framebufferExtent.width, framebufferExtent.height, 0/*border*/, GL_RGB, GL_UNSIGNED_BYTE, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 

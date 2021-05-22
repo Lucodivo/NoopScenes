@@ -28,7 +28,7 @@ void main()
 
   outNormal = normalize(normalMat * inNormal);
   outTexCoord = inTexCoord;
-  outFragmentWorldPos = worldPos.xyz / worldPos.w; // TODO: Since no projection has occurred is dividing by w necessary?
+  outFragmentWorldPos = worldPos.xyz;
   outCameraWorldPos = pullCameraPositionFromViewMat();
   gl_Position = ubo.projection * ubo.view * worldPos;
 }

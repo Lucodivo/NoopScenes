@@ -1,13 +1,8 @@
 #pragma once
 
-// Define these only in *one* .cc file.
-#define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define TINYGLTF_NO_INCLUDE_STB_IMAGE
-// #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
-#include "tinygltf/tiny_gltf.h"
-
-#define TEXTURE_ID_NO_TEXTURE U32_MAX
+// NOTE: "Zero is a reserved texture name and is never returned as a texture name by glGenTextures()"
+// source: Naming A Texture Object in The Official Guide to Learning OpenGL, Version 1.1
+#define TEXTURE_ID_NO_TEXTURE 0
 
 // texture ids set to TEXTURE_ID_NO_TEXTURE when none exists
 // base color alpha set to 0.0 when non exists
@@ -67,7 +62,7 @@ void loadModelTexture(u32* textureId, tinygltf::Image* image, b32 inputSRGB = fa
         dataComponentComposition = GL_RGBA;
         break;
       default:
-        Assert(false);
+        InvalidCodePath;
     }
 
     glTexImage2D(GL_TEXTURE_2D, // target
@@ -137,7 +132,7 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
     f64* minValues = gltfModel->accessors[positionAttribute.accessorIndex].minValues.data();
     f64* maxValues = gltfModel->accessors[positionAttribute.accessorIndex].maxValues.data();
     model->boundingBox.min = {(f32)minValues[0], (f32)minValues[1], (f32)minValues[2]};
-    model->boundingBox.dimensionInMeters = vec3{(f32)maxValues[0], (f32)maxValues[1], (f32)maxValues[2]} - model->boundingBox.min;
+    model->boundingBox.diagonal = vec3{(f32)maxValues[0], (f32)maxValues[1], (f32)maxValues[2]} - model->boundingBox.min;
 
     b32 normalAttributesAvailable = gltfPrimitive.attributes.find(normalIndexKeyString) != gltfPrimitive.attributes.end();
     gltfAttributeMetadata normalAttribute{};
@@ -232,7 +227,7 @@ void initializeModelVertexData(tinygltf::Model* gltfModel, Model* model)
     if(gltfMaterialIndex >= 0) {
       tinygltf::Material gltfMaterial = gltfModel->materials[gltfMaterialIndex];
       // TODO: Handle more then just TEXCOORD_0 vertex attribute?
-      Assert(gltfMaterial.normalTexture.texCoord == 0 && gltfMaterial.pbrMetallicRoughness.baseColorTexture.texCoord == 0)
+      Assert(gltfMaterial.normalTexture.texCoord == 0 && gltfMaterial.pbrMetallicRoughness.baseColorTexture.texCoord == 0);
 
       f64* baseColor = gltfMaterial.pbrMetallicRoughness.baseColorFactor.data();
       mesh->textureData.baseColor = {(f32)baseColor[0], (f32)baseColor[1], (f32)baseColor[2], (f32)baseColor[3] };
@@ -325,12 +320,7 @@ void drawModelPlus(const Model& model, GLuint shaderProgramId) {
   for(u32 i = 0; i < model.meshCount; ++i) {
     Mesh* meshPtr = model.meshes + i;
     if(baseColorValid(meshPtr->textureData)) {
-      vec3 baseColor = {
-              meshPtr->textureData.baseColor.x,
-              meshPtr->textureData.baseColor.y,
-              meshPtr->textureData.baseColor.z
-      };
-      setUniform(shaderProgramId, "baseColor", baseColor);
+      setUniform(shaderProgramId, "baseColor", meshPtr->textureData.baseColor.xyz);
     }
     drawTriangles(&meshPtr->vertexAtt);
   }
@@ -339,24 +329,31 @@ void drawModelPlus(const Model& model, GLuint shaderProgramId) {
 void drawModel(const Model& model) {
   for(u32 i = 0; i < model.meshCount; ++i) {
     Mesh* meshPtr = model.meshes + i;
-    if(baseColorValid(meshPtr->textureData)) {
-
-    }
     drawTriangles(&meshPtr->vertexAtt);
   }
 }
 
 void deleteModels(Model** models, u32 count) {
   std::vector<VertexAtt*> vertexAtts;
-  std::vector<TextureData> textureData;
+  std::vector<GLuint> textureData;
 
   for(u32 i = 0; i < count; ++i) {
     Model* modelPtr = models[i];
     for(u32 i = 0; i < modelPtr->meshCount; ++i) {
       Mesh* meshPtr = modelPtr->meshes;
       vertexAtts.push_back(&meshPtr->vertexAtt);
+      TextureData textureDatum = meshPtr->textureData;
+      if(textureDatum.normalTextureId != TEXTURE_ID_NO_TEXTURE) {
+        textureData.push_back(textureDatum.normalTextureId);
+      }
+      if(textureDatum.albedoTextureId != TEXTURE_ID_NO_TEXTURE) {
+        textureData.push_back(textureDatum.albedoTextureId);
+      }
     }
+    modelPtr->meshCount = 0;
+    delete modelPtr->meshes;
   }
 
   deleteVertexAtts(vertexAtts.data(), (u32)vertexAtts.size());
+  glDeleteTextures((GLsizei)textureData.size(), textureData.data());
 }

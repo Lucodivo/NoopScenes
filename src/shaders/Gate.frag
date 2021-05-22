@@ -5,33 +5,51 @@ layout (location = 1) in vec2 inTexCoord;
 layout (location = 2) in vec3 inFragmentWorldPos;
 layout (location = 3) in vec3 inCameraWorldPos;
 
-layout (binding = 1, std140) uniform LightInfoUBO {
+layout (binding = 1, std140) uniform FragUBO {
+  float time;
+} fragUbo;
+
+layout (binding = 2, std140) uniform LightInfoUBO {
   vec3 directionalLightColor;
   vec3 ambientLightColor;
   vec3 directionalLightDirToSource;
-} ubo;
+} lightInfoUbo;
 
 uniform sampler2D albedoTex;
 uniform sampler2D normalTex;
+uniform sampler2D tiledNoiseTex;
+
+const float noiseStength = 40.0;
 
 layout (location = 0) out vec4 outColor;
 
-vec3 getNormal();
+vec3 getNormal(vec2 texCoord);
 
 void main() {
-  vec3 albedoColor = texture(albedoTex, inTexCoord).rgb;
+  vec2 time = vec2(fragUbo.time * 10.0);
+  vec2 albedoTexSize = textureSize(albedoTex, 0);
+  vec2 tiledNoiseTexSize = textureSize(tiledNoiseTex, 0);
 
-  vec3 surfaceNormal = getNormal();
-  float directLightContribution = max(dot(surfaceNormal, ubo.directionalLightDirToSource), 0.0);
-  vec3 lightContribution = vec3(ubo.ambientLightColor + (ubo.directionalLightColor * directLightContribution));
+  vec2 noiseTexCoord = ((inTexCoord * albedoTexSize) / tiledNoiseTexSize) + (vec2(-time.x, time.y) / tiledNoiseTexSize);
+  float noise = texture(tiledNoiseTex, noiseTexCoord * 0.4).r;
+  noise = (noise - 0.5) * 2.0; // [-1,1]
+  noise = noise * noiseStength;
+  vec2 texCoordNoise = inTexCoord + (vec2(noise) / albedoTexSize);
+  vec2 texCoordNoiseTime = texCoordNoise + (time / albedoTexSize);
+
+  vec3 albedoColor = texture(albedoTex, texCoordNoiseTime).rgb;
+
+  vec3 surfaceNormal = getNormal(texCoordNoiseTime);
+  float directLightContribution = max(dot(surfaceNormal, lightInfoUbo.directionalLightDirToSource), 0.0);
+  vec3 lightContribution = vec3(lightInfoUbo.ambientLightColor + (lightInfoUbo.directionalLightColor * directLightContribution));
   outColor = vec4(lightContribution * albedoColor, 1.0);
 }
 
 // Note: https://github.com/SaschaWillems/Vulkan-glTF-PBR/blob/master/data/shaders/pbr.vert
-vec3 getNormal()
+vec3 getNormal(vec2 texCoord)
 {
   // Perturb normal, see http://www.thetenthplanet.de/archives/1180
-  vec3 tangentNormal = texture(normalTex, inTexCoord).xyz * 2.0 - 1.0;
+  vec3 tangentNormal = texture(normalTex, texCoord).xyz * 2.0 - 1.0;
 
   vec3 q1 = dFdx(inFragmentWorldPos);
   vec3 q2 = dFdy(inFragmentWorldPos);

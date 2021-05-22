@@ -1,19 +1,12 @@
 #pragma once
 
-#include <glad/glad.h> // include glad to get all the required OpenGL headers
-
-#include <string>
-#include <fstream>
-#include <sstream>
-#include "noop_math.h"
-
 struct ShaderProgram {
   GLuint id;
   GLuint vertexShader;
   GLuint fragmentShader;
 };
 
-file_access u32 loadShader(const char* shaderPath, GLenum shaderType);
+internal_func u32 loadShader(const char* shaderPath, GLenum shaderType);
 
 ShaderProgram createShaderProgram(const char* vertexPath, const char* fragmentPath) {
   ShaderProgram shaderProgram;
@@ -33,6 +26,7 @@ ShaderProgram createShaderProgram(const char* vertexPath, const char* fragmentPa
     char infoLog[512];
     glGetProgramInfoLog(shaderProgram.id, 512, NULL, infoLog);
     std::cout << "ERROR::PROGRAM::SHADER::LINK_FAILED\n" << infoLog << std::endl;
+    exit(-1);
   }
 
   glDetachShader(shaderProgram.id, shaderProgram.vertexShader);
@@ -48,79 +42,93 @@ void deleteShaderProgram(ShaderProgram shaderProgram)
   glDeleteProgram(shaderProgram.id);
 }
 
+void deleteShaderPrograms(ShaderProgram* shaderPrograms, u32 count) {
+  for(u32 i = 0; i < count; i++) {
+    deleteShaderProgram(shaderPrograms[i]);
+  }
+}
+
 // utility uniform functions
-void setUniform(GLuint shaderId, const std::string& name, bool value)
+inline void setUniform(GLuint shaderId, const std::string& name, bool value)
 {
   glUniform1i(glGetUniformLocation(shaderId, name.c_str()), (int)value);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, s32 value)
+inline void setUniform(GLuint shaderId, const std::string& name, s32 value)
 {
   glUniform1i(glGetUniformLocation(shaderId, name.c_str()), value);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, u32 value)
+inline void setUniform(GLuint shaderId, const std::string& name, u32 value)
 {
   glUniform1ui(glGetUniformLocation(shaderId, name.c_str()), value);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, f32 value)
+inline void setSamplerCube(GLuint shaderId, const std::string& name, GLint activeTextureIndex) {
+  glUniform1i(glGetUniformLocation(shaderId, name.c_str()), activeTextureIndex);
+}
+
+inline void setSampler2D(GLuint shaderId, const std::string& name, GLint activeTextureIndex) {
+  glUniform1i(glGetUniformLocation(shaderId, name.c_str()), activeTextureIndex);
+}
+
+inline void setUniform(GLuint shaderId, const std::string& name, f32 value)
 {
   glUniform1f(glGetUniformLocation(shaderId, name.c_str()), value);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, f32 value1, f32 value2)
+inline void setUniform(GLuint shaderId, const std::string& name, f32 value1, f32 value2)
 {
   glUniform2f(glGetUniformLocation(shaderId, name.c_str()), value1, value2);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, f32 value1, f32 value2, f32 value3)
+inline void setUniform(GLuint shaderId, const std::string& name, f32 value1, f32 value2, f32 value3)
 {
   glUniform3f(glGetUniformLocation(shaderId, name.c_str()), value1, value2, value3);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, f32 value1, f32 value2, f32 value3, f32 value4)
+inline void setUniform(GLuint shaderId, const std::string& name, f32 value1, f32 value2, f32 value3, f32 value4)
 {
   glUniform4f(glGetUniformLocation(shaderId, name.c_str()), value1, value2, value3, value4);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const mat4& mat)
+inline void setUniform(GLuint shaderId, const std::string& name, const mat4* mat)
 {
   glUniformMatrix4fv(glGetUniformLocation(shaderId, name.c_str()),
                      1, // count
                      GL_FALSE, // transpose: swap columns and rows (true or false)
-                     mat.values); // pointer to float values
+                     mat->valuesPtr); // pointer to float values
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const mat4* matArray, const u32 arraySize)
+inline void setUniform(GLuint shaderId, const std::string& name, const mat4* matArray, const u32 arraySize)
 {
   glUniformMatrix4fv(glGetUniformLocation(shaderId, name.c_str()),
                      arraySize, // count
                      GL_FALSE, // transpose: swap columns and rows (true or false)
-                     matArray->values); // pointer to float values
+                     matArray->valuesPtr); // pointer to float values
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const float* floatArray, const u32 arraySize)
+inline void setUniform(GLuint shaderId, const std::string& name, const float* floatArray, const u32 arraySize)
 {
   glUniform1fv(glGetUniformLocation(shaderId, name.c_str()), arraySize, floatArray);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const vec2& vector2)
+inline void setUniform(GLuint shaderId, const std::string& name, const vec2& vector2)
 {
   setUniform(shaderId, name, vector2.x, vector2.y);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const vec3& vector3)
+inline void setUniform(GLuint shaderId, const std::string& name, const vec3& vector3)
 {
   setUniform(shaderId, name, vector3.x, vector3.y, vector3.z);
 }
 
-void setUniform(GLuint shaderId, const std::string& name, const vec4& vector4)
+inline void setUniform(GLuint shaderId, const std::string& name, const vec4& vector4)
 {
   setUniform(shaderId, name, vector4.x, vector4.y, vector4.z, vector4.w);
 }
 
-void bindBlockIndex(GLuint shaderId, const std::string& name, u32 index)
+inline void bindBlockIndex(GLuint shaderId, const std::string& name, u32 index)
 {
   u32 blockIndex = glGetUniformBlockIndex(shaderId, name.c_str());
   glUniformBlockBinding(shaderId, blockIndex, index);
@@ -153,7 +161,7 @@ void readShaderCodeAsString(const char* shaderPath, std::string* shaderCode)
  * parameters:
  * shaderType can be GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, or GL_GEOMETRY_SHADER
  */
-file_access u32 loadShader(const char* shaderPath, GLenum shaderType) {
+internal_func u32 loadShader(const char* shaderPath, GLenum shaderType) {
   std::string shaderTypeStr;
   if(shaderType == GL_VERTEX_SHADER) {
     shaderTypeStr = "VERTEX";
