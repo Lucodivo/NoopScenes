@@ -87,6 +87,79 @@ void load2DTexture(const char* imgLocation, u32* textureId, bool flipImageVert =
   stbi_image_free(data); // free texture image memory
 }
 
+void loadCubeMapTexture(const char* directory, const char* extension, GLuint* textureId, bool flipImageVert = false) {
+
+  const char* skyboxTextureTitles[] = {
+          "front.",
+          "back.",
+          "top.",
+          "bottom.",
+          "right.",
+          "left.",
+  };
+  const u32 maxTextureFileLength = 128;
+  size_t directoryLength = std::strlen(directory);
+  char skyboxTextureFileNameBuffer[maxTextureFileLength];
+  std::strcpy(skyboxTextureFileNameBuffer, directory);
+
+  glGenTextures(1, textureId);
+  glBindTexture(GL_TEXTURE_CUBE_MAP, *textureId);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+  s32 width, height, nrChannels;
+  stbi_set_flip_vertically_on_load(flipImageVert);
+
+  auto loadCubeMapFace = [&width, &height, &nrChannels](GLenum faceTarget, const char* faceImageLoc){
+    unsigned char* data = stbi_load(faceImageLoc, &width, &height, &nrChannels, 0);
+    if (data)
+    {
+      glTexImage2D(faceTarget, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    } else
+    {
+      std::cout << "Cubemap texture failed to load at path: " << faceImageLoc << std::endl;
+    }
+    stbi_image_free(data);
+  };
+
+  size_t titleLength = std::strlen(skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_BACK]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength, skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_BACK]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength + titleLength, extension);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, skyboxTextureFileNameBuffer);
+
+  titleLength = std::strlen(skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_FRONT]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength, skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_FRONT]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength + titleLength, extension);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_POSITIVE_X, skyboxTextureFileNameBuffer);
+
+
+  titleLength = std::strlen(skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_BOTTOM]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength, skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_BOTTOM]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength + titleLength, extension);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, skyboxTextureFileNameBuffer);
+
+
+  titleLength = std::strlen(skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_TOP]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength, skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_TOP]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength + titleLength, extension);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, skyboxTextureFileNameBuffer);
+
+
+  titleLength = std::strlen(skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_LEFT]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength, skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_LEFT]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength + titleLength, extension);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, skyboxTextureFileNameBuffer);
+
+
+  titleLength = std::strlen(skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_RIGHT]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength, skyboxTextureTitles[SKYBOX_TEXTURE_LOCATION_INDEX_RIGHT]);
+  strcpy(skyboxTextureFileNameBuffer + directoryLength + titleLength, extension);
+  loadCubeMapFace(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, skyboxTextureFileNameBuffer);
+}
+
 void loadCubeMapTexture(const char* const imgLocations[6], GLuint* textureId, bool flipImageVert = false)
 {
   glGenTextures(1, textureId);

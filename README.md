@@ -42,9 +42,18 @@ The following is a single snapshot (although unable to really capture the projec
       ```
 3) Finally, build using *CMakeList.txt* in the root directory of this repository. When running the project, ensure that
 the working directory is at the root directory.
+   
+### Running
+- This project needs to be run with the project's root directory as the working directory.
 
 ### Standards
 *In this project, consistency is often valued over absolute best convention.*
+
+####Dependencies/Building
+- NoopScenes uses a unity build system, which means all of the headers are included in *noop_scenes.h* and the project
+  is built by simply compiling *noop_scenes.cpp*. The obvious benefit is that the projects chain of dependencies 
+  only needs to be ordered correctly in a single file. The drawback is that the entire project must be built for every
+  build.
 
 #### Testing
 - Tests were written as a separate project and are exclusively for testing the custom math written for this project.

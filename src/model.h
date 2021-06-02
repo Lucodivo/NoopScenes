@@ -351,7 +351,7 @@ void deleteModels(Model** models, u32 count) {
       }
     }
     modelPtr->meshCount = 0;
-    delete modelPtr->meshes;
+    delete[] modelPtr->meshes;
   }
 
   deleteVertexAtts(vertexAtts.data(), (u32)vertexAtts.size());

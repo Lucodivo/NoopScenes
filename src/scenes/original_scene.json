@@ -1,0 +1,222 @@
+{
+"startingSceneIndex": 0,
+"scenes": [
+    {
+      "index": 0,
+      "title": "Gate",
+      "skyboxDir": "cave",
+      "skyboxExt": "png",
+      "entities": [
+        {
+          "modelIndex": 0,
+          "shaderIndex": 0,
+          "posXYZ": [0.0, 0.0, 1.5],
+          "scaleXYZ": [3.0, 3.0, 3.0],
+          "flags": 0,
+          "yaw": 0.0
+        }
+      ],
+      "portals": [
+        {
+          "destination": 1,
+          "normalXYZ": [0.0, -1.0, 0.0],
+          "centerXYZ": [0.0, -1.5, 1.5],
+          "dimensXY": [3.0, 3.0]
+        },
+        {
+          "destination": 2,
+          "normalXYZ": [1.0, 0.0, 0.0],
+          "centerXYZ": [1.5, 0.0, 1.5],
+          "dimensXY": [3.0, 3.0]
+        },
+        {
+          "destination": 3,
+          "normalXYZ": [-1.0, 0.0, 0.0],
+          "centerXYZ": [-1.5, 0.0, 1.5],
+          "dimensXY": [3.0, 3.0]
+        },
+        {
+          "destination": 4,
+          "normalXYZ": [0.0, 1.0, 0.0],
+          "centerXYZ": [0.0, 1.5, 1.5],
+          "dimensXY": [3.0, 3.0]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "title": "Tetrahedron",
+      "skyboxDir": "yellow_cloud",
+      "skyboxExt": "jpg",
+      "entities": [
+        {
+          "modelIndex": 1,
+          "shaderIndex": 1,
+          "posXYZ": [0.0, 0.0, 1.5],
+          "scaleXYZ": [1.0, 1.0, 1.0],
+          "flags": 3,
+          "yaw": 0.0
+        },
+        {
+          "modelIndex": 5,
+          "shaderIndex": 2,
+          "posXYZ": [0.0, -1.75, 1.5],
+          "scaleXYZ": [3.0, 0.5, 3.0],
+          "flags": 0,
+          "yaw": 3.14159274
+        }
+      ],
+      "portals": [
+        {
+          "destination": 0,
+          "normalXYZ": [0.0, 1.0, 0.0],
+          "centerXYZ": [0.0, -1.5, 1.5],
+          "dimensXY": [3.0, 3.0]
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "title": "Octahedron",
+      "skyboxDir": "interstellar",
+      "skyboxExt": "png",
+      "entities": [
+        {
+          "modelIndex": 2,
+          "shaderIndex": 1,
+          "posXYZ": [0.0, 0.0, 1.5],
+          "scaleXYZ": [1.0, 1.0, 1.0],
+          "flags": 3,
+          "yaw": 0.0
+        },
+        {
+          "modelIndex": 5,
+          "shaderIndex": 2,
+          "posXYZ": [1.75, 0.0, 1.5],
+          "scaleXYZ": [3.0, 0.5, 3.0],
+          "flags": 0,
+          "yaw": -1.57079637
+        }
+      ],
+      "portals": [
+        {
+          "destination": 0,
+          "normalXYZ": [-1.0, 0.0, 0.0],
+          "centerXYZ": [1.5, 0.0, 1.5],
+          "dimensXY": [3.0, 3.0]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "title": "Paper",
+      "skyboxDir": "calm_sea",
+      "skyboxExt": "jpg",
+      "entities": [
+        {
+          "modelIndex": 4,
+          "shaderIndex": 1,
+          "posXYZ": [0.0, 0.0, 1.5],
+          "scaleXYZ": [1.0, 1.0, 1.0],
+          "flags": 3,
+          "yaw": 0.0
+        },
+        {
+          "modelIndex": 5,
+          "shaderIndex": 2,
+          "posXYZ": [-1.75, 0.0, 1.5],
+          "scaleXYZ": [3.0, 0.5, 3.0],
+          "flags": 0,
+          "yaw": 1.57079637
+        }
+      ],
+      "portals": [
+        {
+          "destination": 0,
+          "normalXYZ": [1.0, 0.0, 0.0],
+          "centerXYZ": [-1.5, 0.0, 1.5],
+          "dimensXY": [3.0, 3.0]
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "title": "Icosahedron",
+      "skyboxDir": "polluted_earth",
+      "skyboxExt": "jpg",
+      "entities": [
+        {
+          "modelIndex": 3,
+          "shaderIndex": 1,
+          "posXYZ": [0.0, 0.0, 1.5],
+          "scaleXYZ": [1.0, 1.0, 1.0],
+          "flags": 3,
+          "yaw": 0.0
+        },
+        {
+          "modelIndex": 5,
+          "shaderIndex": 2,
+          "posXYZ": [0.0, 1.75, 1.5],
+          "scaleXYZ": [3.0, 0.5, 3.0],
+          "flags": 0,
+          "yaw": 0.0
+        }
+      ],
+      "portals": [
+        {
+          "destination": 0,
+          "normalXYZ": [0.0, -1.0, 0.0],
+          "centerXYZ": [0.0, 1.5, 1.5],
+          "dimensXY": [3.0, 3.0]
+        }
+      ]
+    }
+  ],
+"models": [
+    {
+      "index": 0,
+      "fileName": "Gate.glb"
+    },
+    {
+      "index": 1,
+      "fileName": "Tetrahedron.glb",
+      "baseColor": [1.0, 0.4, 0.4]
+    },
+    {
+      "index": 2,
+      "fileName": "Octahedron.glb",
+      "baseColor": [0.4, 1.0, 0.4]
+    },
+    {
+      "index": 3,
+      "fileName": "Icosahedron.glb",
+      "baseColor": [0.9, 0.9, 0.9]
+    },
+    {
+      "index": 4,
+      "fileName": "Paper.glb",
+      "baseColor": [0.4, 0.4, 1.0]
+    },
+    {
+      "index": 5,
+      "fileName": "Portal-Backing-Plus-Gate-Insignia.glb"
+    }
+  ],
+"shaders": [
+    {
+      "index": 0,
+      "vertexName": "Gate.vert",
+      "fragmentName": "Gate.frag"
+    },
+    {
+      "index": 1,
+      "vertexName": "Pos.vert",
+      "fragmentName": "SingleColor.frag"
+    },
+    {
+      "index": 2,
+      "vertexName": "PosNorm.vert",
+      "fragmentName": "ReflectSkyboxYIsUp.frag"
+    }
+  ]
+}
