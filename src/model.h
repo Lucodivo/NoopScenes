@@ -1,9 +1,5 @@
 #pragma once
 
-// NOTE: "Zero is a reserved texture name and is never returned as a texture name by glGenTextures()"
-// source: Naming A Texture Object in The Official Guide to Learning OpenGL, Version 1.1
-#define TEXTURE_ID_NO_TEXTURE 0
-
 // texture ids set to TEXTURE_ID_NO_TEXTURE when none exists
 // base color alpha set to 0.0 when non exists
 struct TextureData {
@@ -269,12 +265,12 @@ void loadModel(const char* filePath, Model* returnModel) {
   bool ret = loader.LoadBinaryFromFile(&tinyGLTFModel, &err, &warn, filePath); // for binary glTF(.glb)
 
   if (!warn.empty()) {
-    printf("Warn: %s\n", warn.c_str());
+    printf("Warning: %s\n", warn.c_str());
     return;
   }
 
   if (!err.empty()) {
-    printf("Err: %s\n", err.c_str());
+    printf("Error: %s\n", err.c_str());
     return;
   }
 
@@ -294,7 +290,6 @@ void loadModels(const char** filePaths, u32 count, Model** returnModels) {
     std::string warn;
     tinygltf::Model tinyGLTFModel;
 
-    //bool ret = loader.LoadASCIIFromFile(&tinyGLTFModel, &err, &warn, filePath); // for .gltf
     bool ret = loader.LoadBinaryFromFile(&tinyGLTFModel, &err, &warn, filePaths[i]); // for binary glTF(.glb)
 
     if (!warn.empty()) {
@@ -313,16 +308,6 @@ void loadModels(const char** filePaths, u32 count, Model** returnModels) {
     }
 
     initializeModelVertexData(&tinyGLTFModel, returnModels[i]);
-  }
-}
-
-void drawModelPlus(const Model& model, GLuint shaderProgramId) {
-  for(u32 i = 0; i < model.meshCount; ++i) {
-    Mesh* meshPtr = model.meshes + i;
-    if(baseColorValid(meshPtr->textureData)) {
-      setUniform(shaderProgramId, "baseColor", meshPtr->textureData.baseColor.xyz);
-    }
-    drawTriangles(&meshPtr->vertexAtt);
   }
 }
 

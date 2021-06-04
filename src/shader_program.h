@@ -1,15 +1,9 @@
 #pragma once
 
-struct ShaderProgram {
-  GLuint id;
-  GLuint vertexShader;
-  GLuint fragmentShader;
-};
-
 internal_func u32 loadShader(const char* shaderPath, GLenum shaderType);
 
 ShaderProgram createShaderProgram(const char* vertexPath, const char* fragmentPath) {
-  ShaderProgram shaderProgram;
+  ShaderProgram shaderProgram{};
   shaderProgram.vertexShader = loadShader(vertexPath, GL_VERTEX_SHADER);
   shaderProgram.fragmentShader = loadShader(fragmentPath, GL_FRAGMENT_SHADER);
 

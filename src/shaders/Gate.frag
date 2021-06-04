@@ -17,7 +17,7 @@ layout (binding = 2, std140) uniform LightInfoUBO {
 
 uniform sampler2D albedoTex;
 uniform sampler2D normalTex;
-uniform sampler2D tiledNoiseTex;
+uniform sampler2D noiseTex;
 
 const float noiseStength = 40.0;
 
@@ -28,10 +28,10 @@ vec3 getNormal(vec2 texCoord);
 void main() {
   vec2 time = vec2(fragUbo.time * 10.0);
   vec2 albedoTexSize = textureSize(albedoTex, 0);
-  vec2 tiledNoiseTexSize = textureSize(tiledNoiseTex, 0);
+  vec2 noiseTexSize = textureSize(noiseTex, 0);
 
-  vec2 noiseTexCoord = ((inTexCoord * albedoTexSize) / tiledNoiseTexSize) + (vec2(-time.x, time.y) / tiledNoiseTexSize);
-  float noise = texture(tiledNoiseTex, noiseTexCoord * 0.4).r;
+  vec2 noiseTexCoord = ((inTexCoord * albedoTexSize) / noiseTexSize) + (vec2(-time.x, time.y) / noiseTexSize);
+  float noise = texture(noiseTex, noiseTexCoord * 0.4).r;
   noise = (noise - 0.5) * 2.0; // [-1,1]
   noise = noise * noiseStength;
   vec2 texCoordNoise = inTexCoord + (vec2(noise) / albedoTexSize);

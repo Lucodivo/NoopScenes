@@ -11,8 +11,6 @@ global_variable union {
   VertexAtt array[6];
 } customVertexAtts;
 
-#define GLOBAL_VERTEX_ATT_COUNT
-
 const u32 cubePosAttStrideInBytes = 3 * sizeof(f32);
 const f32 cubePosAtts[] = {
         // positions
@@ -409,7 +407,6 @@ void deleteVertexAtt(VertexAtt* vertexAtt)
 void deleteVertexAtts(VertexAtt** vertexAtts, u32 count)
 {
   // TODO: prevent from deleting global vertex atts
-
   u32* deleteBufferObjects = new u32[count * 3];
   u32* deleteIndexBufferObjects = deleteBufferObjects + count;
   u32* deleteVertexArrays = deleteIndexBufferObjects + count;

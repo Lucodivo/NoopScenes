@@ -31,13 +31,13 @@
 
 #include "noop_types.h"
 #include "noop_math.h"
+#include "shader_types_and_constants.h"
 #include "vertex_attributes.h"
 #include "file_locations.h"
 #include "input.h"
 #include "shader_program.h"
 #include "textures.h"
 #include "util.h"
-#include "uniform_buffer_object_structs.h"
 #include "model.h"
 #include "camera.h"
 

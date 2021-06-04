@@ -206,7 +206,8 @@
     {
       "index": 0,
       "vertexName": "Gate.vert",
-      "fragmentName": "Gate.frag"
+      "fragmentName": "Gate.frag",
+      "noiseTexture": "tiled_musgrave_texture_1_blur.png"
     },
     {
       "index": 1,
