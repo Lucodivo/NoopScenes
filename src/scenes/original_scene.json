@@ -180,22 +180,22 @@
     {
       "index": 1,
       "fileName": "Tetrahedron.glb",
-      "baseColor": [1.0, 0.4, 0.4]
+      "baseColor": [1.0, 0.4, 0.4, 1.0]
     },
     {
       "index": 2,
       "fileName": "Octahedron.glb",
-      "baseColor": [0.4, 1.0, 0.4]
+      "baseColor": [0.4, 1.0, 0.4, 1.0]
     },
     {
       "index": 3,
       "fileName": "Icosahedron.glb",
-      "baseColor": [0.9, 0.9, 0.9]
+      "baseColor": [0.9, 0.9, 0.9, 1.0]
     },
     {
       "index": 4,
       "fileName": "Paper.glb",
-      "baseColor": [0.4, 0.4, 1.0]
+      "baseColor": [0.4, 0.4, 1.0, 1.0]
     },
     {
       "index": 5,
@@ -207,7 +207,7 @@
       "index": 0,
       "vertexName": "Gate.vert",
       "fragmentName": "Gate.frag",
-      "noiseTexture": "tiled_musgrave_texture_1_blur.png"
+      "noiseTextureName": "tiled_musgrave_texture_1_blur.png"
     },
     {
       "index": 1,

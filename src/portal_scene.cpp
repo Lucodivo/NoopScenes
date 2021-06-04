@@ -432,17 +432,11 @@ void saveScene(World* world) {
 void createScenes(World* world) {
   const u32 fileNameCharacterLimit = 64;
 
-  // TODO: Should I separate pulling data out from and verifying the json from using the data in the json? (probably!)
-  nlohmann::json json;
-  { // parse file
-    const char* originalSceneLocation = "src/scenes/original_scene.json";
-    std::ifstream sceneJsonFileInput(originalSceneLocation);
-    sceneJsonFileInput >> json;
-  }
+  SaveFormat saveFormat = loadSave( "src/scenes/original_scene.json");
 
-  size_t sceneCount = json["scenes"].size();
-  size_t modelCount = json["models"].size();
-  size_t shaderCount = json["shaders"].size();
+  size_t sceneCount = saveFormat.scenes.size();
+  size_t modelCount = saveFormat.models.size();
+  size_t shaderCount = saveFormat.shaders.size();
 
   u32* worldShaderIndices = new u32[shaderCount];
   { // shaders
@@ -456,21 +450,17 @@ void createScenes(World* world) {
     std::strcpy(vertexShaderBuffer, shaderBaseLoc);
     std::strcpy(fragmentShaderBuffer, shaderBaseLoc);
     std::strcpy(noiseTextureBuffer, textureBaseLoc);
-    for(u32 jsonShaderIndex = 0; jsonShaderIndex < shaderCount; jsonShaderIndex++) {
-      nlohmann::json shaderJson = json["shaders"][jsonShaderIndex];
-      u32 index = shaderJson["index"];
-      std::string vertexName = shaderJson["vertexName"];
-      std::string fragmentName = shaderJson["fragmentName"];
-      Assert(vertexName.size() < fileNameCharacterLimit && fragmentName.size() < fileNameCharacterLimit);
-      std::strcpy(vertexShaderBuffer + shaderBaseCount, vertexName.c_str());
-      std::strcpy(fragmentShaderBuffer + shaderBaseCount, fragmentName.c_str());
-      Assert(index < shaderCount);
-      worldShaderIndices[index] = addNewShader(world, vertexShaderBuffer, fragmentShaderBuffer);
+    for(u32 shaderIndex = 0; shaderIndex < shaderCount; shaderIndex++) {
+      ShaderSaveFormat shaderSaveFormat = saveFormat.shaders[shaderIndex];
+      Assert(shaderSaveFormat.vertexName.size() < fileNameCharacterLimit && shaderSaveFormat.fragmentName.size() < fileNameCharacterLimit);
+      std::strcpy(vertexShaderBuffer + shaderBaseCount, shaderSaveFormat.vertexName.c_str());
+      std::strcpy(fragmentShaderBuffer + shaderBaseCount, shaderSaveFormat.fragmentName.c_str());
+      Assert(shaderSaveFormat.index < shaderCount);
+      worldShaderIndices[shaderSaveFormat.index] = addNewShader(world, vertexShaderBuffer, fragmentShaderBuffer);
 
-      if(!shaderJson["noiseTexture"].is_null()) {
-        std::string noiseTextureName = shaderJson["noiseTexture"];
-        std::strcpy(noiseTextureBuffer + textureBaseCount, noiseTextureName.c_str());
-        load2DTexture(noiseTextureBuffer, &world->shaders[worldShaderIndices[index]].noiseTextureId);
+      if(!shaderSaveFormat.noiseTextureName.empty()) {
+        std::strcpy(noiseTextureBuffer + textureBaseCount, shaderSaveFormat.noiseTextureName.c_str());
+        load2DTexture(noiseTextureBuffer, &world->shaders[worldShaderIndices[shaderSaveFormat.index]].noiseTextureId);
       }
     }
   }
@@ -481,26 +471,18 @@ void createScenes(World* world) {
     const u32 modelBaseCount = ArrayCount(modelBaseLoc) - 1;
     char modelFileLocBuffer[ArrayCount(modelBaseLoc) + fileNameCharacterLimit];
     std::strcpy(modelFileLocBuffer, modelBaseLoc);
-    for(u32 jsonModelIndex = 0; jsonModelIndex < modelCount; jsonModelIndex++) {
-      nlohmann::json modelJson = json["models"][jsonModelIndex];
-      u32 index = modelJson["index"];
-      std::string modelName = modelJson["fileName"];
-      Assert(modelName.size() < fileNameCharacterLimit);
-      std::strcpy(modelFileLocBuffer + modelBaseCount, modelName.c_str());
-      Assert(index < modelCount);
-      worldModelIndices[index] = addNewModel(world, modelFileLocBuffer);
+    for(u32 modelIndex = 0; modelIndex < modelCount; modelIndex++) {
+      ModelSaveFormat modelSaveFormat = saveFormat.models[modelIndex];
+      Assert(modelSaveFormat.fileName.size() < fileNameCharacterLimit);
+      std::strcpy(modelFileLocBuffer + modelBaseCount, modelSaveFormat.fileName.c_str());
+      Assert(modelSaveFormat.index < modelCount);
+      worldModelIndices[modelSaveFormat.index] = addNewModel(world, modelFileLocBuffer);
 
-      if(!modelJson["baseColor"].is_null()) {
-        Assert(modelJson["baseColor"].size() == 3);
-        Model* model = world->models + worldModelIndices[index];
+      if(modelSaveFormat.baseColor.a != 0.0f) {
+        Model* model = world->models + worldModelIndices[modelSaveFormat.index];
         for(u32 meshIndex = 0; meshIndex < model->meshCount; meshIndex++) {
           Mesh* mesh = model->meshes + meshIndex;
-          mesh->textureData.baseColor = {
-                  modelJson["baseColor"][0],
-                  modelJson["baseColor"][1],
-                  modelJson["baseColor"][2],
-                  1.0f
-          };
+          mesh->textureData.baseColor = modelSaveFormat.baseColor;
         }
       }
     }
@@ -512,90 +494,48 @@ void createScenes(World* world) {
     const u32 skyboxTextureBaseCount = ArrayCount(skyboxTextureBaseLoc) - 1;
     char skyboxTextureDirBuffer[ArrayCount(skyboxTextureBaseLoc) + fileNameCharacterLimit];
     std::strcpy(skyboxTextureDirBuffer, skyboxTextureBaseLoc);
-    for(u32 jsonSceneIndex = 0; jsonSceneIndex < sceneCount; jsonSceneIndex++) {
-      nlohmann::json sceneJson = json["scenes"][jsonSceneIndex];
-      u32 index = sceneJson["index"];
-      std::string title = sceneJson["title"];
-      size_t entityCount = sceneJson["entities"].size();
+    for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++) {
+      SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
+      size_t entityCount = sceneSaveFormat.entities.size();
 
-      Assert(index < sceneCount);
-      worldSceneIndices[index] = addNewScene(world, title.c_str());
-      Scene* scene = world->scenes + worldSceneIndices[index];
+      Assert(sceneSaveFormat.index < sceneCount);
+      worldSceneIndices[sceneSaveFormat.index] = addNewScene(world, sceneSaveFormat.title.c_str());
+      Scene* scene = world->scenes + worldSceneIndices[sceneSaveFormat.index];
 
-      if(!sceneJson["skyboxDir"].is_null() && !sceneJson["skyboxExt"].is_null()) { // if we have a skybox...
-        std::string skyboxDir = sceneJson["skyboxDir"];
-        skyboxDir += '/';
-        std::string skyboxExt = sceneJson["skyboxExt"];
+      if(!sceneSaveFormat.skyboxDir.empty() && !sceneSaveFormat.skyboxDir.empty()) { // if we have a skybox...
+        std::string skyboxDir = sceneSaveFormat.skyboxDir + '/';
         strcpy(skyboxTextureDirBuffer + skyboxTextureBaseCount, skyboxDir.c_str());
-        loadCubeMapTexture(skyboxTextureDirBuffer, skyboxExt.c_str(), &scene->skyboxTexture);
+        loadCubeMapTexture(skyboxTextureDirBuffer, sceneSaveFormat.skyboxExt.c_str(), &scene->skyboxTexture);
       } else {
         scene->skyboxTexture = TEXTURE_ID_NO_TEXTURE;
       }
 
-      for(u32 jsonEntityIndex = 0; jsonEntityIndex < entityCount; jsonEntityIndex++) {
-        nlohmann::json entityJson = sceneJson["entities"][jsonEntityIndex];
-        u32 modelIndex = entityJson["modelIndex"];
-        u32 shaderIndex = entityJson["shaderIndex"];
-        Assert(shaderIndex < shaderCount);
-        Assert(entityJson["posXYZ"].size() == 3);
-        Assert(entityJson["scaleXYZ"].size() == 3);
-        vec3 pos = {
-                entityJson["posXYZ"][0],
-                entityJson["posXYZ"][1],
-                entityJson["posXYZ"][2]
-        };
-        vec3 scale = {
-                entityJson["scaleXYZ"][0],
-                entityJson["scaleXYZ"][1],
-                entityJson["scaleXYZ"][2]
-        };
-        f32 yaw = entityJson["yaw"];
-        b32 flags = entityJson["flags"];
-
-        addNewEntity(world, worldSceneIndices[index], worldModelIndices[modelIndex],
-                     pos, scale, yaw,
-                     worldShaderIndices[shaderIndex], flags);
+      for(u32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+        EntitySaveFormat entitySaveFormat = sceneSaveFormat.entities[entityIndex];
+        addNewEntity(world, worldSceneIndices[sceneSaveFormat.index], worldModelIndices[entitySaveFormat.modelIndex],
+                     entitySaveFormat.posXYZ, entitySaveFormat.scaleXYZ, entitySaveFormat.yaw,
+                     worldShaderIndices[entitySaveFormat.shaderIndex], entitySaveFormat.flags);
       }
     }
 
     // we have to iterate over the scenes once more for portals, as the scene destination index requires
     // the other scenes to have been initialized
-    for(u32 jsonSceneIndex = 0; jsonSceneIndex < sceneCount; jsonSceneIndex++)
+    for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++)
     {
-      nlohmann::json sceneJson = json["scenes"][jsonSceneIndex];
-      u32 index = sceneJson["index"];
-      size_t portalCount = sceneJson["portals"].size();
+      SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
+      size_t portalCount = sceneSaveFormat.portals.size();
       Assert(portalCount <= MAX_PORTALS);
-      for (u32 jsonPortalIndex = 0; jsonPortalIndex < portalCount; jsonPortalIndex++)
+      for (u32 portalIndex = 0; portalIndex < portalCount; portalIndex++)
       {
-        nlohmann::json portalJson = sceneJson["portals"][jsonPortalIndex];
-        u32 destination = portalJson["destination"];
-        Assert(portalJson["normalXYZ"].size() == 3);
-        Assert(portalJson["centerXYZ"].size() == 3);
-        Assert(portalJson["dimensXY"].size() == 2);
-        vec3 normal = {
-                portalJson["normalXYZ"][0],
-                portalJson["normalXYZ"][1],
-                portalJson["normalXYZ"][2]
-        };
-        vec3 center = {
-                portalJson["centerXYZ"][0],
-                portalJson["centerXYZ"][1],
-                portalJson["centerXYZ"][2]
-        };
-        vec2 dimens = {
-                portalJson["dimensXY"][0],
-                portalJson["dimensXY"][1]
-        };
-        addPortal(world, worldSceneIndices[index], center, normal, dimens,
-                  jsonPortalIndex + 1, worldSceneIndices[destination]);
+        PortalSaveFormat portalSaveFormat = sceneSaveFormat.portals[portalIndex];
+        addPortal(world, worldSceneIndices[sceneSaveFormat.index], portalSaveFormat.centerXYZ, portalSaveFormat.normalXYZ, portalSaveFormat.dimensXY,
+                  portalIndex + 1, worldSceneIndices[portalSaveFormat.destination]);
       }
     }
   }
 
-  u32 startingSceneIndex = json["startingSceneIndex"];
-  Assert(startingSceneIndex < sceneCount);
-  world->currentSceneIndex = worldSceneIndices[startingSceneIndex];
+  Assert(saveFormat.startingSceneIndex < sceneCount);
+  world->currentSceneIndex = worldSceneIndices[saveFormat.startingSceneIndex];
 
   // TODO: create limited length arrays instead of using dynamic memory?
   delete[] worldShaderIndices;

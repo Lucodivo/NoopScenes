@@ -1,0 +1,190 @@
+#pragma once
+
+struct EntitySaveFormat {
+  u32 modelIndex;
+  u32 shaderIndex;
+  vec3 posXYZ;
+  vec3 scaleXYZ;
+  f32 yaw;
+  b32 flags;
+};
+
+struct PortalSaveFormat {
+  u32 destination;
+  vec3 normalXYZ;
+  vec3 centerXYZ;
+  vec2 dimensXY;
+};
+
+struct ModelSaveFormat {
+  u32 index;
+  std::string fileName; // NOTE: currently assumed to be in "src/data/models/"
+  vec4 baseColor; // optional, alpha 0 means no value
+};
+
+struct ShaderSaveFormat {
+  u32 index;
+  std::string vertexName;
+  std::string fragmentName;
+  std::string noiseTextureName; // optional, empty string means no value
+};
+
+struct SceneSaveFormat {
+  u32 index;
+  std::string title;
+  std::string skyboxDir; // optional, empty string means no value
+  std::string skyboxExt; // optional, empty string means no value
+  std::vector<EntitySaveFormat> entities;
+  std::vector<PortalSaveFormat> portals;
+};
+
+struct SaveFormat {
+  u32 startingSceneIndex;
+  std::vector<SceneSaveFormat> scenes;
+  std::vector<ModelSaveFormat> models;
+  std::vector<ShaderSaveFormat> shaders;
+};
+
+SaveFormat loadSave(const char* saveJson) {
+  SaveFormat saveFormat{};
+
+  // TODO: Should I separate pulling data out from and verifying the json from using the data in the json? (probably!)
+  nlohmann::json json;
+  { // parse file
+    const char* originalSceneLocation = "src/scenes/original_scene.json";
+    std::ifstream sceneJsonFileInput(originalSceneLocation);
+    sceneJsonFileInput >> json;
+  }
+
+  size_t sceneCount = json["scenes"].size();
+  size_t modelCount = json["models"].size();
+  size_t shaderCount = json["shaders"].size();
+
+  saveFormat.startingSceneIndex = json["startingSceneIndex"];
+  Assert(saveFormat.startingSceneIndex < sceneCount);
+
+  saveFormat.scenes.reserve(sceneCount);
+  saveFormat.models.reserve(modelCount);
+  saveFormat.shaders.reserve(shaderCount);
+
+  { // shaders
+    for(u32 jsonShaderIndex = 0; jsonShaderIndex < shaderCount; jsonShaderIndex++) {
+      nlohmann::json shaderJson = json["shaders"][jsonShaderIndex];
+      ShaderSaveFormat shaderSaveFormat;
+      shaderSaveFormat.index = shaderJson["index"];
+      shaderJson["vertexName"].get_to(shaderSaveFormat.vertexName);
+      shaderJson["fragmentName"].get_to(shaderSaveFormat.fragmentName);
+
+      if(!shaderJson["noiseTextureName"].is_null()) {
+        shaderJson["noiseTextureName"].get_to(shaderSaveFormat.noiseTextureName);
+      }
+
+      saveFormat.shaders.push_back(shaderSaveFormat);
+    }
+  }
+
+  { // models
+    for(u32 jsonModelIndex = 0; jsonModelIndex < modelCount; jsonModelIndex++) {
+      nlohmann::json modelJson = json["models"][jsonModelIndex];
+      ModelSaveFormat modelSaveFormat;
+      modelSaveFormat.index = modelJson["index"];
+      modelJson["fileName"].get_to(modelSaveFormat.fileName);
+
+      if(!modelJson["baseColor"].is_null()) {
+        Assert(modelJson["baseColor"].size() == 4);
+        modelSaveFormat.baseColor = {
+                  modelJson["baseColor"][0],
+                  modelJson["baseColor"][1],
+                  modelJson["baseColor"][2],
+                  modelJson["baseColor"][3]
+        };
+      } else {
+        modelSaveFormat.baseColor.a = 0.0f;
+      }
+
+      saveFormat.models.push_back(modelSaveFormat);
+    }
+  }
+
+  { // scenes
+    for(u32 jsonSceneIndex = 0; jsonSceneIndex < sceneCount; jsonSceneIndex++) {
+      nlohmann::json sceneJson = json["scenes"][jsonSceneIndex];
+      SceneSaveFormat sceneSaveFormat;
+      sceneSaveFormat.index = sceneJson["index"];
+      sceneJson["title"].get_to(sceneSaveFormat.title);
+      size_t entityCount = sceneJson["entities"].size();
+
+      Assert(sceneSaveFormat.index < sceneCount);
+
+      if(!sceneJson["skyboxDir"].is_null() && !sceneJson["skyboxExt"].is_null()) { // if we have a skybox...
+        sceneJson["skyboxDir"].get_to(sceneSaveFormat.skyboxDir);
+        sceneJson["skyboxExt"].get_to(sceneSaveFormat.skyboxExt);
+      } else {
+        sceneSaveFormat.skyboxDir.clear();
+        sceneSaveFormat.skyboxExt.clear();
+      }
+
+      for(u32 jsonEntityIndex = 0; jsonEntityIndex < entityCount; jsonEntityIndex++) {
+        nlohmann::json entityJson = sceneJson["entities"][jsonEntityIndex];
+        EntitySaveFormat entitySaveFormat;
+        entitySaveFormat.modelIndex = entityJson["modelIndex"];
+        entitySaveFormat.shaderIndex = entityJson["shaderIndex"];
+        Assert(entitySaveFormat.shaderIndex < shaderCount);
+        Assert(entityJson["posXYZ"].size() == 3);
+        Assert(entityJson["scaleXYZ"].size() == 3);
+        entitySaveFormat.posXYZ = {
+                entityJson["posXYZ"][0],
+                entityJson["posXYZ"][1],
+                entityJson["posXYZ"][2]
+        };
+        entitySaveFormat.scaleXYZ = {
+                entityJson["scaleXYZ"][0],
+                entityJson["scaleXYZ"][1],
+                entityJson["scaleXYZ"][2]
+        };
+        entitySaveFormat.yaw = entityJson["yaw"];
+        entitySaveFormat.flags = entityJson["flags"];
+        sceneSaveFormat.entities.push_back(entitySaveFormat);
+      }
+
+      size_t portalCount = sceneJson["portals"].size();
+      for (u32 jsonPortalIndex = 0; jsonPortalIndex < portalCount; jsonPortalIndex++)
+      {
+        nlohmann::json portalJson = sceneJson["portals"][jsonPortalIndex];
+        PortalSaveFormat portalSaveFormat;
+        portalSaveFormat.destination = portalJson["destination"];
+        Assert(portalJson["normalXYZ"].size() == 3);
+        Assert(portalJson["centerXYZ"].size() == 3);
+        Assert(portalJson["dimensXY"].size() == 2);
+        portalSaveFormat.normalXYZ = {
+                portalJson["normalXYZ"][0],
+                portalJson["normalXYZ"][1],
+                portalJson["normalXYZ"][2]
+        };
+        portalSaveFormat.centerXYZ = {
+                portalJson["centerXYZ"][0],
+                portalJson["centerXYZ"][1],
+                portalJson["centerXYZ"][2]
+        };
+        portalSaveFormat.dimensXY = {
+                portalJson["dimensXY"][0],
+                portalJson["dimensXY"][1]
+        };
+        sceneSaveFormat.portals.push_back(portalSaveFormat);
+      }
+
+      saveFormat.scenes.push_back(sceneSaveFormat);
+    }
+
+    // we have to iterate over the scenes once more for portals, as the scene destination index requires
+    // the other scenes to have been initialized
+    SceneSaveFormat* sceneSaveFormats = saveFormat.scenes.data();
+    for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++)
+    {
+      nlohmann::json sceneJson = json["scenes"][sceneIndex];
+      SceneSaveFormat* sceneSaveFormat = sceneSaveFormats + sceneIndex;
+    }
+  }
+
+  return saveFormat;
+}
