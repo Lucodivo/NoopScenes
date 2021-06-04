@@ -45,6 +45,86 @@ struct SaveFormat {
   std::vector<ShaderSaveFormat> shaders;
 };
 
+void save(const SaveFormat& saveFormat, const char* saveFileName) {
+  nlohmann::json saveJson;
+
+  saveJson["startingSceneIndex"] = saveFormat.startingSceneIndex;
+
+  u32 sceneCount = saveFormat.scenes.size();
+  u32 modelCount = saveFormat.models.size();
+  u32 shaderCount = saveFormat.shaders.size();
+
+  for(u32 modelIndex = 0; modelIndex < modelCount; modelIndex++) {
+    ModelSaveFormat modelSaveFormat = saveFormat.models[modelIndex];
+    saveJson["models"].push_back({
+      {"index", modelSaveFormat.index},
+      {"fileName", modelSaveFormat.fileName}
+    });
+    if(modelSaveFormat.baseColor.a != 0.0f) {
+      saveJson["models"][modelIndex]["baseColor"] = {
+              modelSaveFormat.baseColor.r,
+              modelSaveFormat.baseColor.g,
+              modelSaveFormat.baseColor.b,
+              modelSaveFormat.baseColor.a
+      };
+    }
+  }
+
+  for(u32 shaderIndex = 0; shaderIndex < shaderCount; shaderIndex++) {
+    ShaderSaveFormat shaderSaveFormat = saveFormat.shaders[shaderIndex];
+    saveJson["shaders"].push_back({
+      {"index", shaderSaveFormat.index},
+      {"vertexName", shaderSaveFormat.vertexName},
+      {"fragmentName", shaderSaveFormat.fragmentName}
+    });
+    if(!shaderSaveFormat.noiseTextureName.empty()) {
+      saveJson["shaders"][shaderIndex]["noiseTextureName"] = shaderSaveFormat.noiseTextureName;
+    }
+  }
+
+  for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++) {
+    SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
+    saveJson["scenes"].push_back({
+      {"index", sceneSaveFormat.index}
+    });
+    if(!sceneSaveFormat.title.empty()) {
+      saveJson["scenes"][sceneIndex]["title"] = sceneSaveFormat.title;
+    }
+    if(!sceneSaveFormat.skyboxDir.empty() && !sceneSaveFormat.skyboxExt.empty()) {
+      saveJson["scenes"][sceneIndex]["skyboxDir"] = sceneSaveFormat.skyboxDir;
+      saveJson["scenes"][sceneIndex]["skyboxExt"] = sceneSaveFormat.skyboxExt;
+    }
+
+    u32 entityCount = sceneSaveFormat.entities.size();
+    for(u32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+      EntitySaveFormat entitySaveFormat = sceneSaveFormat.entities[entityIndex];
+      saveJson["scenes"][sceneIndex]["entities"].push_back({
+        {"modelIndex", entitySaveFormat.modelIndex},
+        {"shaderIndex", entitySaveFormat.shaderIndex},
+        {"posXYZ", {entitySaveFormat.posXYZ.x, entitySaveFormat.posXYZ.y, entitySaveFormat.posXYZ.z}},
+        {"scaleXYZ", {entitySaveFormat.scaleXYZ.x, entitySaveFormat.scaleXYZ.y, entitySaveFormat.scaleXYZ.z}},
+        {"yaw", entitySaveFormat.yaw},
+        {"flags", entitySaveFormat.flags}
+      });
+    }
+
+    u32 portalCount = sceneSaveFormat.portals.size();
+    for(u32 portalIndex = 0; portalIndex < portalCount; portalIndex++) {
+      PortalSaveFormat portalSaveFormat = sceneSaveFormat.portals[portalIndex];
+      saveJson["scenes"][sceneIndex]["portals"].push_back({
+        {"destination", portalSaveFormat.destination},
+        {"centerXYZ", {portalSaveFormat.centerXYZ.x, portalSaveFormat.centerXYZ.y, portalSaveFormat.centerXYZ.z}},
+        {"normalXYZ", {portalSaveFormat.normalXYZ.x, portalSaveFormat.normalXYZ.y, portalSaveFormat.normalXYZ.z}},
+        {"dimensXY", {portalSaveFormat.dimensXY.x, portalSaveFormat.dimensXY.y}}
+      });
+    }
+  }
+
+  // write prettified JSON to another file
+  std::ofstream o(saveFileName);
+  o << std::setw(4) << saveJson << std::endl;
+}
+
 SaveFormat loadSave(const char* saveJson) {
   SaveFormat saveFormat{};
 
@@ -99,7 +179,7 @@ SaveFormat loadSave(const char* saveJson) {
                   modelJson["baseColor"][3]
         };
       } else {
-        modelSaveFormat.baseColor.a = 0.0f;
+        modelSaveFormat.baseColor = {0.0f, 0.0f, 0.0f, 0.0f};
       }
 
       saveFormat.models.push_back(modelSaveFormat);
@@ -111,10 +191,13 @@ SaveFormat loadSave(const char* saveJson) {
       nlohmann::json sceneJson = json["scenes"][jsonSceneIndex];
       SceneSaveFormat sceneSaveFormat;
       sceneSaveFormat.index = sceneJson["index"];
-      sceneJson["title"].get_to(sceneSaveFormat.title);
-      size_t entityCount = sceneJson["entities"].size();
-
       Assert(sceneSaveFormat.index < sceneCount);
+
+      if(!sceneJson["title"].is_null()) {
+        sceneJson["title"].get_to(sceneSaveFormat.title);
+      } else {
+        sceneSaveFormat.title.clear();
+      }
 
       if(!sceneJson["skyboxDir"].is_null() && !sceneJson["skyboxExt"].is_null()) { // if we have a skybox...
         sceneJson["skyboxDir"].get_to(sceneSaveFormat.skyboxDir);
@@ -124,6 +207,8 @@ SaveFormat loadSave(const char* saveJson) {
         sceneSaveFormat.skyboxExt.clear();
       }
 
+
+      size_t entityCount = sceneJson["entities"].size();
       for(u32 jsonEntityIndex = 0; jsonEntityIndex < entityCount; jsonEntityIndex++) {
         nlohmann::json entityJson = sceneJson["entities"][jsonEntityIndex];
         EntitySaveFormat entitySaveFormat;

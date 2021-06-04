@@ -9,6 +9,7 @@
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
 
 // platform/input
 #include <windows.h>

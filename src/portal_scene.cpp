@@ -41,7 +41,7 @@ struct Scene {
   Portal portals[MAX_PORTALS];
   u32 portalCount;
   GLuint skyboxTexture;
-  const char* title;
+  const char* title; // TODO: Move to metadata section?
 };
 
 struct World
@@ -303,8 +303,8 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
     // TODO: Should some of this logic be moved to drawModel()?
     for(u32 meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
       Mesh* mesh = model.meshes + meshIndex;
-      if(mesh->textureData.baseColor.w != 0.0f) {
-        setUniform(shader.id, baseColorUniformName, mesh->textureData.baseColor.xyz);
+      if(mesh->textureData.baseColor.a != 0.0f) {
+        setUniform(shader.id, baseColorUniformName, mesh->textureData.baseColor.rgb);
       }
       if(mesh->textureData.albedoTextureId != TEXTURE_ID_NO_TEXTURE) {
         bindActiveTextureSampler2d(albedoActiveTextureIndex, mesh->textureData.albedoTextureId);
@@ -406,26 +406,73 @@ void initGlobalVertexAtts() {
 }
 
 void saveScene(World* world) {
-  nlohmann::json json;
+  SaveFormat saveFormat{};
 
-  for(u32 i = 0; i < world->sceneCount; i++) {
-    Scene* scene = world->scenes + i;
-    json["scenes"].push_back(
-            {
-                  {"index", i},
-                  {"title", scene->title}
-                }
-            );
-    for(u32 j = 0; j < scene->entityCount; j++) {
-      Entity* entity = scene->entities + j;
-//      json["scenes"]["entities"].push_back(
-//                {
-//                        {"shader", entity->shaderProgram},
-//                        {"scaleXYZ", {entity->scale.x, entity->scale.y, entity->scale.z}},
-//                        {"posXYZ", {entity->position.x, entity->position.y, entity->position.z}}
-//                }
-//              );
+  saveFormat.startingSceneIndex = world->currentSceneIndex;
+
+  saveFormat.scenes.reserve(world->sceneCount);
+  saveFormat.shaders.reserve(world->shaderCount);
+  saveFormat.models.reserve(world->modelCount);
+
+  for(u32 modelIndex = 0; modelIndex < world->modelCount; modelIndex++) {
+    Model* model = world->models + modelIndex;
+    Assert(model->meshCount > 0);
+    ModelSaveFormat modelSaveFormat{};
+    modelSaveFormat.index = modelIndex;
+    modelSaveFormat.baseColor = model->meshes[0].textureData.baseColor;
+    modelSaveFormat.fileName = "TODO"; // TODO
+    saveFormat.models.push_back(modelSaveFormat);
+  }
+
+  for(u32 shaderIndex = 0; shaderIndex < world->shaderCount; shaderIndex++) {
+    ShaderProgram* shader = world->shaders + shaderIndex;
+    ShaderSaveFormat shaderSaveFormat{};
+    shaderSaveFormat.index = shaderIndex;
+    shaderSaveFormat.vertexName = "TODO"; // TODO
+    shaderSaveFormat.fragmentName = "TODO"; // TODO
+    if(true) { // TODO if not empty
+      shaderSaveFormat.noiseTextureName = "TODO"; // TODO
+    } else {
+      shaderSaveFormat.noiseTextureName.clear();
     }
+  }
+
+  for(u32 sceneIndex = 0; sceneIndex < world->sceneCount; sceneIndex++) {
+    Scene* scene = world->scenes + sceneIndex;
+    SceneSaveFormat sceneSaveFormat{};
+    sceneSaveFormat.index = sceneIndex;
+    sceneSaveFormat.title = scene->title;
+    if(true) { // TODO if not empty
+      sceneSaveFormat.skyboxDir = "TODO"; // TODO
+      sceneSaveFormat.skyboxExt = "TODO"; // TODO
+    } else {
+      sceneSaveFormat.skyboxDir.clear();
+      sceneSaveFormat.skyboxExt.clear();
+    }
+
+    for(u32 entityIndex = 0; entityIndex < scene->entityCount; entityIndex++) {
+      Entity* entity = scene->entities + entityIndex;
+      EntitySaveFormat entitySaveFormat{};
+      entitySaveFormat.shaderIndex = entity->shaderIndex;
+      entitySaveFormat.modelIndex = entity->modelIndex;
+      entitySaveFormat.scaleXYZ = entity->scale;
+      entitySaveFormat.posXYZ = entity->position;
+      entitySaveFormat.yaw = entity->yaw;
+      entitySaveFormat.flags = entity->typeFlags;
+      sceneSaveFormat.entities.push_back(entitySaveFormat);
+    }
+
+    for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
+      Portal* portal = scene->portals + portalIndex;
+      PortalSaveFormat portalSaveFormat{};
+      portalSaveFormat.destination = portal->sceneDestination;
+      portalSaveFormat.centerXYZ = portal->centerPosition;
+      portalSaveFormat.normalXYZ = portal->normal;
+      portalSaveFormat.dimensXY = portal->dimens;
+      sceneSaveFormat.portals.push_back(portalSaveFormat);
+    }
+
+    saveFormat.scenes.push_back(sceneSaveFormat);
   }
 }
 
@@ -478,12 +525,10 @@ void createScenes(World* world) {
       Assert(modelSaveFormat.index < modelCount);
       worldModelIndices[modelSaveFormat.index] = addNewModel(world, modelFileLocBuffer);
 
-      if(modelSaveFormat.baseColor.a != 0.0f) {
-        Model* model = world->models + worldModelIndices[modelSaveFormat.index];
-        for(u32 meshIndex = 0; meshIndex < model->meshCount; meshIndex++) {
-          Mesh* mesh = model->meshes + meshIndex;
-          mesh->textureData.baseColor = modelSaveFormat.baseColor;
-        }
+      Model* model = world->models + worldModelIndices[modelSaveFormat.index];
+      for(u32 meshIndex = 0; meshIndex < model->meshCount; meshIndex++) {
+        Mesh* mesh = model->meshes + meshIndex;
+        mesh->textureData.baseColor = modelSaveFormat.baseColor;
       }
     }
   }
