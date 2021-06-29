@@ -641,6 +641,7 @@ void portalScene(GLFWwindow* window) {
   }
 
   globalWorld.stopWatch = createStopWatch();
+  bool cursorEnabled = isCursorEnabled(window);
   while(glfwWindowShouldClose(window) == GL_FALSE)
   {
     loadInputStateForFrame(window);
@@ -665,6 +666,12 @@ void portalScene(GLFWwindow* window) {
       adjustAspectPerspProj(&globalWorld.projectionViewModelUbo.projection, globalWorld.fov, globalWorld.aspect);
     }
 
+    // toggle cursor
+    if(hotPress(KeyboardInput_Space)) {
+      cursorEnabled = !cursorEnabled;
+      enableCursor(window, cursorEnabled);
+    }
+
     // gather input
     b32 leftShiftIsActive = isActive(KeyboardInput_Shift_Left);
     b32 leftIsActive = isActive(KeyboardInput_A) || isActive(KeyboardInput_Left);
@@ -675,7 +682,8 @@ void portalScene(GLFWwindow* window) {
     vec2_f64 mouseDelta = getMouseDelta();
 
     // gather input for movement and camera changes
-    {
+    const bool cameraMovementEnabled = !cursorEnabled;
+    if(cameraMovementEnabled) {
       b32 lateralMovement = leftIsActive != rightIsActive;
       b32 forwardMovement = upIsActive != downIsActive;
       vec3 playerDelta{};
@@ -720,9 +728,8 @@ void portalScene(GLFWwindow* window) {
       } else {
         updateCamera_FirstPerson(&globalWorld.camera, playerDelta, f32(-mouseDelta.y * mouseDeltaMultConst), f32(-mouseDelta.x * mouseDeltaMultConst));
       }
-
-      globalWorld.projectionViewModelUbo.view = getViewMat(globalWorld.camera);
     }
+    globalWorld.projectionViewModelUbo.view = getViewMat(globalWorld.camera);
 
     // draw
     glStencilMask(0xFF);
@@ -791,7 +798,20 @@ void portalScene(GLFWwindow* window) {
     }
 
     updateEntities(&globalWorld);
+
+    // Start the Dear ImGui frame
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    bool trueBool = true;
+    ImGui::ShowDemoWindow(&trueBool);
+
+    // Rendering
+    ImGui::Render();
+
     drawSceneWithPortals(&globalWorld);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
     glfwSwapBuffers(window); // swaps double buffers (call after all render commands are completed)
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)

@@ -1,7 +1,7 @@
 #pragma once
 
 #define GLFW_INCLUDE_NONE // ensure GLFW doesn't load OpenGL headers
-#include <glfw3.h>
+#include <GLFW/glfw3.h>
 #undef APIENTRY // collides with minwindef.h
 #include <glad/glad.h>
 #include <iostream>
@@ -26,6 +26,10 @@
 #define TINYGLTF_NO_INCLUDE_JSON
 // #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
 #include "tinygltf/tiny_gltf.h"
+
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_opengl3.h"
 
 #undef far
 #undef near
