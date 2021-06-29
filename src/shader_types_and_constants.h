@@ -12,6 +12,9 @@ struct ShaderProgram {
   GLuint vertexShader;
   GLuint fragmentShader;
   GLuint noiseTextureId;
+  const char* vertexFileName;
+  const char* fragmentFileName;
+  const char* noiseTextureFileName;
 };
 
 u32 projectionViewModelUBOBindingIndex = 0;

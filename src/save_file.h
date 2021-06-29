@@ -46,15 +46,15 @@ struct SaveFormat {
 };
 
 void save(const SaveFormat& saveFormat, const char* saveFileName) {
-  nlohmann::json saveJson;
+  nlohmann::json saveJson{};
 
   saveJson["startingSceneIndex"] = saveFormat.startingSceneIndex;
 
-  u32 sceneCount = saveFormat.scenes.size();
-  u32 modelCount = saveFormat.models.size();
-  u32 shaderCount = saveFormat.shaders.size();
+  size_t sceneCount = saveFormat.scenes.size();
+  size_t modelCount = saveFormat.models.size();
+  size_t shaderCount = saveFormat.shaders.size();
 
-  for(u32 modelIndex = 0; modelIndex < modelCount; modelIndex++) {
+  for(size_t modelIndex = 0; modelIndex < modelCount; modelIndex++) {
     ModelSaveFormat modelSaveFormat = saveFormat.models[modelIndex];
     saveJson["models"].push_back({
       {"index", modelSaveFormat.index},
@@ -95,8 +95,8 @@ void save(const SaveFormat& saveFormat, const char* saveFileName) {
       saveJson["scenes"][sceneIndex]["skyboxExt"] = sceneSaveFormat.skyboxExt;
     }
 
-    u32 entityCount = sceneSaveFormat.entities.size();
-    for(u32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+    size_t entityCount = sceneSaveFormat.entities.size();
+    for(size_t entityIndex = 0; entityIndex < entityCount; entityIndex++) {
       EntitySaveFormat entitySaveFormat = sceneSaveFormat.entities[entityIndex];
       saveJson["scenes"][sceneIndex]["entities"].push_back({
         {"modelIndex", entitySaveFormat.modelIndex},
@@ -108,8 +108,8 @@ void save(const SaveFormat& saveFormat, const char* saveFileName) {
       });
     }
 
-    u32 portalCount = sceneSaveFormat.portals.size();
-    for(u32 portalIndex = 0; portalIndex < portalCount; portalIndex++) {
+    size_t portalCount = sceneSaveFormat.portals.size();
+    for(size_t portalIndex = 0; portalIndex < portalCount; portalIndex++) {
       PortalSaveFormat portalSaveFormat = sceneSaveFormat.portals[portalIndex];
       saveJson["scenes"][sceneIndex]["portals"].push_back({
         {"destination", portalSaveFormat.destination},

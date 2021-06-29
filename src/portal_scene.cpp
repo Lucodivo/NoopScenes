@@ -41,7 +41,9 @@ struct Scene {
   Portal portals[MAX_PORTALS];
   u32 portalCount;
   GLuint skyboxTexture;
-  const char* title; // TODO: Move to metadata section?
+  const char* title;
+  const char* skyboxDir;
+  const char* skyboxExt;
 };
 
 struct World
@@ -117,11 +119,11 @@ u32 addNewScene(World* world, const char* title) {
   return sceneIndex;
 }
 
-u32 addNewShader(World* world, const char* vertexShaderFileLoc, const char* fragmentShaderFileLoc) {
+u32 addNewShader(World* world, const char* vertexShaderFileLoc, const char* fragmentShaderFileLoc, const char* noiseTexture = nullptr) {
   Assert(ArrayCount(world->shaders) > world->shaderCount);
   u32 shaderIndex = world->shaderCount++;
   ShaderProgram* shader = world->shaders + shaderIndex;
-  *shader = createShaderProgram(vertexShaderFileLoc, fragmentShaderFileLoc);
+  *shader = createShaderProgram(vertexShaderFileLoc, fragmentShaderFileLoc, noiseTexture);
   return shaderIndex;
 }
 
@@ -176,6 +178,8 @@ inline vec3 calcPlayerViewingPosition(const Player* player) {
 
 void drawTrianglesWireframe(const VertexAtt* vertexAtt) {
   // TODO: This will not work at all in a general case
+  // TODO: It only currently works because the wireframe shapes are the first things we draw in each scene
+  // TODO: can't just disable the depth test whenever
   glUseProgram(globalShaders.singleColor.id);
   setUniform(globalShaders.singleColor.id, "baseColor", vec3{0.0f, 0.0f, 0.0f});
   glDisable(GL_DEPTH_TEST);
@@ -342,6 +346,9 @@ void updateEntities(World* world) {
       Entity* entity = scene->entities + entityIndex;
       if(entity->typeFlags & EntityType_Rotating) {
         entity->yaw += 30.0f * RadiansPerDegree * world->stopWatch.delta;
+        if(entity->yaw > Tau32) {
+          entity->yaw -= Tau32;
+        }
       }
     }
   }
@@ -351,7 +358,6 @@ void updateEntities(World* world) {
   b32 portalEntered = false;
   u32 portalSceneDestination;
   auto updatePortalsForScene = [playerViewPosition, &portalEntered, &portalSceneDestination](Scene* scene) {
-    // TODO: optimize only checking what we need to for portals
     for(u32 portalIndex = 0; portalIndex < scene->portalCount; ++portalIndex) {
       Portal* portal = scene->portals + portalIndex;
 
@@ -405,7 +411,7 @@ void initGlobalVertexAtts() {
   globalVertexAtts.skyboxBox = cubePosVertexAttBuffers(true);
 }
 
-void saveScene(World* world) {
+void saveWorld(World* world, const char* title) {
   SaveFormat saveFormat{};
 
   saveFormat.startingSceneIndex = world->currentSceneIndex;
@@ -420,7 +426,7 @@ void saveScene(World* world) {
     ModelSaveFormat modelSaveFormat{};
     modelSaveFormat.index = modelIndex;
     modelSaveFormat.baseColor = model->meshes[0].textureData.baseColor;
-    modelSaveFormat.fileName = "TODO"; // TODO
+    modelSaveFormat.fileName = model->fileName;
     saveFormat.models.push_back(modelSaveFormat);
   }
 
@@ -428,13 +434,14 @@ void saveScene(World* world) {
     ShaderProgram* shader = world->shaders + shaderIndex;
     ShaderSaveFormat shaderSaveFormat{};
     shaderSaveFormat.index = shaderIndex;
-    shaderSaveFormat.vertexName = "TODO"; // TODO
-    shaderSaveFormat.fragmentName = "TODO"; // TODO
-    if(true) { // TODO if not empty
-      shaderSaveFormat.noiseTextureName = "TODO"; // TODO
+    shaderSaveFormat.vertexName = shader->vertexFileName;
+    shaderSaveFormat.fragmentName = shader->fragmentFileName;
+    if(shader->noiseTextureFileName != nullptr) {
+      shaderSaveFormat.noiseTextureName = shader->noiseTextureFileName;
     } else {
       shaderSaveFormat.noiseTextureName.clear();
     }
+    saveFormat.shaders.push_back(shaderSaveFormat);
   }
 
   for(u32 sceneIndex = 0; sceneIndex < world->sceneCount; sceneIndex++) {
@@ -442,9 +449,9 @@ void saveScene(World* world) {
     SceneSaveFormat sceneSaveFormat{};
     sceneSaveFormat.index = sceneIndex;
     sceneSaveFormat.title = scene->title;
-    if(true) { // TODO if not empty
-      sceneSaveFormat.skyboxDir = "TODO"; // TODO
-      sceneSaveFormat.skyboxExt = "TODO"; // TODO
+    if(scene->skyboxTexture != TEXTURE_ID_NO_TEXTURE) {
+      sceneSaveFormat.skyboxDir = scene->skyboxDir;
+      sceneSaveFormat.skyboxExt = scene->skyboxExt;
     } else {
       sceneSaveFormat.skyboxDir.clear();
       sceneSaveFormat.skyboxExt.clear();
@@ -474,11 +481,11 @@ void saveScene(World* world) {
 
     saveFormat.scenes.push_back(sceneSaveFormat);
   }
+
+  save(saveFormat, title);
 }
 
 void createScenes(World* world) {
-  const u32 fileNameCharacterLimit = 64;
-
   SaveFormat saveFormat = loadSave( "src/scenes/original_scene.json");
 
   size_t sceneCount = saveFormat.scenes.size();
@@ -487,43 +494,26 @@ void createScenes(World* world) {
 
   u32* worldShaderIndices = new u32[shaderCount];
   { // shaders
-    const char shaderBaseLoc[] = COMMON_SHADER_BASE;
-    const u32 shaderBaseCount = ArrayCount(shaderBaseLoc) - 1;
-    const char textureBaseLoc[] = COMMON_TEXTURE_BASE;
-    const u32 textureBaseCount = ArrayCount(textureBaseLoc) - 1;
-    char vertexShaderBuffer[ArrayCount(shaderBaseLoc) + fileNameCharacterLimit];
-    char fragmentShaderBuffer[ArrayCount(shaderBaseLoc) + fileNameCharacterLimit];
-    char noiseTextureBuffer[ArrayCount(textureBaseLoc) + fileNameCharacterLimit];
-    std::strcpy(vertexShaderBuffer, shaderBaseLoc);
-    std::strcpy(fragmentShaderBuffer, shaderBaseLoc);
-    std::strcpy(noiseTextureBuffer, textureBaseLoc);
     for(u32 shaderIndex = 0; shaderIndex < shaderCount; shaderIndex++) {
       ShaderSaveFormat shaderSaveFormat = saveFormat.shaders[shaderIndex];
-      Assert(shaderSaveFormat.vertexName.size() < fileNameCharacterLimit && shaderSaveFormat.fragmentName.size() < fileNameCharacterLimit);
-      std::strcpy(vertexShaderBuffer + shaderBaseCount, shaderSaveFormat.vertexName.c_str());
-      std::strcpy(fragmentShaderBuffer + shaderBaseCount, shaderSaveFormat.fragmentName.c_str());
       Assert(shaderSaveFormat.index < shaderCount);
-      worldShaderIndices[shaderSaveFormat.index] = addNewShader(world, vertexShaderBuffer, fragmentShaderBuffer);
 
-      if(!shaderSaveFormat.noiseTextureName.empty()) {
-        std::strcpy(noiseTextureBuffer + textureBaseCount, shaderSaveFormat.noiseTextureName.c_str());
-        load2DTexture(noiseTextureBuffer, &world->shaders[worldShaderIndices[shaderSaveFormat.index]].noiseTextureId);
+      const char* noiseTexture = nullptr;
+      if(!shaderSaveFormat.noiseTextureName.empty())
+      {
+        noiseTexture = shaderSaveFormat.noiseTextureName.c_str();
       }
+
+      worldShaderIndices[shaderSaveFormat.index] = addNewShader(world, shaderSaveFormat.vertexName.c_str(), shaderSaveFormat.fragmentName.c_str(), noiseTexture);
     }
   }
 
   u32* worldModelIndices = new u32[modelCount];
   { // models
-    const char modelBaseLoc[] = COMMON_MODEL_BASE;
-    const u32 modelBaseCount = ArrayCount(modelBaseLoc) - 1;
-    char modelFileLocBuffer[ArrayCount(modelBaseLoc) + fileNameCharacterLimit];
-    std::strcpy(modelFileLocBuffer, modelBaseLoc);
     for(u32 modelIndex = 0; modelIndex < modelCount; modelIndex++) {
       ModelSaveFormat modelSaveFormat = saveFormat.models[modelIndex];
-      Assert(modelSaveFormat.fileName.size() < fileNameCharacterLimit);
-      std::strcpy(modelFileLocBuffer + modelBaseCount, modelSaveFormat.fileName.c_str());
       Assert(modelSaveFormat.index < modelCount);
-      worldModelIndices[modelSaveFormat.index] = addNewModel(world, modelFileLocBuffer);
+      worldModelIndices[modelSaveFormat.index] = addNewModel(world, modelSaveFormat.fileName.c_str());
 
       Model* model = world->models + worldModelIndices[modelSaveFormat.index];
       for(u32 meshIndex = 0; meshIndex < model->meshCount; meshIndex++) {
@@ -535,10 +525,6 @@ void createScenes(World* world) {
 
   u32* worldSceneIndices = new u32[sceneCount];
   { // scenes
-    const char skyboxTextureBaseLoc[] = COMMON_SKYBOX_BASE;
-    const u32 skyboxTextureBaseCount = ArrayCount(skyboxTextureBaseLoc) - 1;
-    char skyboxTextureDirBuffer[ArrayCount(skyboxTextureBaseLoc) + fileNameCharacterLimit];
-    std::strcpy(skyboxTextureDirBuffer, skyboxTextureBaseLoc);
     for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++) {
       SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
       size_t entityCount = sceneSaveFormat.entities.size();
@@ -546,11 +532,12 @@ void createScenes(World* world) {
       Assert(sceneSaveFormat.index < sceneCount);
       worldSceneIndices[sceneSaveFormat.index] = addNewScene(world, sceneSaveFormat.title.c_str());
       Scene* scene = world->scenes + worldSceneIndices[sceneSaveFormat.index];
+      scene->title = cStrAllocateAndCopy(sceneSaveFormat.title.c_str());
 
-      if(!sceneSaveFormat.skyboxDir.empty() && !sceneSaveFormat.skyboxDir.empty()) { // if we have a skybox...
-        std::string skyboxDir = sceneSaveFormat.skyboxDir + '/';
-        strcpy(skyboxTextureDirBuffer + skyboxTextureBaseCount, skyboxDir.c_str());
-        loadCubeMapTexture(skyboxTextureDirBuffer, sceneSaveFormat.skyboxExt.c_str(), &scene->skyboxTexture);
+      if(!sceneSaveFormat.skyboxDir.empty() && !sceneSaveFormat.skyboxExt.empty()) { // if we have a skybox...
+        scene->skyboxDir = cStrAllocateAndCopy(sceneSaveFormat.skyboxDir.c_str());
+        scene->skyboxExt = cStrAllocateAndCopy(sceneSaveFormat.skyboxExt.c_str());
+        loadCubeMapTexture(scene->skyboxDir, scene->skyboxExt, &scene->skyboxTexture);
       } else {
         scene->skyboxTexture = TEXTURE_ID_NO_TEXTURE;
       }
@@ -810,5 +797,6 @@ void portalScene(GLFWwindow* window) {
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
   }
 
+  saveWorld(&globalWorld, "src/scenes/original_scene.json");
   deleteShaderPrograms(globalShaders.shaders, ArrayCount(globalShaders.shaders));
 }

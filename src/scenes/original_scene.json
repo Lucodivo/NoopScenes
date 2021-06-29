@@ -1,223 +1,403 @@
 {
-"startingSceneIndex": 0,
-"scenes": [
-    {
-      "index": 0,
-      "title": "Gate",
-      "skyboxDir": "cave",
-      "skyboxExt": "png",
-      "entities": [
+    "models": [
         {
-          "modelIndex": 0,
-          "shaderIndex": 0,
-          "posXYZ": [0.0, 0.0, 1.5],
-          "scaleXYZ": [3.0, 3.0, 3.0],
-          "flags": 0,
-          "yaw": 0.0
-        }
-      ],
-      "portals": [
-        {
-          "destination": 1,
-          "normalXYZ": [0.0, -1.0, 0.0],
-          "centerXYZ": [0.0, -1.5, 1.5],
-          "dimensXY": [3.0, 3.0]
+            "fileName": "src/data/models/Gate.glb",
+            "index": 0
         },
         {
-          "destination": 2,
-          "normalXYZ": [1.0, 0.0, 0.0],
-          "centerXYZ": [1.5, 0.0, 1.5],
-          "dimensXY": [3.0, 3.0]
+            "baseColor": [
+                1.0,
+                0.4000000059604645,
+                0.4000000059604645,
+                1.0
+            ],
+            "fileName": "src/data/models/Tetrahedron.glb",
+            "index": 1
         },
         {
-          "destination": 3,
-          "normalXYZ": [-1.0, 0.0, 0.0],
-          "centerXYZ": [-1.5, 0.0, 1.5],
-          "dimensXY": [3.0, 3.0]
+            "baseColor": [
+                0.4000000059604645,
+                1.0,
+                0.4000000059604645,
+                1.0
+            ],
+            "fileName": "src/data/models/Octahedron.glb",
+            "index": 2
         },
         {
-          "destination": 4,
-          "normalXYZ": [0.0, 1.0, 0.0],
-          "centerXYZ": [0.0, 1.5, 1.5],
-          "dimensXY": [3.0, 3.0]
-        }
-      ]
-    },
-    {
-      "index": 1,
-      "title": "Tetrahedron",
-      "skyboxDir": "yellow_cloud",
-      "skyboxExt": "jpg",
-      "entities": [
-        {
-          "modelIndex": 1,
-          "shaderIndex": 1,
-          "posXYZ": [0.0, 0.0, 1.5],
-          "scaleXYZ": [1.0, 1.0, 1.0],
-          "flags": 3,
-          "yaw": 0.0
+            "baseColor": [
+                0.8999999761581421,
+                0.8999999761581421,
+                0.8999999761581421,
+                1.0
+            ],
+            "fileName": "src/data/models/Icosahedron.glb",
+            "index": 3
         },
         {
-          "modelIndex": 5,
-          "shaderIndex": 2,
-          "posXYZ": [0.0, -1.75, 1.5],
-          "scaleXYZ": [3.0, 0.5, 3.0],
-          "flags": 0,
-          "yaw": 3.14159274
-        }
-      ],
-      "portals": [
-        {
-          "destination": 0,
-          "normalXYZ": [0.0, 1.0, 0.0],
-          "centerXYZ": [0.0, -1.5, 1.5],
-          "dimensXY": [3.0, 3.0]
-        }
-      ]
-    },
-    {
-      "index": 2,
-      "title": "Octahedron",
-      "skyboxDir": "interstellar",
-      "skyboxExt": "png",
-      "entities": [
-        {
-          "modelIndex": 2,
-          "shaderIndex": 1,
-          "posXYZ": [0.0, 0.0, 1.5],
-          "scaleXYZ": [1.0, 1.0, 1.0],
-          "flags": 3,
-          "yaw": 0.0
+            "baseColor": [
+                0.4000000059604645,
+                0.4000000059604645,
+                1.0,
+                1.0
+            ],
+            "fileName": "src/data/models/Paper.glb",
+            "index": 4
         },
         {
-          "modelIndex": 5,
-          "shaderIndex": 2,
-          "posXYZ": [1.75, 0.0, 1.5],
-          "scaleXYZ": [3.0, 0.5, 3.0],
-          "flags": 0,
-          "yaw": -1.57079637
+            "fileName": "src/data/models/Portal-Backing-Plus-Gate-Insignia.glb",
+            "index": 5
         }
-      ],
-      "portals": [
+    ],
+    "scenes": [
         {
-          "destination": 0,
-          "normalXYZ": [-1.0, 0.0, 0.0],
-          "centerXYZ": [1.5, 0.0, 1.5],
-          "dimensXY": [3.0, 3.0]
-        }
-      ]
-    },
-    {
-      "index": 3,
-      "title": "Paper",
-      "skyboxDir": "calm_sea",
-      "skyboxExt": "jpg",
-      "entities": [
-        {
-          "modelIndex": 4,
-          "shaderIndex": 1,
-          "posXYZ": [0.0, 0.0, 1.5],
-          "scaleXYZ": [1.0, 1.0, 1.0],
-          "flags": 3,
-          "yaw": 0.0
+            "entities": [
+                {
+                    "flags": 0,
+                    "modelIndex": 0,
+                    "posXYZ": [
+                        0.0,
+                        0.0,
+                        1.5
+                    ],
+                    "scaleXYZ": [
+                        3.0,
+                        3.0,
+                        3.0
+                    ],
+                    "shaderIndex": 0,
+                    "yaw": 0.0
+                }
+            ],
+            "index": 0,
+            "portals": [
+                {
+                    "centerXYZ": [
+                        0.0,
+                        -1.5,
+                        1.5
+                    ],
+                    "destination": 1,
+                    "dimensXY": [
+                        3.0,
+                        3.0
+                    ],
+                    "normalXYZ": [
+                        0.0,
+                        -1.0,
+                        0.0
+                    ]
+                },
+                {
+                    "centerXYZ": [
+                        1.5,
+                        0.0,
+                        1.5
+                    ],
+                    "destination": 2,
+                    "dimensXY": [
+                        3.0,
+                        3.0
+                    ],
+                    "normalXYZ": [
+                        1.0,
+                        0.0,
+                        0.0
+                    ]
+                },
+                {
+                    "centerXYZ": [
+                        -1.5,
+                        0.0,
+                        1.5
+                    ],
+                    "destination": 3,
+                    "dimensXY": [
+                        3.0,
+                        3.0
+                    ],
+                    "normalXYZ": [
+                        -1.0,
+                        0.0,
+                        0.0
+                    ]
+                },
+                {
+                    "centerXYZ": [
+                        0.0,
+                        1.5,
+                        1.5
+                    ],
+                    "destination": 4,
+                    "dimensXY": [
+                        3.0,
+                        3.0
+                    ],
+                    "normalXYZ": [
+                        0.0,
+                        1.0,
+                        0.0
+                    ]
+                }
+            ],
+            "skyboxDir": "src/data/skybox/cave/",
+            "skyboxExt": "png",
+            "title": "Gate"
         },
         {
-          "modelIndex": 5,
-          "shaderIndex": 2,
-          "posXYZ": [-1.75, 0.0, 1.5],
-          "scaleXYZ": [3.0, 0.5, 3.0],
-          "flags": 0,
-          "yaw": 1.57079637
-        }
-      ],
-      "portals": [
-        {
-          "destination": 0,
-          "normalXYZ": [1.0, 0.0, 0.0],
-          "centerXYZ": [-1.5, 0.0, 1.5],
-          "dimensXY": [3.0, 3.0]
-        }
-      ]
-    },
-    {
-      "index": 4,
-      "title": "Icosahedron",
-      "skyboxDir": "polluted_earth",
-      "skyboxExt": "jpg",
-      "entities": [
-        {
-          "modelIndex": 3,
-          "shaderIndex": 1,
-          "posXYZ": [0.0, 0.0, 1.5],
-          "scaleXYZ": [1.0, 1.0, 1.0],
-          "flags": 3,
-          "yaw": 0.0
+            "entities": [
+                {
+                    "flags": 3,
+                    "modelIndex": 1,
+                    "posXYZ": [
+                        0.0,
+                        0.0,
+                        1.5
+                    ],
+                    "scaleXYZ": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "shaderIndex": 1,
+                    "yaw": 3.895047426223755
+                },
+                {
+                    "flags": 0,
+                    "modelIndex": 5,
+                    "posXYZ": [
+                        0.0,
+                        -1.75,
+                        1.5
+                    ],
+                    "scaleXYZ": [
+                        3.0,
+                        0.5,
+                        3.0
+                    ],
+                    "shaderIndex": 2,
+                    "yaw": 3.1415927410125732
+                }
+            ],
+            "index": 1,
+            "portals": [
+                {
+                    "centerXYZ": [
+                        0.0,
+                        -1.5,
+                        1.5
+                    ],
+                    "destination": 0,
+                    "dimensXY": [
+                        3.0,
+                        3.0
+                    ],
+                    "normalXYZ": [
+                        0.0,
+                        1.0,
+                        0.0
+                    ]
+                }
+            ],
+            "skyboxDir": "src/data/skybox/yellow_cloud/",
+            "skyboxExt": "jpg",
+            "title": "Tetrahedron"
         },
         {
-          "modelIndex": 5,
-          "shaderIndex": 2,
-          "posXYZ": [0.0, 1.75, 1.5],
-          "scaleXYZ": [3.0, 0.5, 3.0],
-          "flags": 0,
-          "yaw": 0.0
-        }
-      ],
-      "portals": [
+            "entities": [
+                {
+                    "flags": 3,
+                    "modelIndex": 2,
+                    "posXYZ": [
+                        0.0,
+                        0.0,
+                        1.5
+                    ],
+                    "scaleXYZ": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "shaderIndex": 1,
+                    "yaw": 3.895047426223755
+                },
+                {
+                    "flags": 0,
+                    "modelIndex": 5,
+                    "posXYZ": [
+                        1.75,
+                        0.0,
+                        1.5
+                    ],
+                    "scaleXYZ": [
+                        3.0,
+                        0.5,
+                        3.0
+                    ],
+                    "shaderIndex": 2,
+                    "yaw": -1.5707963705062866
+                }
+            ],
+            "index": 2,
+            "portals": [
+                {
+                    "centerXYZ": [
+                        1.5,
+                        0.0,
+                        1.5
+                    ],
+                    "destination": 0,
+                    "dimensXY": [
+                        3.0,
+                        3.0
+                    ],
+                    "normalXYZ": [
+                        -1.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ],
+            "skyboxDir": "src/data/skybox/interstellar/",
+            "skyboxExt": "png",
+            "title": "Octahedron"
+        },
         {
-          "destination": 0,
-          "normalXYZ": [0.0, -1.0, 0.0],
-          "centerXYZ": [0.0, 1.5, 1.5],
-          "dimensXY": [3.0, 3.0]
+            "entities": [
+                {
+                    "flags": 3,
+                    "modelIndex": 4,
+                    "posXYZ": [
+                        0.0,
+                        0.0,
+                        1.5
+                    ],
+                    "scaleXYZ": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "shaderIndex": 1,
+                    "yaw": 3.895047426223755
+                },
+                {
+                    "flags": 0,
+                    "modelIndex": 5,
+                    "posXYZ": [
+                        -1.75,
+                        0.0,
+                        1.5
+                    ],
+                    "scaleXYZ": [
+                        3.0,
+                        0.5,
+                        3.0
+                    ],
+                    "shaderIndex": 2,
+                    "yaw": 1.5707963705062866
+                }
+            ],
+            "index": 3,
+            "portals": [
+                {
+                    "centerXYZ": [
+                        -1.5,
+                        0.0,
+                        1.5
+                    ],
+                    "destination": 0,
+                    "dimensXY": [
+                        3.0,
+                        3.0
+                    ],
+                    "normalXYZ": [
+                        1.0,
+                        0.0,
+                        0.0
+                    ]
+                }
+            ],
+            "skyboxDir": "src/data/skybox/calm_sea/",
+            "skyboxExt": "jpg",
+            "title": "Paper"
+        },
+        {
+            "entities": [
+                {
+                    "flags": 3,
+                    "modelIndex": 3,
+                    "posXYZ": [
+                        0.0,
+                        0.0,
+                        1.5
+                    ],
+                    "scaleXYZ": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "shaderIndex": 1,
+                    "yaw": 3.895047426223755
+                },
+                {
+                    "flags": 0,
+                    "modelIndex": 5,
+                    "posXYZ": [
+                        0.0,
+                        1.75,
+                        1.5
+                    ],
+                    "scaleXYZ": [
+                        3.0,
+                        0.5,
+                        3.0
+                    ],
+                    "shaderIndex": 2,
+                    "yaw": 0.0
+                }
+            ],
+            "index": 4,
+            "portals": [
+                {
+                    "centerXYZ": [
+                        0.0,
+                        1.5,
+                        1.5
+                    ],
+                    "destination": 0,
+                    "dimensXY": [
+                        3.0,
+                        3.0
+                    ],
+                    "normalXYZ": [
+                        0.0,
+                        -1.0,
+                        0.0
+                    ]
+                }
+            ],
+            "skyboxDir": "src/data/skybox/polluted_earth/",
+            "skyboxExt": "jpg",
+            "title": "Icosahedron"
         }
-      ]
-    }
-  ],
-"models": [
-    {
-      "index": 0,
-      "fileName": "Gate.glb"
-    },
-    {
-      "index": 1,
-      "fileName": "Tetrahedron.glb",
-      "baseColor": [1.0, 0.4, 0.4, 1.0]
-    },
-    {
-      "index": 2,
-      "fileName": "Octahedron.glb",
-      "baseColor": [0.4, 1.0, 0.4, 1.0]
-    },
-    {
-      "index": 3,
-      "fileName": "Icosahedron.glb",
-      "baseColor": [0.9, 0.9, 0.9, 1.0]
-    },
-    {
-      "index": 4,
-      "fileName": "Paper.glb",
-      "baseColor": [0.4, 0.4, 1.0, 1.0]
-    },
-    {
-      "index": 5,
-      "fileName": "Portal-Backing-Plus-Gate-Insignia.glb"
-    }
-  ],
-"shaders": [
-    {
-      "index": 0,
-      "vertexName": "Gate.vert",
-      "fragmentName": "Gate.frag",
-      "noiseTextureName": "tiled_musgrave_texture_1_blur.png"
-    },
-    {
-      "index": 1,
-      "vertexName": "Pos.vert",
-      "fragmentName": "SingleColor.frag"
-    },
-    {
-      "index": 2,
-      "vertexName": "PosNorm.vert",
-      "fragmentName": "ReflectSkyboxYIsUp.frag"
-    }
-  ]
+    ],
+    "shaders": [
+        {
+            "fragmentName": "src/shaders/Gate.frag",
+            "index": 0,
+            "noiseTextureName": "src/data/textures/tiled_musgrave_texture_1_blur.png",
+            "vertexName": "src/shaders/Gate.vert"
+        },
+        {
+            "fragmentName": "src/shaders/SingleColor.frag",
+            "index": 1,
+            "vertexName": "src/shaders/Pos.vert"
+        },
+        {
+            "fragmentName": "src/shaders/ReflectSkyboxYIsUp.frag",
+            "index": 2,
+            "vertexName": "src/shaders/PosNorm.vert"
+        }
+    ],
+    "startingSceneIndex": 0
 }

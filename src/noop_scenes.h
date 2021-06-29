@@ -37,9 +37,9 @@
 #include "file_locations.h"
 #include "save_file.h"
 #include "input.h"
-#include "shader_program.h"
-#include "textures.h"
 #include "util.h"
+#include "textures.h"
+#include "shader_program.h"
 #include "model.h"
 #include "camera.h"
 

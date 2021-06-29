@@ -17,6 +17,7 @@ struct Model {
   Mesh* meshes;
   u32 meshCount;
   BoundingBox boundingBox;
+  char* fileName;
 };
 
 b32 baseColorValid(const TextureData& textureData) {
@@ -279,6 +280,7 @@ void loadModel(const char* filePath, Model* returnModel) {
     return;
   }
 
+  returnModel->fileName = cStrAllocateAndCopy(filePath);
   initializeModelVertexData(&tinyGLTFModel, returnModel);
 }
 
@@ -307,6 +309,7 @@ void loadModels(const char** filePaths, u32 count, Model** returnModels) {
       return;
     }
 
+    returnModels[i]->fileName = cStrAllocateAndCopy(filePaths[i]);
     initializeModelVertexData(&tinyGLTFModel, returnModels[i]);
   }
 }
@@ -337,6 +340,7 @@ void deleteModels(Model** models, u32 count) {
     }
     modelPtr->meshCount = 0;
     delete[] modelPtr->meshes;
+    delete[] modelPtr->fileName;
   }
 
   deleteVertexAtts(vertexAtts.data(), (u32)vertexAtts.size());
