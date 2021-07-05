@@ -485,8 +485,8 @@ void saveWorld(World* world, const char* title) {
   save(saveFormat, title);
 }
 
-void createScenes(World* world) {
-  SaveFormat saveFormat = loadSave( "src/scenes/original_scene.json");
+void loadWorld(World* world, const char* saveJsonFile) {
+  SaveFormat saveFormat = loadSave(saveJsonFile);
 
   size_t sceneCount = saveFormat.scenes.size();
   size_t modelCount = saveFormat.models.size();
@@ -597,7 +597,7 @@ void portalScene(GLFWwindow* window) {
   globalWorld.fov = fieldOfView(13.5f, 25.0f);
   globalWorld.projectionViewModelUbo.projection = perspective(globalWorld.fov, globalWorld.aspect, near, far);
 
-  createScenes(&globalWorld);
+  loadWorld(&globalWorld, originalSceneLoc); // TODO: Choose through IMGUI
 
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
@@ -805,7 +805,41 @@ void portalScene(GLFWwindow* window) {
     ImGui::NewFrame();
 
     bool trueBool = true;
-    ImGui::ShowDemoWindow(&trueBool);
+
+    if (ImGui::BeginMainMenuBar())
+    {
+      if (ImGui::BeginMenu("File"))
+      {
+        if (ImGui::MenuItem("Load..", "Ctrl+O")) {
+          // load world
+          ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", "Choose File", ".cpp,.h,.hpp", ".");
+        }
+        if (ImGui::MenuItem("Save As..", "Ctrl+S"))   {
+          // save current world
+          saveWorld(&globalWorld, originalSceneLoc);
+        }
+
+        ImGui::EndMenu();
+      }
+      ImGui::EndMainMenuBar();
+    }
+
+    // display
+    if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey"))
+    {
+      // action if OK
+      if (ImGuiFileDialog::Instance()->IsOk())
+      {
+        std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+        std::string filePath = ImGuiFileDialog::Instance()->GetCurrentPath();
+        // action
+      }
+
+      // close
+      ImGuiFileDialog::Instance()->Close();
+    }
+
+//    ImGui::ShowDemoWindow(&trueBool);
 
     // Rendering
     ImGui::Render();
@@ -817,6 +851,5 @@ void portalScene(GLFWwindow* window) {
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
   }
 
-  saveWorld(&globalWorld, "src/scenes/original_scene.json");
   deleteShaderPrograms(globalShaders.shaders, ArrayCount(globalShaders.shaders));
 }

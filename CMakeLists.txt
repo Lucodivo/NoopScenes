@@ -28,7 +28,8 @@ include_directories(${INCL_DIR} ${EXT_DIR} "${EXT_DIR}/stb" "${EXT_DIR}/glad" "$
 
 file(GLOB IMGUI_SOURCE_FILES ${EXT_DIR}/imgui/*.cpp ${EXT_DIR}/imgui/*.h
         ${EXT_DIR}/imgui/backends/imgui_impl_glfw.h ${EXT_DIR}/imgui/backends/imgui_impl_glfw.cpp
-        ${EXT_DIR}/imgui/backends/imgui_impl_opengl3.h ${EXT_DIR}/imgui/backends/imgui_impl_opengl3.cpp )
+        ${EXT_DIR}/imgui/backends/imgui_impl_opengl3.h ${EXT_DIR}/imgui/backends/imgui_impl_opengl3.cpp
+        ${EXT_DIR}/ImGuiFileDialog/ImGuiFileDialog.h ${EXT_DIR}/ImGuiFileDialog/ImGuiFileDialog.cpp ${EXT_DIR}/ImGuiFileDialog/ImGuiFileDialogConfig.h)
 
 add_library(glad STATIC "${EXT_DIR}/glad/glad.c")
 
