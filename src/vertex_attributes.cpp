@@ -404,14 +404,14 @@ void deleteVertexAtt(VertexAtt* vertexAtt)
   glDeleteBuffers(1, &vertexAtt->bufferObject);
 }
 
-void deleteVertexAtts(VertexAtt** vertexAtts, u32 count)
+void deleteVertexAtts(VertexAtt* vertexAtts, u32 count)
 {
   // TODO: prevent from deleting global vertex atts
   u32* deleteBufferObjects = new u32[count * 3];
   u32* deleteIndexBufferObjects = deleteBufferObjects + count;
   u32* deleteVertexArrays = deleteIndexBufferObjects + count;
   for(u32 i = 0; i < count; i++) {
-    VertexAtt vertexAtt = *vertexAtts[i];
+    VertexAtt vertexAtt = vertexAtts[i];
     deleteBufferObjects[i] = vertexAtt.bufferObject;
     deleteIndexBufferObjects[i] = vertexAtt.indexObject;
     deleteVertexArrays[i] = vertexAtt.arrayObject;

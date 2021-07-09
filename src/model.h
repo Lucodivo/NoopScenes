@@ -322,14 +322,14 @@ void drawModel(const Model& model) {
 }
 
 void deleteModels(Model* models, u32 count) {
-  std::vector<VertexAtt*> vertexAtts;
+  std::vector<VertexAtt> vertexAtts;
   std::vector<GLuint> textureData;
 
   for(u32 i = 0; i < count; ++i) {
     Model* modelPtr = models + i;
     for(u32 i = 0; i < modelPtr->meshCount; ++i) {
       Mesh* meshPtr = modelPtr->meshes;
-      vertexAtts.push_back(&meshPtr->vertexAtt);
+      vertexAtts.push_back(meshPtr->vertexAtt);
       TextureData textureDatum = meshPtr->textureData;
       if(textureDatum.normalTextureId != TEXTURE_ID_NO_TEXTURE) {
         textureData.push_back(textureDatum.normalTextureId);
