@@ -1,5 +1,7 @@
 #pragma once
 
+const char* saveFileExt = ".json";
+
 struct EntitySaveFormat {
   u32 modelIndex;
   u32 shaderIndex;

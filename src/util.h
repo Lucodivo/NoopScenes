@@ -55,3 +55,11 @@ char* cStrAllocateAndCopy(const char* cStr) {
   strcpy(returnCStr, cStr);
   return returnCStr;
 }
+
+b32 fileReadable(const char* filename) {
+  if (FILE* file = fopen(filename, "r")) {
+    fclose(file);
+    return true;
+  }
+  return false;
+}

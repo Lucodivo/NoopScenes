@@ -321,12 +321,12 @@ void drawModel(const Model& model) {
   }
 }
 
-void deleteModels(Model** models, u32 count) {
+void deleteModels(Model* models, u32 count) {
   std::vector<VertexAtt*> vertexAtts;
   std::vector<GLuint> textureData;
 
   for(u32 i = 0; i < count; ++i) {
-    Model* modelPtr = models[i];
+    Model* modelPtr = models + i;
     for(u32 i = 0; i < modelPtr->meshCount; ++i) {
       Mesh* meshPtr = modelPtr->meshes;
       vertexAtts.push_back(&meshPtr->vertexAtt);
@@ -338,9 +338,9 @@ void deleteModels(Model** models, u32 count) {
         textureData.push_back(textureDatum.albedoTextureId);
       }
     }
-    modelPtr->meshCount = 0;
     delete[] modelPtr->meshes;
     delete[] modelPtr->fileName;
+    *modelPtr = {}; // clear model to zero
   }
 
   deleteVertexAtts(vertexAtts.data(), (u32)vertexAtts.size());

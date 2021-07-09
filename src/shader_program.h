@@ -36,20 +36,22 @@ ShaderProgram createShaderProgram(const char* vertexPath, const char* fragmentPa
   return shaderProgram;
 }
 
-void deleteShaderProgram(ShaderProgram shaderProgram)
+void deleteShaderProgram(ShaderProgram* shaderProgram)
 {
   // delete the shaders
-  delete[] shaderProgram.vertexFileName;
-  delete[] shaderProgram.fragmentFileName;
-  glDeleteShader(shaderProgram.vertexShader);
-  glDeleteShader(shaderProgram.fragmentShader);
-  glDeleteProgram(shaderProgram.id);
-}
+  delete[] shaderProgram->vertexFileName;
+  delete[] shaderProgram->fragmentFileName;
 
-void deleteShaderPrograms(ShaderProgram* shaderPrograms, u32 count) {
-  for(u32 i = 0; i < count; i++) {
-    deleteShaderProgram(shaderPrograms[i]);
+  glDeleteShader(shaderProgram->vertexShader);
+  glDeleteShader(shaderProgram->fragmentShader);
+  glDeleteProgram(shaderProgram->id);
+
+  if(shaderProgram->noiseTextureFileName != nullptr) {
+    delete[] shaderProgram->noiseTextureFileName;
+    glDeleteTextures(1, &shaderProgram->noiseTextureId);
   }
+
+  *shaderProgram = {}; // clear to zero
 }
 
 // utility uniform functions

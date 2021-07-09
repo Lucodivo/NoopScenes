@@ -485,14 +485,69 @@ void saveWorld(World* world, const char* title) {
   save(saveFormat, title);
 }
 
+void cleanupScene(Scene* scene) {
+  for(u32 entityIndex = 0; entityIndex < scene->entityCount; entityIndex++) {
+    scene->entities[entityIndex] = {}; // zero out struct
+  }
+  scene->entityCount = 0;
+
+  for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
+    scene->portals[portalIndex] = {}; // zero out struct
+  }
+  scene->portalCount = 0;
+
+  glDeleteTextures(1, &scene->skyboxTexture);
+  scene->skyboxTexture = TEXTURE_ID_NO_TEXTURE;
+
+  delete[] scene->title;
+  if(scene->skyboxDir != nullptr) { delete[] scene->skyboxDir; }
+  if(scene->skyboxExt != nullptr) { delete[] scene->skyboxExt; }
+  scene->title = nullptr;
+  scene->skyboxDir = nullptr;
+  scene->skyboxExt = nullptr;
+}
+
+void cleanupWorld(World* world) {
+  for(u32 sceneIndex = 0; sceneIndex < world->sceneCount; sceneIndex++) {
+    cleanupScene(world->scenes + sceneIndex);
+  }
+  world->sceneCount = 0;
+  world->currentSceneIndex = 0;
+
+  deleteModels(world->models, world->modelCount);
+  memset(world->models, 0, sizeof(Model) * world->modelCount);
+  world->modelCount = 0;
+
+  for(u32 shaderIndex = 0; shaderIndex < world->shaderCount; shaderIndex++) {
+    deleteShaderProgram(world->shaders + shaderIndex);
+  }
+  world->shaderCount = 0;
+
+  world->fov = 0.0f;
+  world->aspect = 0.0f;
+}
+
+void initPlayer(Player* player) {
+  player->boundingBox.diagonal = defaultPlayerDimensionInMeters;
+  player->boundingBox.min = {-(globalWorld.player.boundingBox.diagonal.x * 0.5f), -12.0f - (globalWorld.player.boundingBox.diagonal.y * 0.5f), 0.0f};
+}
+
+void initCamera(Camera* camera, const Player& player) {
+  vec3 firstPersonCameraInitPosition = calcPlayerViewingPosition(&player);
+  vec3 firstPersonCameraInitFocus{0, 0, firstPersonCameraInitPosition.z};
+  lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, camera);
+}
+
 void loadWorld(World* world, const char* saveJsonFile) {
+  // TODO: Include lights in save and pull them into the scene here
+
   SaveFormat saveFormat = loadSave(saveJsonFile);
 
   size_t sceneCount = saveFormat.scenes.size();
   size_t modelCount = saveFormat.models.size();
   size_t shaderCount = saveFormat.shaders.size();
 
-  u32* worldShaderIndices = new u32[shaderCount];
+  u32 worldShaderIndices[ArrayCount(world->shaders)] = {};
   { // shaders
     for(u32 shaderIndex = 0; shaderIndex < shaderCount; shaderIndex++) {
       ShaderSaveFormat shaderSaveFormat = saveFormat.shaders[shaderIndex];
@@ -508,7 +563,7 @@ void loadWorld(World* world, const char* saveJsonFile) {
     }
   }
 
-  u32* worldModelIndices = new u32[modelCount];
+  u32 worldModelIndices[ArrayCount(world->models)] = {};
   { // models
     for(u32 modelIndex = 0; modelIndex < modelCount; modelIndex++) {
       ModelSaveFormat modelSaveFormat = saveFormat.models[modelIndex];
@@ -523,7 +578,7 @@ void loadWorld(World* world, const char* saveJsonFile) {
     }
   }
 
-  u32* worldSceneIndices = new u32[sceneCount];
+  u32 worldSceneIndices[ArrayCount(world->scenes)] = {};
   { // scenes
     for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++) {
       SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
@@ -569,10 +624,19 @@ void loadWorld(World* world, const char* saveJsonFile) {
   Assert(saveFormat.startingSceneIndex < sceneCount);
   world->currentSceneIndex = worldSceneIndices[saveFormat.startingSceneIndex];
 
-  // TODO: create limited length arrays instead of using dynamic memory?
-  delete[] worldShaderIndices;
-  delete[] worldModelIndices;
-  delete[] worldSceneIndices;
+  // TODO: Set player based on save file
+  initPlayer(&world->player);
+  // TODO: Set camera based on save file
+  initCamera(&globalWorld.camera, globalWorld.player);
+  // TODO: Set FOV based on save file
+  world->fov = fieldOfView(13.5f, 25.0f);
+  vec2_u32 windowExtent = getWindowExtent();
+  world->aspect = f32(windowExtent.width) / windowExtent.height;
+  // NOTE: projection and view in UBO gets updated at the beginning of every frame, no need to manually update UBO here
+  world->projectionViewModelUbo.projection = perspective(world->fov, world->aspect, near, far);
+  // NOTE: fragmentUBO gets updated using the stopwatch at the beginning of every frame, no need to manually update UBO here
+  world->stopWatch = createStopWatch();
+
   return;
 }
 
@@ -587,17 +651,12 @@ void portalScene(GLFWwindow* window) {
   initGlobalShaders();
   initGlobalVertexAtts();
 
-  globalWorld.player.boundingBox.diagonal = defaultPlayerDimensionInMeters;
-  globalWorld.player.boundingBox.min = {-(globalWorld.player.boundingBox.diagonal.x * 0.5f), -12.0f - (globalWorld.player.boundingBox.diagonal.y * 0.5f), 0.0f};
+  initPlayer(&globalWorld.player);
 
-  vec3 firstPersonCameraInitPosition = calcPlayerViewingPosition(&globalWorld.player);
-  vec3 firstPersonCameraInitFocus{0, 0, firstPersonCameraInitPosition.z};
-  lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, &globalWorld.camera);
+  initCamera(&globalWorld.camera, globalWorld.player);
 
   globalWorld.fov = fieldOfView(13.5f, 25.0f);
   globalWorld.projectionViewModelUbo.projection = perspective(globalWorld.fov, globalWorld.aspect, near, far);
-
-  loadWorld(&globalWorld, originalSceneLoc); // TODO: Choose through IMGUI
 
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
@@ -641,7 +700,8 @@ void portalScene(GLFWwindow* window) {
   }
 
   globalWorld.stopWatch = createStopWatch();
-  bool cursorEnabled = isCursorEnabled(window);
+  bool cursorEnabled = true;
+  enableCursor(window, cursorEnabled);
   while(glfwWindowShouldClose(window) == GL_FALSE)
   {
     loadInputStateForFrame(window);
@@ -804,7 +864,7 @@ void portalScene(GLFWwindow* window) {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    bool trueBool = true;
+    ImGuiFileDialog::Instance()->SetExtentionInfos(".json", ImVec4(0.1f,0.7f,0.1f, 0.9f));
 
     if (ImGui::BeginMainMenuBar())
     {
@@ -812,11 +872,18 @@ void portalScene(GLFWwindow* window) {
       {
         if (ImGui::MenuItem("Load..", "Ctrl+O")) {
           // load world
-          ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", "Choose File", ".cpp,.h,.hpp", ".");
+          ImGuiFileDialog::Instance()->OpenDialog("LoadSceneFileDialogKey", "Load Scene", ".json", "");
         }
-        if (ImGui::MenuItem("Save As..", "Ctrl+S"))   {
+
+        if(ImGui::MenuItem("Save", "Ctrl+S")) {
           // save current world
+          // TODO: Save based on current scene loaded or open "Save As..." if no scene has been loaded
           saveWorld(&globalWorld, originalSceneLoc);
+        }
+
+        if (ImGui::MenuItem("Save As..", "Ctrl+Shift+S")) {
+          // save world as...
+          ImGuiFileDialog::Instance()->OpenDialog("SaveSceneFileDialogKey", "Save Scene", ".json", "");
         }
 
         ImGui::EndMenu();
@@ -824,22 +891,39 @@ void portalScene(GLFWwindow* window) {
       ImGui::EndMainMenuBar();
     }
 
-    // display
-    if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey"))
+    // load scene dialog
+    if (ImGuiFileDialog::Instance()->Display("LoadSceneFileDialogKey"))
     {
       // action if OK
       if (ImGuiFileDialog::Instance()->IsOk())
       {
         std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-        std::string filePath = ImGuiFileDialog::Instance()->GetCurrentPath();
-        // action
+
+        if(fileReadable(filePathName.c_str())) {
+          cleanupWorld(&globalWorld);
+          loadWorld(&globalWorld, filePathName.c_str());
+          cursorEnabled = !cursorEnabled;
+          enableCursor(window, cursorEnabled);
+        }
       }
 
       // close
       ImGuiFileDialog::Instance()->Close();
     }
 
-//    ImGui::ShowDemoWindow(&trueBool);
+    // save scene dialog
+    if (ImGuiFileDialog::Instance()->Display("SaveSceneFileDialogKey"))
+    {
+      // action if OK
+      if (ImGuiFileDialog::Instance()->IsOk())
+      {
+        std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+        saveWorld(&globalWorld, filePathName.c_str());
+      }
+
+      // close
+      ImGuiFileDialog::Instance()->Close();
+    }
 
     // Rendering
     ImGui::Render();
@@ -851,5 +935,5 @@ void portalScene(GLFWwindow* window) {
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
   }
 
-  deleteShaderPrograms(globalShaders.shaders, ArrayCount(globalShaders.shaders));
+  cleanupWorld(&globalWorld);
 }
