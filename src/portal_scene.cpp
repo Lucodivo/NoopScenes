@@ -702,6 +702,10 @@ void portalScene(GLFWwindow* window) {
   globalWorld.stopWatch = createStopWatch();
   bool cursorEnabled = true;
   enableCursor(window, cursorEnabled);
+
+  CStringRingBuffer debugCStringRingBuffer = createCStringRingBuffer(128, 50);
+  bool showDebugTextWindow = true;
+  bool showDemoWindow = false;
   while(glfwWindowShouldClose(window) == GL_FALSE)
   {
     loadInputStateForFrame(window);
@@ -860,73 +864,124 @@ void portalScene(GLFWwindow* window) {
     updateEntities(&globalWorld);
 
     // Start the Dear ImGui frame
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-
-    ImGuiFileDialog::Instance()->SetExtentionInfos(".json", ImVec4(0.1f,0.7f,0.1f, 0.9f));
-
-    if (ImGui::BeginMainMenuBar())
     {
-      if (ImGui::BeginMenu("File"))
+      ImGui_ImplOpenGL3_NewFrame();
+      ImGui_ImplGlfw_NewFrame();
+      ImGui::NewFrame();
+
+      ImGuiFileDialog::Instance()->SetExtentionInfos(".json", ImVec4(0.1f,0.7f,0.1f, 0.9f));
+
+      if (ImGui::BeginMainMenuBar())
       {
-        if (ImGui::MenuItem("Load..", "Ctrl+O")) {
-          // load world
-          ImGuiFileDialog::Instance()->OpenDialog("LoadSceneFileDialogKey", "Load Scene", ".json", "");
+        if (ImGui::BeginMenu("File"))
+        {
+          if (ImGui::MenuItem("Load..", NULL)) {
+            // load world
+            ImGuiFileDialog::Instance()->OpenDialog("LoadSceneFileDialogKey", "Load Scene", ".json", "");
+          }
+
+          if(ImGui::MenuItem("Save", NULL)) {
+            // save current world
+            // TODO: Save based on current scene loaded or open "Save As..." if no scene has been loaded
+            saveWorld(&globalWorld, originalSceneLoc);
+          }
+
+          if (ImGui::MenuItem("Save As..", NULL)) {
+            // save world as...
+            ImGuiFileDialog::Instance()->OpenDialog("SaveSceneFileDialogKey", "Save Scene", ".json", "");
+          }
+
+          ImGui::EndMenu();
         }
 
-        if(ImGui::MenuItem("Save", "Ctrl+S")) {
-          // save current world
-          // TODO: Save based on current scene loaded or open "Save As..." if no scene has been loaded
-          saveWorld(&globalWorld, originalSceneLoc);
+        if (ImGui::BeginMenu("View"))
+        {
+          if (ImGui::MenuItem("Debug Output", NULL)) {
+            showDebugTextWindow = !showDebugTextWindow;
+          }
+
+          if (ImGui::MenuItem("ImGUI demo window", NULL)) {
+            showDemoWindow = !showDemoWindow;
+          }
+
+          ImGui::EndMenu();
         }
-
-        if (ImGui::MenuItem("Save As..", "Ctrl+Shift+S")) {
-          // save world as...
-          ImGuiFileDialog::Instance()->OpenDialog("SaveSceneFileDialogKey", "Save Scene", ".json", "");
-        }
-
-        ImGui::EndMenu();
-      }
-      ImGui::EndMainMenuBar();
-    }
-
-    // load scene dialog
-    if (ImGuiFileDialog::Instance()->Display("LoadSceneFileDialogKey"))
-    {
-      // action if OK
-      if (ImGuiFileDialog::Instance()->IsOk())
-      {
-        std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-
-        if(fileReadable(filePathName.c_str())) {
-          cleanupWorld(&globalWorld);
-          loadWorld(&globalWorld, filePathName.c_str());
-          cursorEnabled = !cursorEnabled;
-          enableCursor(window, cursorEnabled);
-        }
+        ImGui::EndMainMenuBar();
       }
 
-      // close
-      ImGuiFileDialog::Instance()->Close();
-    }
-
-    // save scene dialog
-    if (ImGuiFileDialog::Instance()->Display("SaveSceneFileDialogKey"))
-    {
-      // action if OK
-      if (ImGuiFileDialog::Instance()->IsOk())
+      // load scene dialog
+      if (ImGuiFileDialog::Instance()->Display("LoadSceneFileDialogKey"))
       {
-        std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-        saveWorld(&globalWorld, filePathName.c_str());
+        // action if OK
+        if (ImGuiFileDialog::Instance()->IsOk())
+        {
+          std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+
+          if(fileReadable(filePathName.c_str())) {
+            cleanupWorld(&globalWorld);
+            loadWorld(&globalWorld, filePathName.c_str());
+            cursorEnabled = !cursorEnabled;
+            enableCursor(window, cursorEnabled);
+          } else {
+            std::string something = "Could not load scene file: " + ImGuiFileDialog::Instance()->GetFilePathName();
+            addCString(&debugCStringRingBuffer, something.c_str(), something.length());
+          }
+        }
+
+        // close
+        ImGuiFileDialog::Instance()->Close();
       }
 
-      // close
-      ImGuiFileDialog::Instance()->Close();
-    }
+      // save scene dialog
+      if (ImGuiFileDialog::Instance()->Display("SaveSceneFileDialogKey"))
+      {
+        // action if OK
+        if (ImGuiFileDialog::Instance()->IsOk())
+        {
+          std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+          saveWorld(&globalWorld, filePathName.c_str());
+        }
 
-    // Rendering
-    ImGui::Render();
+        // close
+        ImGuiFileDialog::Instance()->Close();
+      }
+
+      // debug text window
+      if(showDebugTextWindow) {
+        ImGui::Begin("Debug text output", &showDebugTextWindow, ImGuiWindowFlags_None);
+        {
+          ImGui::BeginChild("Scrolling");
+          {
+            if(debugCStringRingBuffer.count > 0) {
+              const s32 lastIndex = (debugCStringRingBuffer.first + debugCStringRingBuffer.count - 1) % debugCStringRingBuffer.cStringMaxCount;
+              s32 traversalIndex = lastIndex;
+              while(traversalIndex >= 0) {
+                ImGui::Text(debugCStringRingBuffer.buffer + (traversalIndex * debugCStringRingBuffer.cStringSize));
+                traversalIndex--;
+              }
+
+              if(debugCStringRingBuffer.first != 0) {
+                traversalIndex = debugCStringRingBuffer.cStringMaxCount - 1;
+                while(traversalIndex >= debugCStringRingBuffer.first) {
+                  ImGui::Text(debugCStringRingBuffer.buffer + (traversalIndex * debugCStringRingBuffer.cStringSize));
+                  traversalIndex--;
+                }
+              }
+            }
+          }
+          ImGui::EndChild();
+        }
+        ImGui::End();
+      }
+
+      if(showDemoWindow)
+      {
+        ImGui::ShowDemoWindow(&showDemoWindow);
+      }
+
+      // Rendering
+      ImGui::Render();
+    }
 
     drawSceneWithPortals(&globalWorld);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -935,5 +990,6 @@ void portalScene(GLFWwindow* window) {
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
   }
 
+  deleteCStringRingBuffer(&debugCStringRingBuffer);
   cleanupWorld(&globalWorld);
 }

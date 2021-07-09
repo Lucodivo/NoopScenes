@@ -38,6 +38,7 @@
 #include "noop_types.h"
 #include "noop_math.h"
 #include "shader_types_and_constants.h"
+#include "cstring_ring_buffer.h"
 #include "vertex_attributes.h"
 #include "file_locations.h"
 #include "save_file.h"
