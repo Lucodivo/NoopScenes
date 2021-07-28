@@ -130,11 +130,9 @@ void save(const SaveFormat& saveFormat, const char* saveFileName) {
 SaveFormat loadSave(const char* saveJson) {
   SaveFormat saveFormat{};
 
-  // TODO: Should I separate pulling data out from and verifying the json from using the data in the json? (probably!)
   nlohmann::json json;
   { // parse file
-    const char* originalSceneLocation = "src/scenes/original_scene.json";
-    std::ifstream sceneJsonFileInput(originalSceneLocation);
+    std::ifstream sceneJsonFileInput(saveJson);
     sceneJsonFileInput >> json;
   }
 
@@ -261,15 +259,6 @@ SaveFormat loadSave(const char* saveJson) {
       }
 
       saveFormat.scenes.push_back(sceneSaveFormat);
-    }
-
-    // we have to iterate over the scenes once more for portals, as the scene destination index requires
-    // the other scenes to have been initialized
-    SceneSaveFormat* sceneSaveFormats = saveFormat.scenes.data();
-    for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++)
-    {
-      nlohmann::json sceneJson = json["scenes"][sceneIndex];
-      SceneSaveFormat* sceneSaveFormat = sceneSaveFormats + sceneIndex;
     }
   }
 

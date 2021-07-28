@@ -78,5 +78,5 @@ const char* paperModelLoc = COMMON_MODEL_BASE"Paper.glb";
 const char* portalBackingModelLoc = COMMON_MODEL_BASE"Portal-Backing-Plus-Gate-Insignia.glb";
 
 // ==== Scenes ====
-#define COMMON_SCENE_BASE "src/scenes/"
-const char* originalSceneLoc = COMMON_SCENE_BASE"original_scene.json";
+#define COMMON_SCENE_BASE "src/worlds/"
+const char* originalSceneLoc = COMMON_SCENE_BASE"original_world.json";

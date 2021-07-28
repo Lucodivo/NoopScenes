@@ -1,6 +1,8 @@
 #define PORTAL_BACKING_BOX_DEPTH 0.5f
 #define MAX_PORTALS 4
 
+const char* editorSaveFileName = "editor_state_save.json";
+
 struct Player {
   BoundingBox boundingBox;
 };
@@ -34,12 +36,22 @@ struct Portal {
   u32 sceneDestination;
 };
 
+struct Light {
+  vec4 color;
+  vec3 pos; // NOTE: For directional lights, this is the direction to the source
+};
+
 struct Scene {
-  // TODO: should the scene keep track of its own index in the world?
+  // TODO: should the scene keep track of its own index in the worlds?
   Entity entities[16];
   u32 entityCount;
   Portal portals[MAX_PORTALS];
   u32 portalCount;
+  Light posLights[4];
+  u32 posLightCount;
+  Light dirLights[4];
+  u32 dirLightCount;
+  vec4 ambientLightColor;
   GLuint skyboxTexture;
   const char* title;
   const char* skyboxDir;
@@ -58,18 +70,31 @@ struct World
   u32 modelCount;
   f32 fov;
   f32 aspect;
-  ProjectionViewModelUBO projectionViewModelUbo;
-  FragUBO fragUbo;
+  struct {
+    ProjectionViewModelUBO projectionViewModelUbo;
+    GLuint projectionViewModelUboId;
+    FragUBO fragUbo;
+    GLuint fragUboId;
+    LightUBO lightUbo;
+    GLuint lightUboId;
+  } UBOs;
   ShaderProgram shaders[16];
   u32 shaderCount;
+  char* currentlyLoadedWorld;
 };
+
+struct GuiState
+{
+  bool cursorEnabled;
+  bool showDebugTextWindow;
+  bool showDemoWindow;
+  CStringRingBuffer debugCStringRingBuffer;
+} guiState;
 
 const vec3 defaultPlayerDimensionInMeters{0.5f, 0.25f, 1.75f}; // NOTE: ~1'7"w, 9"d, 6'h
 const f32 near = 0.1f;
 const f32 far = 200.0f;
 
-global_variable GLuint projViewModelGlobalUBOid = 0;
-global_variable GLuint fragUBOid = 0;
 global_variable GLuint portalQueryObjects[MAX_PORTALS];
 global_variable World globalWorld{};
 
@@ -215,7 +240,7 @@ void drawPortal(const World* world, Portal* portal) {
     portalVertexAtt = &globalVertexAtts.portalBox;
   }
 
-  glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+  glBindBuffer(GL_UNIFORM_BUFFER, world->UBOs.projectionViewModelUboId);
   glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portalModelMat);
   glBindBuffer(GL_UNIFORM_BUFFER, 0);
   glUseProgram(globalShaders.stencil.id);
@@ -243,7 +268,7 @@ void drawPortals(World* world, const u32 sceneIndex){
   // turn off writes to the stencil
   glStencilMask(0x00);
 
-  // Draw portal scenes
+  // Draw portal worlds
   // We need to clear disable depth values so distant objects through the "portals" still get drawn
   // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
   glClear(GL_DEPTH_BUFFER_BIT);
@@ -254,11 +279,11 @@ void drawPortals(World* world, const u32 sceneIndex){
     // TODO: better visibility tests besides facing camera?
     if(!flagIsSet(portal.stateFlags, PortalState_FacingCamera)) { continue; }
 
-    vec3 portalNormal_viewSpace = (world->projectionViewModelUbo.view * Vec4(-portal.normal, 0.0f)).xyz;
-    vec3 portalCenterPos_viewSpace = (world->projectionViewModelUbo.view * Vec4(portal.centerPosition, 1.0f)).xyz;
+    vec3 portalNormal_viewSpace = (world->UBOs.projectionViewModelUbo.view * Vec4(-portal.normal, 0.0f)).xyz;
+    vec3 portalCenterPos_viewSpace = (world->UBOs.projectionViewModelUbo.view * Vec4(portal.centerPosition, 1.0f)).xyz;
     mat4 portalProjectionMat = obliquePerspective(world->fov, world->aspect, near, far, portalNormal_viewSpace, portalCenterPos_viewSpace);
 
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, world->UBOs.projectionViewModelUboId);
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &portalProjectionMat);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
@@ -282,7 +307,7 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
     bindActiveTextureCubeMap(skyboxActiveTextureIndex, scene->skyboxTexture);
     setSamplerCube(globalShaders.skybox.id, skyboxTexUniformName, skyboxActiveTextureIndex);
     mat4 identityMat4 = identity_mat4();
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, world->UBOs.projectionViewModelUboId);
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &identityMat4);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     drawTriangles(&globalVertexAtts.skyboxBox);
@@ -294,7 +319,7 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
 
     mat4 modelMatrix = scaleRotTrans_mat4(entity->scale, vec3{0.0f, 0.0f, 1.0f}, entity->yaw, entity->position);
 
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, world->UBOs.projectionViewModelUboId);
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &modelMatrix);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
@@ -511,20 +536,17 @@ void cleanupWorld(World* world) {
   for(u32 sceneIndex = 0; sceneIndex < world->sceneCount; sceneIndex++) {
     cleanupScene(world->scenes + sceneIndex);
   }
-  world->sceneCount = 0;
-  world->currentSceneIndex = 0;
 
   deleteModels(world->models, world->modelCount);
   memset(world->models, 0, sizeof(Model) * world->modelCount);
-  world->modelCount = 0;
 
   for(u32 shaderIndex = 0; shaderIndex < world->shaderCount; shaderIndex++) {
     deleteShaderProgram(world->shaders + shaderIndex);
   }
-  world->shaderCount = 0;
 
-  world->fov = 0.0f;
-  world->aspect = 0.0f;
+  if(world->currentlyLoadedWorld) { delete[] world->currentlyLoadedWorld; }
+
+  world = {};
 }
 
 void initPlayer(Player* player) {
@@ -540,6 +562,10 @@ void initCamera(Camera* camera, const Player& player) {
 
 void loadWorld(World* world, const char* saveJsonFile) {
   // TODO: Include lights in save and pull them into the scene here
+
+  if(world->currentlyLoadedWorld) { delete[] world->currentlyLoadedWorld; }
+  world->currentlyLoadedWorld = new char[strlen(saveJsonFile) + 1];
+  strcpy(world->currentlyLoadedWorld, saveJsonFile);
 
   SaveFormat saveFormat = loadSave(saveJsonFile);
 
@@ -579,7 +605,7 @@ void loadWorld(World* world, const char* saveJsonFile) {
   }
 
   u32 worldSceneIndices[ArrayCount(world->scenes)] = {};
-  { // scenes
+  { // worlds
     for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++) {
       SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
       size_t entityCount = sceneSaveFormat.entities.size();
@@ -605,8 +631,8 @@ void loadWorld(World* world, const char* saveJsonFile) {
       }
     }
 
-    // we have to iterate over the scenes once more for portals, as the scene destination index requires
-    // the other scenes to have been initialized
+    // we have to iterate over the worlds once more for portals, as the scene destination index requires
+    // the other worlds to have been initialized
     for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++)
     {
       SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
@@ -633,11 +659,56 @@ void loadWorld(World* world, const char* saveJsonFile) {
   vec2_u32 windowExtent = getWindowExtent();
   world->aspect = f32(windowExtent.width) / windowExtent.height;
   // NOTE: projection and view in UBO gets updated at the beginning of every frame, no need to manually update UBO here
-  world->projectionViewModelUbo.projection = perspective(world->fov, world->aspect, near, far);
+  world->UBOs.projectionViewModelUbo.projection = perspective(world->fov, world->aspect, near, far);
   // NOTE: fragmentUBO gets updated using the stopwatch at the beginning of every frame, no need to manually update UBO here
   world->stopWatch = createStopWatch();
 
   return;
+}
+
+void initGuiState(GuiState* guiState) {
+  guiState->cursorEnabled = true;
+  guiState->showDebugTextWindow = true;
+  guiState->showDemoWindow = false;
+  guiState->debugCStringRingBuffer = createCStringRingBuffer(128, 50);
+}
+
+void cleanupGuiState(GuiState* guiState) {
+  deleteCStringRingBuffer(&guiState->debugCStringRingBuffer);
+}
+
+void saveEditorState(World* world, GuiState* guiState) {
+  nlohmann::json saveJson{};
+
+  if(world->currentlyLoadedWorld) {
+    saveJson["world"] = world->currentlyLoadedWorld;
+  }
+
+  saveJson["editorActive"] = guiState->cursorEnabled;
+  saveJson["demoWindowActive"] = guiState->showDemoWindow;
+  saveJson["debugTextWindowActive"] = guiState->showDebugTextWindow;
+
+  // write prettified JSON to another file
+  std::ofstream o(editorSaveFileName);
+  o << std::setw(4) << saveJson << std::endl;
+}
+
+void loadPrevEditorState(World* world, GuiState* guiState) {
+  nlohmann::json saveJson;
+  { // parse file
+    std::ifstream sceneJsonFileInput(editorSaveFileName);
+    sceneJsonFileInput >> saveJson;
+  }
+
+  if(!saveJson["world"].is_null()) {
+    std::string previousWorldFileName;
+    saveJson["world"].get_to(previousWorldFileName);
+    loadWorld(world, previousWorldFileName.c_str());
+  }
+
+  guiState->cursorEnabled = saveJson["editorActive"];
+  guiState->showDemoWindow = saveJson["demoWindowActive"];
+  guiState->showDebugTextWindow = saveJson["debugTextWindowActive"];
 }
 
 void portalScene(GLFWwindow* window) {
@@ -656,7 +727,7 @@ void portalScene(GLFWwindow* window) {
   initCamera(&globalWorld.camera, globalWorld.player);
 
   globalWorld.fov = fieldOfView(13.5f, 25.0f);
-  globalWorld.projectionViewModelUbo.projection = perspective(globalWorld.fov, globalWorld.aspect, near, far);
+  globalWorld.UBOs.projectionViewModelUbo.projection = perspective(globalWorld.fov, globalWorld.aspect, near, far);
 
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
@@ -669,48 +740,46 @@ void portalScene(GLFWwindow* window) {
   glViewport(0, 0, windowExtent.width, windowExtent.height);
 
   // UBOs
-  GLuint gateSceneFragUBOid;
   LightUBO lightUbo;
   {
-    glGenBuffers(1, &projViewModelGlobalUBOid);
+    glGenBuffers(1, &globalWorld.UBOs.projectionViewModelUboId);
     // allocate size for buffer
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(ProjectionViewModelUBO), NULL, GL_STREAM_DRAW);
     // attach buffer to ubo binding point
-    glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, projViewModelGlobalUBOid, 0, sizeof(ProjectionViewModelUBO));
+    glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, globalWorld.UBOs.projectionViewModelUboId, 0, sizeof(ProjectionViewModelUBO));
 
-    glGenBuffers(1, &fragUBOid);
+    glGenBuffers(1, &globalWorld.UBOs.fragUboId);
     // allocate size for buffer
-    glBindBuffer(GL_UNIFORM_BUFFER, fragUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.fragUboId);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(FragUBO), NULL, GL_STREAM_DRAW);
     // attach buffer to ubo binding point
-    glBindBufferRange(GL_UNIFORM_BUFFER, fragUBOBindingIndex, fragUBOid, 0, sizeof(FragUBO));
+    glBindBufferRange(GL_UNIFORM_BUFFER, fragUBOBindingIndex, globalWorld.UBOs.fragUboId, 0, sizeof(FragUBO));
 
     // TODO: Specify light in JSON for scene?
     lightUbo.directionalLightColor = {0.5f, 0.5f, 0.5f};
     lightUbo.ambientLightColor = {0.3f, 0.3f, 0.3f};
-    lightUbo.directionalLightDirToSource = {1.0f, 1.0f, 1.0f};
-    glGenBuffers(1, &gateSceneFragUBOid);
+    lightUbo.directionalLightDirToSource = normalize(vec3{3.0f, -3.0f, 1.0f});
+    glGenBuffers(1, &globalWorld.UBOs.lightUboId);
     // allocate size for buffer
-    glBindBuffer(GL_UNIFORM_BUFFER, gateSceneFragUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.lightUboId);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(lightUbo), &lightUbo, GL_STATIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     // attach buffer to ubo binding point
-    glBindBufferRange(GL_UNIFORM_BUFFER, lightUBOBindingIndex, gateSceneFragUBOid, 0, sizeof(lightUbo));
+    glBindBufferRange(GL_UNIFORM_BUFFER, lightUBOBindingIndex, globalWorld.UBOs.lightUboId, 0, sizeof(lightUbo));
   }
 
   globalWorld.stopWatch = createStopWatch();
-  bool cursorEnabled = true;
-  enableCursor(window, cursorEnabled);
+  initGuiState(&guiState);
 
-  CStringRingBuffer debugCStringRingBuffer = createCStringRingBuffer(128, 50);
-  bool showDebugTextWindow = true;
-  bool showDemoWindow = false;
+  loadPrevEditorState(&globalWorld, &guiState);
+  enableCursor(window, guiState.cursorEnabled);
+
   while(glfwWindowShouldClose(window) == GL_FALSE)
   {
     loadInputStateForFrame(window);
     updateStopWatch(&globalWorld.stopWatch);
-    globalWorld.fragUbo.time = globalWorld.stopWatch.totalElapsed;
+    globalWorld.UBOs.fragUbo.time = globalWorld.stopWatch.totalElapsed;
 
     vec3 playerCenter;
     vec3 playerViewPosition = calcPlayerViewingPosition(&globalWorld.player);
@@ -727,13 +796,13 @@ void portalScene(GLFWwindow* window) {
       globalWorld.aspect = f32(windowExtent.width) / windowExtent.height;
       glViewport(0, 0, windowExtent.width, windowExtent.height);
 
-      adjustAspectPerspProj(&globalWorld.projectionViewModelUbo.projection, globalWorld.fov, globalWorld.aspect);
+      adjustAspectPerspProj(&globalWorld.UBOs.projectionViewModelUbo.projection, globalWorld.fov, globalWorld.aspect);
     }
 
     // toggle cursor
     if(hotPress(KeyboardInput_Space)) {
-      cursorEnabled = !cursorEnabled;
-      enableCursor(window, cursorEnabled);
+      guiState.cursorEnabled = !guiState.cursorEnabled;
+      enableCursor(window, guiState.cursorEnabled);
     }
 
     // gather input
@@ -746,7 +815,7 @@ void portalScene(GLFWwindow* window) {
     vec2_f64 mouseDelta = getMouseDelta();
 
     // gather input for movement and camera changes
-    const bool cameraMovementEnabled = !cursorEnabled;
+    const bool cameraMovementEnabled = !guiState.cursorEnabled;
     if(cameraMovementEnabled) {
       b32 lateralMovement = leftIsActive != rightIsActive;
       b32 forwardMovement = upIsActive != downIsActive;
@@ -793,7 +862,7 @@ void portalScene(GLFWwindow* window) {
         updateCamera_FirstPerson(&globalWorld.camera, playerDelta, f32(-mouseDelta.y * mouseDeltaMultConst), f32(-mouseDelta.x * mouseDeltaMultConst));
       }
     }
-    globalWorld.projectionViewModelUbo.view = getViewMat(globalWorld.camera);
+    globalWorld.UBOs.projectionViewModelUbo.view = getViewMat(globalWorld.camera);
 
     // draw
     glStencilMask(0xFF);
@@ -803,17 +872,11 @@ void portalScene(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     // universal matrices in UBO
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &globalWorld.projectionViewModelUbo);
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &globalWorld.UBOs.projectionViewModelUbo);
 
-    glBindBuffer(GL_UNIFORM_BUFFER, fragUBOid);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(FragUBO), &globalWorld.fragUbo);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, gateSceneFragUBOid);
-    f32 scaleElapsedTime = globalWorld.stopWatch.totalElapsed * 0.2f;
-    lightUbo.directionalLightDirToSource = normalize(vec3{cosf(scaleElapsedTime) * 3.0f, sinf(scaleElapsedTime) * 3.0f, 1.0f});
-    glBufferSubData(GL_UNIFORM_BUFFER, offsetof(LightUBO, directionalLightDirToSource), sizeof(vec3), &lightUbo.directionalLightDirToSource);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.fragUboId);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(FragUBO), &globalWorld.UBOs.fragUbo);
 
     if(globalWorld.camera.thirdPerson) { // draw player if third person
       vec3 playerViewCenter = calcPlayerViewingPosition(&globalWorld.player);
@@ -829,28 +892,28 @@ void portalScene(GLFWwindow* window) {
       glDisable(GL_CULL_FACE);
 
       // debug player bounding box
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(globalWorld.player.boundingBox.diagonal, playerCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       setUniform(globalShaders.singleColor.id, baseColorUniformName, playerBoundingBoxColor_Red);
       drawTriangles(&cubePosVertexAtt);
 
       // debug player center
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.05f, playerCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       setUniform(globalShaders.singleColor.id, baseColorUniformName, playerMinCoordBoxColor_Black);
       drawTriangles(&cubePosVertexAtt);
 
       // debug player min coordinate box
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, globalWorld.player.boundingBox.min);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       setUniform(globalShaders.singleColor.id, baseColorUniformName, playerMinCoordBoxColor_Green);
       drawTriangles(&cubePosVertexAtt);
 
       // debug player view
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, playerViewCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
@@ -876,18 +939,18 @@ void portalScene(GLFWwindow* window) {
         if (ImGui::BeginMenu("File"))
         {
           if (ImGui::MenuItem("Load..", NULL)) {
-            // load world
+            // load worlds
             ImGuiFileDialog::Instance()->OpenDialog("LoadSceneFileDialogKey", "Load Scene", ".json", "");
           }
 
           if(ImGui::MenuItem("Save", NULL)) {
-            // save current world
+            // save current worlds
             // TODO: Save based on current scene loaded or open "Save As..." if no scene has been loaded
             saveWorld(&globalWorld, originalSceneLoc);
           }
 
           if (ImGui::MenuItem("Save As..", NULL)) {
-            // save world as...
+            // save worlds as...
             ImGuiFileDialog::Instance()->OpenDialog("SaveSceneFileDialogKey", "Save Scene", ".json", "");
           }
 
@@ -897,11 +960,11 @@ void portalScene(GLFWwindow* window) {
         if (ImGui::BeginMenu("View"))
         {
           if (ImGui::MenuItem("Debug Output", NULL)) {
-            showDebugTextWindow = !showDebugTextWindow;
+            guiState.showDebugTextWindow = !guiState.showDebugTextWindow;
           }
 
           if (ImGui::MenuItem("ImGUI demo window", NULL)) {
-            showDemoWindow = !showDemoWindow;
+            guiState.showDemoWindow = !guiState.showDemoWindow;
           }
 
           ImGui::EndMenu();
@@ -920,11 +983,11 @@ void portalScene(GLFWwindow* window) {
           if(fileReadable(filePathName.c_str())) {
             cleanupWorld(&globalWorld);
             loadWorld(&globalWorld, filePathName.c_str());
-            cursorEnabled = !cursorEnabled;
-            enableCursor(window, cursorEnabled);
+            guiState.cursorEnabled = !guiState.cursorEnabled;
+            enableCursor(window, guiState.cursorEnabled);
           } else {
             std::string something = "Could not load scene file: " + ImGuiFileDialog::Instance()->GetFilePathName();
-            addCString(&debugCStringRingBuffer, something.c_str(), something.length());
+            addCString(&guiState.debugCStringRingBuffer, something.c_str(), (u32)something.length());
           }
         }
 
@@ -947,23 +1010,24 @@ void portalScene(GLFWwindow* window) {
       }
 
       // debug text window
-      if(showDebugTextWindow) {
-        ImGui::Begin("Debug text output", &showDebugTextWindow, ImGuiWindowFlags_None);
+      if(guiState.showDebugTextWindow) {
+        ImGui::Begin("Debug text output", &guiState.showDebugTextWindow, ImGuiWindowFlags_None);
         {
           ImGui::BeginChild("Scrolling");
           {
-            if(debugCStringRingBuffer.count > 0) {
-              const s32 lastIndex = (debugCStringRingBuffer.first + debugCStringRingBuffer.count - 1) % debugCStringRingBuffer.cStringMaxCount;
+            // TODO: Can I extract this logic while without increasing number of modulos?
+            if(guiState.debugCStringRingBuffer.count > 0) {
+              const s32 lastIndex = (guiState.debugCStringRingBuffer.first + guiState.debugCStringRingBuffer.count - 1) % guiState.debugCStringRingBuffer.cStringMaxCount;
               s32 traversalIndex = lastIndex;
               while(traversalIndex >= 0) {
-                ImGui::Text(debugCStringRingBuffer.buffer + (traversalIndex * debugCStringRingBuffer.cStringSize));
+                ImGui::Text(guiState.debugCStringRingBuffer.buffer + (traversalIndex * guiState.debugCStringRingBuffer.cStringSize));
                 traversalIndex--;
               }
 
-              if(debugCStringRingBuffer.first != 0) {
-                traversalIndex = debugCStringRingBuffer.cStringMaxCount - 1;
-                while(traversalIndex >= debugCStringRingBuffer.first) {
-                  ImGui::Text(debugCStringRingBuffer.buffer + (traversalIndex * debugCStringRingBuffer.cStringSize));
+              if(guiState.debugCStringRingBuffer.first != 0) {
+                traversalIndex = guiState.debugCStringRingBuffer.cStringMaxCount - 1;
+                while(traversalIndex >= (s32)guiState.debugCStringRingBuffer.first) {
+                  ImGui::Text(guiState.debugCStringRingBuffer.buffer + (traversalIndex * guiState.debugCStringRingBuffer.cStringSize));
                   traversalIndex--;
                 }
               }
@@ -974,9 +1038,9 @@ void portalScene(GLFWwindow* window) {
         ImGui::End();
       }
 
-      if(showDemoWindow)
+      if(guiState.showDemoWindow)
       {
-        ImGui::ShowDemoWindow(&showDemoWindow);
+        ImGui::ShowDemoWindow(&guiState.showDemoWindow);
       }
 
       // Rendering
@@ -990,6 +1054,7 @@ void portalScene(GLFWwindow* window) {
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
   }
 
-  deleteCStringRingBuffer(&debugCStringRingBuffer);
+  saveEditorState(&globalWorld, &guiState);
+  cleanupGuiState(&guiState);
   cleanupWorld(&globalWorld);
 }
