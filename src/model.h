@@ -1,9 +1,5 @@
 #pragma once
 
-// NOTE: "Zero is a reserved texture name and is never returned as a texture name by glGenTextures()"
-// source: Naming A Texture Object in The Official Guide to Learning OpenGL, Version 1.1
-#define TEXTURE_ID_NO_TEXTURE 0
-
 // texture ids set to TEXTURE_ID_NO_TEXTURE when none exists
 // base color alpha set to 0.0 when non exists
 struct TextureData {
@@ -21,6 +17,7 @@ struct Model {
   Mesh* meshes;
   u32 meshCount;
   BoundingBox boundingBox;
+  char* fileName;
 };
 
 b32 baseColorValid(const TextureData& textureData) {
@@ -269,12 +266,12 @@ void loadModel(const char* filePath, Model* returnModel) {
   bool ret = loader.LoadBinaryFromFile(&tinyGLTFModel, &err, &warn, filePath); // for binary glTF(.glb)
 
   if (!warn.empty()) {
-    printf("Warn: %s\n", warn.c_str());
+    printf("Warning: %s\n", warn.c_str());
     return;
   }
 
   if (!err.empty()) {
-    printf("Err: %s\n", err.c_str());
+    printf("Error: %s\n", err.c_str());
     return;
   }
 
@@ -283,6 +280,7 @@ void loadModel(const char* filePath, Model* returnModel) {
     return;
   }
 
+  returnModel->fileName = cStrAllocateAndCopy(filePath);
   initializeModelVertexData(&tinyGLTFModel, returnModel);
 }
 
@@ -294,7 +292,6 @@ void loadModels(const char** filePaths, u32 count, Model** returnModels) {
     std::string warn;
     tinygltf::Model tinyGLTFModel;
 
-    //bool ret = loader.LoadASCIIFromFile(&tinyGLTFModel, &err, &warn, filePath); // for .gltf
     bool ret = loader.LoadBinaryFromFile(&tinyGLTFModel, &err, &warn, filePaths[i]); // for binary glTF(.glb)
 
     if (!warn.empty()) {
@@ -312,17 +309,8 @@ void loadModels(const char** filePaths, u32 count, Model** returnModels) {
       return;
     }
 
+    returnModels[i]->fileName = cStrAllocateAndCopy(filePaths[i]);
     initializeModelVertexData(&tinyGLTFModel, returnModels[i]);
-  }
-}
-
-void drawModelPlus(const Model& model, GLuint shaderProgramId) {
-  for(u32 i = 0; i < model.meshCount; ++i) {
-    Mesh* meshPtr = model.meshes + i;
-    if(baseColorValid(meshPtr->textureData)) {
-      setUniform(shaderProgramId, "baseColor", meshPtr->textureData.baseColor.xyz);
-    }
-    drawTriangles(&meshPtr->vertexAtt);
   }
 }
 
@@ -333,15 +321,15 @@ void drawModel(const Model& model) {
   }
 }
 
-void deleteModels(Model** models, u32 count) {
-  std::vector<VertexAtt*> vertexAtts;
+void deleteModels(Model* models, u32 count) {
+  std::vector<VertexAtt> vertexAtts;
   std::vector<GLuint> textureData;
 
   for(u32 i = 0; i < count; ++i) {
-    Model* modelPtr = models[i];
+    Model* modelPtr = models + i;
     for(u32 i = 0; i < modelPtr->meshCount; ++i) {
       Mesh* meshPtr = modelPtr->meshes;
-      vertexAtts.push_back(&meshPtr->vertexAtt);
+      vertexAtts.push_back(meshPtr->vertexAtt);
       TextureData textureDatum = meshPtr->textureData;
       if(textureDatum.normalTextureId != TEXTURE_ID_NO_TEXTURE) {
         textureData.push_back(textureDatum.normalTextureId);
@@ -350,8 +338,9 @@ void deleteModels(Model** models, u32 count) {
         textureData.push_back(textureDatum.albedoTextureId);
       }
     }
-    modelPtr->meshCount = 0;
-    delete modelPtr->meshes;
+    delete[] modelPtr->meshes;
+    delete[] modelPtr->fileName;
+    *modelPtr = {}; // clear model to zero
   }
 
   deleteVertexAtts(vertexAtts.data(), (u32)vertexAtts.size());

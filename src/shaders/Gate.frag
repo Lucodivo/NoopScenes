@@ -9,15 +9,21 @@ layout (binding = 1, std140) uniform FragUBO {
   float time;
 } fragUbo;
 
+struct InLight {
+  vec4 color;
+  vec4 pos;
+};
+
 layout (binding = 2, std140) uniform LightInfoUBO {
-  vec3 directionalLightColor;
-  vec3 ambientLightColor;
-  vec3 directionalLightDirToSource;
+  vec4 ambientLightColor;
+  InLight dirPosLightStack[8];
+  uint dirLightCount;
+  uint posLightCount;
 } lightInfoUbo;
 
 uniform sampler2D albedoTex;
 uniform sampler2D normalTex;
-uniform sampler2D tiledNoiseTex;
+uniform sampler2D noiseTex;
 
 const float noiseStength = 40.0;
 
@@ -28,10 +34,10 @@ vec3 getNormal(vec2 texCoord);
 void main() {
   vec2 time = vec2(fragUbo.time * 10.0);
   vec2 albedoTexSize = textureSize(albedoTex, 0);
-  vec2 tiledNoiseTexSize = textureSize(tiledNoiseTex, 0);
+  vec2 noiseTexSize = textureSize(noiseTex, 0);
 
-  vec2 noiseTexCoord = ((inTexCoord * albedoTexSize) / tiledNoiseTexSize) + (vec2(-time.x, time.y) / tiledNoiseTexSize);
-  float noise = texture(tiledNoiseTex, noiseTexCoord * 0.4).r;
+  vec2 noiseTexCoord = ((inTexCoord * albedoTexSize) / noiseTexSize) + (vec2(-time.x, time.y) / noiseTexSize);
+  float noise = texture(noiseTex, noiseTexCoord * 0.4).r;
   noise = (noise - 0.5) * 2.0; // [-1,1]
   noise = noise * noiseStength;
   vec2 texCoordNoise = inTexCoord + (vec2(noise) / albedoTexSize);
@@ -40,8 +46,16 @@ void main() {
   vec3 albedoColor = texture(albedoTex, texCoordNoiseTime).rgb;
 
   vec3 surfaceNormal = getNormal(texCoordNoiseTime);
-  float directLightContribution = max(dot(surfaceNormal, lightInfoUbo.directionalLightDirToSource), 0.0);
-  vec3 lightContribution = vec3(lightInfoUbo.ambientLightColor + (lightInfoUbo.directionalLightColor * directLightContribution));
+
+  vec3 lightContribution = lightInfoUbo.ambientLightColor.rgb * lightInfoUbo.ambientLightColor.a;
+
+  float directLightContribution = 0.0;
+  for(uint i = 0; i < lightInfoUbo.dirLightCount; i++) {
+    vec3 surfaceToSource = lightInfoUbo.dirPosLightStack[i].pos.xyz;
+    float cosTerm = max(dot(surfaceNormal, surfaceToSource), 0.0);
+    lightContribution += lightInfoUbo.dirPosLightStack[i].color.rgb * lightInfoUbo.dirPosLightStack[i].color.a * cosTerm;
+  }
+
   outColor = vec4(lightContribution * albedoColor, 1.0);
 }
 

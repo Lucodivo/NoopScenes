@@ -20,13 +20,14 @@ const char* refractSkyboxFragmentShaderFileLoc = COMMON_SHADER_BASE"RefractSkybo
 const char* tiledDisplacementTextureFileLoc = COMMON_TEXTURE_BASE"tiled_musgrave_texture_1_blur.png";
 
 // Skybox Cube Map textures
+#define COMMON_SKYBOX_BASE "src/data/skybox/"
 #define skybox(folder, extension) {  \
-"src/data/skybox/"#folder"/front."#extension,              \
-"src/data/skybox/"#folder"/back."#extension,               \
-"src/data/skybox/"#folder"/top."#extension,                \
-"src/data/skybox/"#folder"/bottom."#extension,             \
-"src/data/skybox/"#folder"/right."#extension,              \
-"src/data/skybox/"#folder"/left."#extension                \
+COMMON_SKYBOX_BASE#folder"/front."#extension,              \
+COMMON_SKYBOX_BASE#folder"/back."#extension,               \
+COMMON_SKYBOX_BASE#folder"/top."#extension,                \
+COMMON_SKYBOX_BASE#folder"/bottom."#extension,             \
+COMMON_SKYBOX_BASE#folder"/right."#extension,              \
+COMMON_SKYBOX_BASE#folder"/left."#extension                \
 }
 #define SKYBOX_TEXTURE_LOCATION_INDEX_FRONT 0
 #define SKYBOX_TEXTURE_LOCATION_INDEX_BACK 1
@@ -36,8 +37,8 @@ const char* tiledDisplacementTextureFileLoc = COMMON_TEXTURE_BASE"tiled_musgrave
 #define SKYBOX_TEXTURE_LOCATION_INDEX_LEFT 5
 const char* yellowCloudFaceLocations[6] = skybox(yellow_cloud, jpg);
 const char* calmSeaFaceLocations[6] = skybox(calm_sea, jpg);
-const char* skyboxInterstellarFaceLocations[6] = skybox(interstellar, png);
-const char* skyboxSpaceLightBlueFaceLocations[6] = skybox(space_light_blue, png);
+const char* interstellarFaceLocations[6] = skybox(interstellar, png);
+const char* spaceLightBlueFaceLocations[6] = skybox(space_light_blue, png);
 const char* archFaceLocations[6] = skybox(arch, png);
 const char* caveFaceLocations[6] = skybox(cave, png);
 const char* darkFaceLocations[6] = skybox(dark, png);
@@ -75,3 +76,7 @@ const char* mrSaturnModelLoc = COMMON_MODEL_BASE"Mr-Saturn.glb";
 const char* spike2ModelLoc = COMMON_MODEL_BASE"Spike-2.glb";
 const char* paperModelLoc = COMMON_MODEL_BASE"Paper.glb";
 const char* portalBackingModelLoc = COMMON_MODEL_BASE"Portal-Backing-Plus-Gate-Insignia.glb";
+
+// ==== Scenes ====
+#define COMMON_SCENE_BASE "src/worlds/"
+const char* originalSceneLoc = COMMON_SCENE_BASE"original_world.json";

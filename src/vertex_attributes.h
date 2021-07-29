@@ -35,4 +35,4 @@ void drawTriangles(const VertexAtt* vertexAtt, u32 count, u32 offset);
 void drawTriangles(const VertexAtt* vertexAtt);
 
 void deleteVertexAtt(VertexAtt* vertexAtt);
-void deleteVertexAtts(VertexAtt** vertexAtts, u32 count);
+void deleteVertexAtts(VertexAtt* vertexAtts, u32 count);

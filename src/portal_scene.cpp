@@ -1,6 +1,8 @@
 #define PORTAL_BACKING_BOX_DEPTH 0.5f
 #define MAX_PORTALS 4
 
+const char* editorSaveFileName = "editor_state_save.json";
+
 struct Player {
   BoundingBox boundingBox;
 };
@@ -11,10 +13,10 @@ enum EntityType {
 };
 
 struct Entity {
-  ShaderProgram shaderProgram;
   BoundingBox boundingBox;
   u32 modelIndex;
-  b32 flags; // EntityType flags
+  u32 shaderIndex;
+  b32 typeFlags; // EntityType flags
   vec3 position;
   vec3 scale;
   f32 yaw; // NOTE: Radians. 0 rads starts at {0, -1} and goes around the xy-plane in a CCW as seen from above
@@ -29,18 +31,31 @@ struct Portal {
   vec3 normal;
   vec3 centerPosition;
   vec2 dimens;
-  b32 flags; // PortalState flags
+  b32 stateFlags; // PortalState flags
   u32 stencilMask;
   u32 sceneDestination;
 };
 
+struct Light {
+  vec4 color;
+  // NOTE: For directional lights, this is the direction to the source
+  vec3 pos;
+};
+
 struct Scene {
-  // TODO: should the scene keep track of its own index in the world?
+  // TODO: should the scene keep track of its own index in the worlds?
   Entity entities[16];
   u32 entityCount;
   Portal portals[MAX_PORTALS];
   u32 portalCount;
+  Light dirPosLightStack[8];
+  u32 dirLightCount;
+  u32 posLightCount;
+  vec4 ambientLight;
   GLuint skyboxTexture;
+  const char* title;
+  const char* skyboxDir;
+  const char* skyboxExt;
 };
 
 struct World
@@ -55,77 +70,58 @@ struct World
   u32 modelCount;
   f32 fov;
   f32 aspect;
-  ProjectionViewModelUBO projectionViewModelUbo;
-  FragUBO fragUbo;
-  union {
-    struct {
-      ShaderProgram albedoNormalTexShader;
-      ShaderProgram singleColorShader;
-      ShaderProgram skyboxShader;
-      ShaderProgram reflectSkyboxShader;
-      ShaderProgram stencilShader;
-    };
-    ShaderProgram shaders[5];
-  } globalShaders;
-};
+  struct {
+    ProjectionViewModelUBO projectionViewModelUbo;
+    GLuint projectionViewModelUboId;
+    FragUBO fragUbo;
+    GLuint fragUboId;
+    LightUBO lightUbo;
+    GLuint lightUboId;
+  } UBOs;
+  ShaderProgram shaders[16];
+  u32 shaderCount;
+} globalWorld{};
+
+struct EditorState
+{
+  char* currentlyLoadedWorld;
+  bool cursorEnabled;
+  bool showDebugTextWindow;
+  bool showDemoWindow;
+  CStringRingBuffer debugCStringRingBuffer;
+} globalEditorState{};
 
 const vec3 defaultPlayerDimensionInMeters{0.5f, 0.25f, 1.75f}; // NOTE: ~1'7"w, 9"d, 6'h
-const vec3 gateScale{3.0f, 3.0f, 3.0f};
-const f32 gateYaw = 0.0f;
-const vec2 portalDimens{gateScale.x, gateScale.z};
-const vec3 shapeScale{1.0f, 1.0f, 1.0f};
-const vec3 gatePosition{0.0f, 0.0f, gateScale.z * 0.5f};
-const vec3 shapePosition = gatePosition;
-const vec3 skyboxPosition{0.0f, 0.0f, 0.0f};
-const vec3 skyboxScale{1.0f, 1.0f, 1.0f};
-const u32 destGateStencilMask = 0x01;
-const u32 destTetrahedronStencilMask = 0x02;
-const u32 destOctahedronStencilMask = 0x03;
-const u32 destIcosahedronStencilMask = 0x04;
-const u32 destPaperStencilMask = 0x05;
 const f32 near = 0.1f;
 const f32 far = 200.0f;
 
-const s32 skyboxActiveTextureIndex = 0;
-const s32 albedoActiveTextureIndex = 1;
-const s32 normalActiveTextureIndex = 2;
-const s32 tiledNoiseActiveTextureIndex = 3;
-
-global_variable GLuint projViewModelGlobalUBOid = 0;
-global_variable GLuint fragUBOid = 0;
-global_variable VertexAtt portalQuadVertexAtt{};
-global_variable VertexAtt portalBoxVertexAtt{};
 global_variable GLuint portalQueryObjects[MAX_PORTALS];
-global_variable World globalWorld{};
+
+global_variable struct {
+  VertexAtt portalQuad{};
+  VertexAtt portalBox{};
+  VertexAtt skyboxBox{};
+} globalVertexAtts;
+
+global_variable union {
+  struct {
+    ShaderProgram singleColor;
+    ShaderProgram skybox;
+    ShaderProgram stencil;
+  };
+  ShaderProgram shaders[3];
+} globalShaders;
 
 void drawScene(World* world, const u32 sceneIndex, u32 stencilMask = 0x00);
 void drawPortals(World* world, const u32 sceneIndex);
 
-void clearFlags(b32* flags) {
-  *flags = 0;
-}
-
-void setFlags(b32* flags, b32 desiredFlags){
-  *flags |= desiredFlags;
-}
-
-void overrideFlags(b32* flags, b32 desiredFlags) {
-  *flags = desiredFlags;
-}
-
-b32 flagIsSet(b32 flags, b32 checkFlag) {
-  return flags & checkFlag;
-}
-
-b32 flagsAreSet(b32 flags, b32 checkFlags) {
-  return (flags & checkFlags) == checkFlags;
-}
-
 void addPortal(World* world, u32 homeSceneIndex,
                const vec3& centerPosition, const vec3& normal, const vec2& dimens,
                const u32 stencilMask, const u32 destinationSceneIndex) {
+  Assert(stencilMask <= MAX_STENCIL_VALUE && stencilMask > 0);
+
   Scene* homeScene = world->scenes + homeSceneIndex;
-  Assert(homeScene->portalCount < ArrayCount(homeScene->portals));
+  Assert(ArrayCount(homeScene->portals) > homeScene->portalCount);
 
   Portal portal{};
   portal.stencilMask = stencilMask;
@@ -133,21 +129,31 @@ void addPortal(World* world, u32 homeSceneIndex,
   portal.centerPosition = centerPosition;
   portal.normal = normal;
   portal.sceneDestination = destinationSceneIndex;
-  portal.flags = 0;
+  portal.stateFlags = 0;
 
   homeScene->portals[homeScene->portalCount++] = portal;
 }
 
-u32 addNewScene(World* world) {
+u32 addNewScene(World* world, const char* title) {
   Assert(ArrayCount(world->scenes) > world->sceneCount);
   u32 sceneIndex = world->sceneCount++;
-  world->scenes[sceneIndex] = {};
+  Scene* scene = world->scenes + sceneIndex;
+  *scene = {};
+  scene->title = title;
   return sceneIndex;
+}
+
+u32 addNewShader(World* world, const char* vertexShaderFileLoc, const char* fragmentShaderFileLoc, const char* noiseTexture = nullptr) {
+  Assert(ArrayCount(world->shaders) > world->shaderCount);
+  u32 shaderIndex = world->shaderCount++;
+  ShaderProgram* shader = world->shaders + shaderIndex;
+  *shader = createShaderProgram(vertexShaderFileLoc, fragmentShaderFileLoc, noiseTexture);
+  return shaderIndex;
 }
 
 u32 addNewEntity(World* world, u32 sceneIndex, u32 modelIndex,
                  vec3 pos, vec3 scale, f32 yaw,
-                 ShaderProgram shader, b32 entityTypeFlags = 0) {
+                 u32 shaderIndex, b32 entityTypeFlags = 0) {
   Scene* scene = world->scenes + sceneIndex;
   Assert(ArrayCount(scene->entities) > scene->entityCount);
   u32 sceneEntityIndex = scene->entityCount++;
@@ -161,9 +167,40 @@ u32 addNewEntity(World* world, u32 sceneIndex, u32 modelIndex,
   entity->position = pos;
   entity->scale = scale;
   entity->yaw = yaw;
-  entity->shaderProgram = shader;
-  entity->flags = entityTypeFlags;
+  entity->shaderIndex = shaderIndex;
+  entity->typeFlags = entityTypeFlags;
   return sceneEntityIndex;
+}
+
+u32 addNewDirectionalLight(World* world, u32 sceneIndex, vec3 lightColor, f32 lightPower, vec3 lightToSource) {
+  Scene* scene = world->scenes + sceneIndex;
+  Assert(scene->posLightCount + scene->dirLightCount < ArrayCount(scene->dirPosLightStack));
+  u32 newLightIndex = scene->dirLightCount++;
+  scene->dirPosLightStack[newLightIndex].color.rgb = lightColor;
+  scene->dirPosLightStack[newLightIndex].color.a = lightPower;
+  scene->dirPosLightStack[newLightIndex].pos = normalize(lightToSource);
+  return newLightIndex;
+}
+
+u32 addNewPositionalLight(World* world, u32 sceneIndex, vec3 lightColor, f32 lightPower, vec3 lightPos) {
+  Scene* scene = world->scenes + sceneIndex;
+  const u32 maxLights = ArrayCount(scene->dirPosLightStack);
+  Assert(scene->posLightCount + scene->dirLightCount < maxLights);
+  u32 newLightIndex = maxLights - 1 - scene->posLightCount++;
+  scene->dirPosLightStack[newLightIndex].color.rgb = lightColor;
+  scene->dirPosLightStack[newLightIndex].color.a = lightPower;
+  scene->dirPosLightStack[newLightIndex].pos = lightPos;
+  return newLightIndex;
+}
+
+void adjustAmbientLight(World* world, u32 sceneIndex, vec3 lightColor, f32 lightPower) {
+  Scene* scene = world->scenes + sceneIndex;
+  scene->ambientLight.rgb = lightColor;
+  scene->ambientLight.a = lightPower;
+}
+
+void removeAmbientLight(World* world, u32 sceneIndex) {
+  world->scenes[sceneIndex].ambientLight = {};
 }
 
 u32 addNewModel(World* world, const char* modelFileLoc) {
@@ -185,15 +222,6 @@ u32 addNewModel_Skybox(World* world) {
   return modelIndex;
 }
 
-struct GateSceneFragUBO {
-  vec3 directionalLightColor;
-  u8 __padding1;
-  vec3 ambientLightColor;
-  u8 __padding2;
-  vec3 directionalLightDirToSource;
-  u8 __padding3;
-} gateSceneFragUbo;
-
 inline vec3 calcBoundingBoxCenterPosition(BoundingBox box) {
   return box.min + (box.diagonal * 0.5f);
 }
@@ -204,6 +232,11 @@ inline vec3 calcPlayerViewingPosition(const Player* player) {
 }
 
 void drawTrianglesWireframe(const VertexAtt* vertexAtt) {
+  // TODO: This will not work at all in a general case
+  // TODO: It only currently works because the wireframe shapes are the first things we draw in each scene
+  // TODO: can't just disable the depth test whenever
+  glUseProgram(globalShaders.singleColor.id);
+  setUniform(globalShaders.singleColor.id, "baseColor", vec3{0.0f, 0.0f, 0.0f});
   glDisable(GL_DEPTH_TEST);
   glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   glDisable(GL_CULL_FACE);
@@ -218,7 +251,7 @@ mat4 calcBoxStencilModelMatFromPortalModelMat(const mat4& portalModelMat) {
 }
 
 void drawPortal(const World* world, Portal* portal) {
-  glUseProgram(world->globalShaders.stencilShader.id);
+  glUseProgram(globalShaders.stencil.id);
 
   // NOTE: Stencil function Example
   // GL_LEQUAL
@@ -231,16 +264,16 @@ void drawPortal(const World* world, Portal* portal) {
               GL_REPLACE); // action when both stencil and depth pass
 
   mat4 portalModelMat = quadModelMatrix(portal->centerPosition, portal->normal, portal->dimens.x, portal->dimens.y);
-  VertexAtt* portalVertexAtt = &portalQuadVertexAtt;
-  if(flagIsSet(portal->flags, PortalState_InFocus)) {
+  VertexAtt* portalVertexAtt = &globalVertexAtts.portalQuad;
+  if(flagIsSet(portal->stateFlags, PortalState_InFocus)) {
     portalModelMat = calcBoxStencilModelMatFromPortalModelMat(portalModelMat);
-    portalVertexAtt = &portalBoxVertexAtt;
+    portalVertexAtt = &globalVertexAtts.portalBox;
   }
 
-  glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+  glBindBuffer(GL_UNIFORM_BUFFER, world->UBOs.projectionViewModelUboId);
   glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &portalModelMat);
   glBindBuffer(GL_UNIFORM_BUFFER, 0);
-  glUseProgram(world->globalShaders.stencilShader.id);
+  glUseProgram(globalShaders.stencil.id);
   glStencilMask(portal->stencilMask);
   drawTriangles(portalVertexAtt);
 }
@@ -253,7 +286,7 @@ void drawPortals(World* world, const u32 sceneIndex){
     Portal* portal = scene->portals + portalIndex;
     // don't draw portals if portal isn't visible
     // TODO: better visibility tests besides facing camera?
-    if(!flagIsSet(portal->flags, PortalState_FacingCamera)) { continue; }
+    if(!flagIsSet(portal->stateFlags, PortalState_FacingCamera)) { continue; }
 
     // begin occlusion query
     glBeginQuery(GL_ANY_SAMPLES_PASSED, portalQueryObjects[portalIndex]);
@@ -265,7 +298,7 @@ void drawPortals(World* world, const u32 sceneIndex){
   // turn off writes to the stencil
   glStencilMask(0x00);
 
-  // Draw portal scenes
+  // Draw portal worlds
   // We need to clear disable depth values so distant objects through the "portals" still get drawn
   // The portals themselves will still obey the depth of the scene, as the stencils have been rendered with depth in mind
   glClear(GL_DEPTH_BUFFER_BIT);
@@ -274,13 +307,13 @@ void drawPortals(World* world, const u32 sceneIndex){
     Portal portal = scene->portals[portalIndex];
     // don't draw scene if portal isn't visible
     // TODO: better visibility tests besides facing camera?
-    if(!flagIsSet(portal.flags, PortalState_FacingCamera)) { continue; }
+    if(!flagIsSet(portal.stateFlags, PortalState_FacingCamera)) { continue; }
 
-    vec3 portalNormal_viewSpace = (world->projectionViewModelUbo.view * Vec4(-portal.normal, 0.0f)).xyz;
-    vec3 portalCenterPos_viewSpace = (world->projectionViewModelUbo.view * Vec4(portal.centerPosition, 1.0f)).xyz;
+    vec3 portalNormal_viewSpace = (world->UBOs.projectionViewModelUbo.view * Vec4(-portal.normal, 0.0f)).xyz;
+    vec3 portalCenterPos_viewSpace = (world->UBOs.projectionViewModelUbo.view * Vec4(portal.centerPosition, 1.0f)).xyz;
     mat4 portalProjectionMat = obliquePerspective(world->fov, world->aspect, near, far, portalNormal_viewSpace, portalCenterPos_viewSpace);
 
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, world->UBOs.projectionViewModelUboId);
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, projection), sizeof(mat4), &portalProjectionMat);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
@@ -299,40 +332,86 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
 
   Scene* scene = world->scenes + sceneIndex;
 
-  bindActiveTextureCubeMap(skyboxActiveTextureIndex, scene->skyboxTexture);
+  if(scene->skyboxTexture != TEXTURE_ID_NO_TEXTURE) { // draw skybox if one exists
+    glUseProgram(globalShaders.skybox.id);
+    bindActiveTextureCubeMap(skyboxActiveTextureIndex, scene->skyboxTexture);
+    setSamplerCube(globalShaders.skybox.id, skyboxTexUniformName, skyboxActiveTextureIndex);
+    mat4 identityMat4 = identity_mat4();
+    glBindBuffer(GL_UNIFORM_BUFFER, world->UBOs.projectionViewModelUboId);
+    glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &identityMat4);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    drawTriangles(&globalVertexAtts.skyboxBox);
+  }
+
+  // update scene light uniform buffer object
+  {
+    const u32 maxLights = ArrayCount(world->UBOs.lightUbo.dirPosLightStack);
+    Assert((scene->dirLightCount + scene->posLightCount) <= maxLights);
+
+
+    // TODO: If LightUniform and Light struct for class were the same we could do a simple memcpy
+    world->UBOs.lightUbo.dirLightCount = scene->dirLightCount;
+    for(u32 i = 0; i < scene->dirLightCount; ++i) {
+      world->UBOs.lightUbo.dirPosLightStack[i].color = scene->dirPosLightStack[i].color;
+      world->UBOs.lightUbo.dirPosLightStack[i].pos.xyz = scene->dirPosLightStack[i].pos;
+      // TODO: Z component of pos currently undefined and potentially dangerous. Determine if it can be used.
+    }
+
+    world->UBOs.lightUbo.posLightCount = scene->posLightCount;
+    for(u32 i = 0; i < scene->posLightCount; ++i) {
+      world->UBOs.lightUbo.dirPosLightStack[maxLights - i].color = scene->dirPosLightStack[maxLights - i].color;
+      world->UBOs.lightUbo.dirPosLightStack[maxLights - i].pos.xyz = scene->dirPosLightStack[maxLights - i].pos;
+      // TODO: Z component of pos currently undefined and potentially dangerous. Determine if it can be used.
+    }
+
+    world->UBOs.lightUbo.ambientLight = scene->ambientLight;
+
+    glGenBuffers(1, &globalWorld.UBOs.lightUboId);
+    // allocate size for buffer
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.lightUboId);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(world->UBOs.lightUbo), &world->UBOs.lightUbo, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    // attach buffer to ubo binding point
+    glBindBufferRange(GL_UNIFORM_BUFFER, lightUBOBindingIndex, globalWorld.UBOs.lightUboId, 0, sizeof(world->UBOs.lightUbo));
+  }
 
   for(u32 sceneEntityIndex = 0; sceneEntityIndex < scene->entityCount; ++sceneEntityIndex) {
     Entity* entity = &scene->entities[sceneEntityIndex];
-    ShaderProgram shader = entity->shaderProgram;
+    ShaderProgram shader = world->shaders[entity->shaderIndex];
 
     mat4 modelMatrix = scaleRotTrans_mat4(entity->scale, vec3{0.0f, 0.0f, 1.0f}, entity->yaw, entity->position);
 
-    // all shapes use the same modelIndex matrix
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, world->UBOs.projectionViewModelUboId);
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &modelMatrix);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     glUseProgram(shader.id);
-    setSamplerCube(shader.id, "skyboxTex", skyboxActiveTextureIndex);
+    if(shader.noiseTextureId != TEXTURE_ID_NO_TEXTURE) {
+      bindActiveTextureSampler2d(noiseActiveTextureIndex, shader.noiseTextureId);
+      setSampler2D(shader.id, noiseTexUniformName, noiseActiveTextureIndex);
+    }
     Model model = world->models[entity->modelIndex];
+    // TODO: Should some of this logic be moved to drawModel()?
     for(u32 meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
       Mesh* mesh = model.meshes + meshIndex;
-      if(mesh->textureData.baseColor.w != 0.0f) {
-        setUniform(shader.id, "baseColor", mesh->textureData.baseColor.xyz);
+      if(mesh->textureData.baseColor.a != 0.0f) {
+        setUniform(shader.id, baseColorUniformName, mesh->textureData.baseColor.rgb);
       }
       if(mesh->textureData.albedoTextureId != TEXTURE_ID_NO_TEXTURE) {
         bindActiveTextureSampler2d(albedoActiveTextureIndex, mesh->textureData.albedoTextureId);
-        setSampler2D(shader.id, "albedoTex", albedoActiveTextureIndex);
+        setSampler2D(shader.id, albedoTexUniformName, albedoActiveTextureIndex);
       }
       if(mesh->textureData.normalTextureId != TEXTURE_ID_NO_TEXTURE) {
         bindActiveTextureSampler2d(normalActiveTextureIndex, mesh->textureData.normalTextureId);
-        setSampler2D(shader.id, "normalTex", normalActiveTextureIndex);
+        setSampler2D(shader.id, normalTexUniformName, normalActiveTextureIndex);
       }
 
       drawTriangles(&mesh->vertexAtt);
+    }
 
-      if(entity->flags & EntityType_Wireframe) {
-        glUseProgram(world->globalShaders.stencilShader.id);
+    if(entity->typeFlags & EntityType_Wireframe) { // wireframes should be drawn on top default mesh
+      for(u32 meshIndex = 0; meshIndex < model.meshCount; ++meshIndex) {
+        Mesh* mesh = model.meshes + meshIndex;
         drawTrianglesWireframe(&mesh->vertexAtt);
       }
     }
@@ -352,8 +431,11 @@ void updateEntities(World* world) {
     Scene* scene = world->scenes + sceneIndex;
     for(u32 entityIndex = 0; entityIndex < scene->entityCount; ++entityIndex) {
       Entity* entity = scene->entities + entityIndex;
-      if(entity->flags & EntityType_Rotating) {
+      if(entity->typeFlags & EntityType_Rotating) {
         entity->yaw += 30.0f * RadiansPerDegree * world->stopWatch.delta;
+        if(entity->yaw > Tau32) {
+          entity->yaw -= Tau32;
+        }
       }
     }
   }
@@ -363,14 +445,13 @@ void updateEntities(World* world) {
   b32 portalEntered = false;
   u32 portalSceneDestination;
   auto updatePortalsForScene = [playerViewPosition, &portalEntered, &portalSceneDestination](Scene* scene) {
-    // TODO: optimize only checking what we need to for portals
     for(u32 portalIndex = 0; portalIndex < scene->portalCount; ++portalIndex) {
       Portal* portal = scene->portals + portalIndex;
 
       vec3 portalCenterToPlayerView = playerViewPosition - portal->centerPosition;
       b32 portalFacingCamera = similarDirection(portal->normal, playerViewPosition - portal->centerPosition) ? PortalState_FacingCamera : false;
 
-      b32 portalWasInFocus = flagIsSet(portal->flags, PortalState_InFocus);
+      b32 portalWasInFocus = flagIsSet(portal->stateFlags, PortalState_InFocus);
       vec3 viewPositionPerpendicularToPortal = perpendicularTo(portalCenterToPlayerView, portal->normal);
       f32 widthDistFromCenter = magnitude(viewPositionPerpendicularToPortal.xy);
       f32 heightDistFromCenter = viewPositionPerpendicularToPortal.z;
@@ -379,7 +460,7 @@ void updateEntities(World* world) {
       b32 portalInFocus = (portalFacingCamera && viewerInsideDimens) ? PortalState_InFocus : false;
       b32 insidePortal = portalWasInFocus && !portalFacingCamera; // portal was in focus and now we're on the other side
 
-      overrideFlags(&portal->flags, portalFacingCamera | portalInFocus);
+      overrideFlags(&portal->stateFlags, portalFacingCamera | portalInFocus);
 
       if(insidePortal){
         portalEntered = true;
@@ -395,7 +476,7 @@ void updateEntities(World* world) {
   if(portalEntered) {
     // clear portals for old scene
     for(u32 portalIndex = 0; portalIndex < currentScene->portalCount; ++portalIndex) {
-      clearFlags(&currentScene->portals[portalIndex].flags); // clear all flags of previous currentScene
+      clearFlags(&currentScene->portals[portalIndex].stateFlags); // clear all flags of previous currentScene
     }
 
     world->currentSceneIndex = portalSceneDestination;
@@ -405,118 +486,336 @@ void updateEntities(World* world) {
   }
 }
 
-void initShaders(World* world) {
-  world->globalShaders.albedoNormalTexShader = createShaderProgram(gateVertexShaderFileLoc, gateFragmentShaderFileLoc);
-  world->globalShaders.singleColorShader = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
-  world->globalShaders.skyboxShader = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
-  world->globalShaders.reflectSkyboxShader = createShaderProgram(posNormVertexShaderFileLoc, reflectSkyboxFragmentShaderFileLoc);
-  world->globalShaders.stencilShader = createShaderProgram(posVertexShaderFileLoc, blackFragmentShaderFileLoc);
+void initGlobalShaders() {
+  globalShaders.singleColor = createShaderProgram(posVertexShaderFileLoc, singleColorFragmentShaderFileLoc);
+  globalShaders.stencil = createShaderProgram(posVertexShaderFileLoc, blackFragmentShaderFileLoc);
+  globalShaders.skybox = createShaderProgram(skyboxVertexShaderFileLoc, skyboxFragmentShaderFileLoc);
 }
 
-void createScenes(World* world) {
-  u32 gateSceneIndex = addNewScene(&globalWorld);
-  u32 tetrahedronSceneIndex = addNewScene(&globalWorld);
-  u32 octahedronSceneIndex = addNewScene(&globalWorld);
-  u32 paperSceneIndex = addNewScene(&globalWorld);
-  u32 icosahedronSceneIndex = addNewScene(&globalWorld);
+void initGlobalVertexAtts() {
+  globalVertexAtts.portalQuad = quadPosVertexAttBuffers(false);
+  globalVertexAtts.portalBox = cubePosVertexAttBuffers(true, true);
+  globalVertexAtts.skyboxBox = cubePosVertexAttBuffers(true);
+}
 
-  vec3 gatePortalNegativeXCenter = (cubeFaceNegativeXCenter * gateScale.x) + gatePosition;
-  vec3 gatePortalPositiveXCenter = (cubeFacePositiveXCenter * gateScale.x) + gatePosition;
-  vec3 gatePortalNegativeYCenter = (cubeFaceNegativeYCenter * gateScale.y) + gatePosition;
-  vec3 gatePortalPositiveYCenter = (cubeFacePositiveYCenter * gateScale.y) + gatePosition;
+void saveWorld(World* world, const char* title) {
+  SaveFormat saveFormat{};
 
-  u32 skyboxModelIndex = addNewModel_Skybox(&globalWorld);
-  u32 portalBackingModelIndex = addNewModel(&globalWorld, portalBackingModelLoc);
-  vec3 portalBackingModelScale = vec3{portalDimens.x, 0.5f, portalDimens.y};
+  saveFormat.startingSceneIndex = world->currentSceneIndex;
 
-  globalWorld.currentSceneIndex = gateSceneIndex;
-  u32 gateEntityIndex;
-  {
-    u32 gateModelIndex = addNewModel(&globalWorld, gateModelLoc);
-    gateEntityIndex = addNewEntity(&globalWorld, gateSceneIndex, gateModelIndex, gatePosition, gateScale, gateYaw, world->globalShaders.albedoNormalTexShader);
+  saveFormat.scenes.reserve(world->sceneCount);
+  saveFormat.shaders.reserve(world->shaderCount);
+  saveFormat.models.reserve(world->modelCount);
 
-    loadCubeMapTexture(caveFaceLocations, &globalWorld.scenes[gateSceneIndex].skyboxTexture);
-    u32 caveSkyboxIndex = addNewEntity(&globalWorld, gateSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, world->globalShaders.skyboxShader);
-
-    addPortal(&globalWorld, gateEntityIndex, gatePortalNegativeXCenter, negativeXNormal, portalDimens, destPaperStencilMask, paperSceneIndex);
-    addPortal(&globalWorld, gateEntityIndex, gatePortalPositiveXCenter, positiveXNormal, portalDimens, destOctahedronStencilMask, octahedronSceneIndex);
-    addPortal(&globalWorld, gateEntityIndex, gatePortalNegativeYCenter, negativeYNormal, portalDimens, destTetrahedronStencilMask, tetrahedronSceneIndex);
-    addPortal(&globalWorld, gateEntityIndex, gatePortalPositiveYCenter, positiveYNormal, portalDimens, destIcosahedronStencilMask, icosahedronSceneIndex);
-
-    gateSceneFragUbo.directionalLightColor = {0.5f, 0.5f, 0.5f};
-    gateSceneFragUbo.ambientLightColor = {0.3f, 0.3f, 0.3f};
-    gateSceneFragUbo.directionalLightDirToSource = {1.0f, 1.0f, 1.0f};
-
-    u32 tiledTextureId;
-    load2DTexture(tiledDisplacementTextureFileLoc, &tiledTextureId);
-    glUseProgram(world->globalShaders.albedoNormalTexShader.id);
-    bindActiveTextureSampler2d(tiledNoiseActiveTextureIndex, tiledTextureId);
-    setSampler2D(world->globalShaders.albedoNormalTexShader.id, "tiledNoiseTex", tiledNoiseActiveTextureIndex);
+  for(u32 modelIndex = 0; modelIndex < world->modelCount; modelIndex++) {
+    Model* model = world->models + modelIndex;
+    Assert(model->meshCount > 0);
+    ModelSaveFormat modelSaveFormat{};
+    modelSaveFormat.index = modelIndex;
+    modelSaveFormat.baseColor = model->meshes[0].textureData.baseColor;
+    modelSaveFormat.fileName = model->fileName;
+    saveFormat.models.push_back(modelSaveFormat);
   }
 
-  {
-    u32 tetrahedronModelIndex = addNewModel(&globalWorld, tetrahedronModelLoc);
-    u32 tetrahedronEntityIndex = addNewEntity(&globalWorld, tetrahedronSceneIndex, tetrahedronModelIndex, shapePosition, shapeScale, 0.0f, world->globalShaders.singleColorShader, EntityType_Rotating | EntityType_Wireframe);
-    globalWorld.models[tetrahedronModelIndex].meshes[0].textureData.baseColor = vec4{1.0f, 0.4f, 0.4f, 1.0f};
-
-    loadCubeMapTexture(yellowCloudFaceLocations, &globalWorld.scenes[tetrahedronSceneIndex].skyboxTexture);
-    u32 yellowCloudSkyboxIndex = addNewEntity(&globalWorld, tetrahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, world->globalShaders.skyboxShader);
-
-    addPortal(&globalWorld, tetrahedronSceneIndex, gatePortalNegativeYCenter, positiveYNormal, portalDimens, destGateStencilMask, gateEntityIndex);
-
-    vec3 portalBackingPosition = gatePortalNegativeYCenter;
-    portalBackingPosition += vec3{0.0f, portalBackingModelScale.y * -0.5f, 0.0f};
-    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&globalWorld, tetrahedronSceneIndex, portalBackingModelIndex,
-                                                            portalBackingPosition, portalBackingModelScale, 180.0f * RadiansPerDegree, world->globalShaders.reflectSkyboxShader);
+  for(u32 shaderIndex = 0; shaderIndex < world->shaderCount; shaderIndex++) {
+    ShaderProgram* shader = world->shaders + shaderIndex;
+    ShaderSaveFormat shaderSaveFormat{};
+    shaderSaveFormat.index = shaderIndex;
+    shaderSaveFormat.vertexName = shader->vertexFileName;
+    shaderSaveFormat.fragmentName = shader->fragmentFileName;
+    if(shader->noiseTextureFileName != nullptr) {
+      shaderSaveFormat.noiseTextureName = shader->noiseTextureFileName;
+    } else {
+      shaderSaveFormat.noiseTextureName.clear();
+    }
+    saveFormat.shaders.push_back(shaderSaveFormat);
   }
 
-  {
-    u32 octahedronModelIndex = addNewModel(&globalWorld, octahedronModelLoc);
-    u32 octahedronEntityIndex = addNewEntity(&globalWorld, octahedronSceneIndex, octahedronModelIndex, shapePosition, shapeScale, 0.0f, world->globalShaders.singleColorShader, EntityType_Rotating | EntityType_Wireframe);
-    globalWorld.models[octahedronModelIndex].meshes[0].textureData.baseColor = vec4{0.4f, 1.0f, 0.4f, 1.0f};
+  for(u32 sceneIndex = 0; sceneIndex < world->sceneCount; sceneIndex++) {
+    Scene* scene = world->scenes + sceneIndex;
+    SceneSaveFormat sceneSaveFormat{};
+    sceneSaveFormat.index = sceneIndex;
+    sceneSaveFormat.title = scene->title;
+    if(scene->skyboxTexture != TEXTURE_ID_NO_TEXTURE) {
+      sceneSaveFormat.skyboxDir = scene->skyboxDir;
+      sceneSaveFormat.skyboxExt = scene->skyboxExt;
+    } else {
+      sceneSaveFormat.skyboxDir.clear();
+      sceneSaveFormat.skyboxExt.clear();
+    }
 
-    loadCubeMapTexture(skyboxInterstellarFaceLocations, &globalWorld.scenes[octahedronSceneIndex].skyboxTexture);
-    u32 interstellarSkyboxIndex = addNewEntity(&globalWorld, octahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, world->globalShaders.skyboxShader);
+    for(u32 entityIndex = 0; entityIndex < scene->entityCount; entityIndex++) {
+      Entity* entity = scene->entities + entityIndex;
+      EntitySaveFormat entitySaveFormat{};
+      entitySaveFormat.shaderIndex = entity->shaderIndex;
+      entitySaveFormat.modelIndex = entity->modelIndex;
+      entitySaveFormat.scaleXYZ = entity->scale;
+      entitySaveFormat.posXYZ = entity->position;
+      entitySaveFormat.yaw = entity->yaw;
+      entitySaveFormat.flags = entity->typeFlags;
+      sceneSaveFormat.entities.push_back(entitySaveFormat);
+    }
 
-    addPortal(&globalWorld, octahedronSceneIndex, gatePortalPositiveXCenter, negativeXNormal, portalDimens, destGateStencilMask, gateEntityIndex);
+    for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
+      Portal* portal = scene->portals + portalIndex;
+      PortalSaveFormat portalSaveFormat{};
+      portalSaveFormat.destination = portal->sceneDestination;
+      portalSaveFormat.centerXYZ = portal->centerPosition;
+      portalSaveFormat.normalXYZ = portal->normal;
+      portalSaveFormat.dimensXY = portal->dimens;
+      sceneSaveFormat.portals.push_back(portalSaveFormat);
+    }
 
-    vec3 portalBackingPosition = gatePortalPositiveXCenter;
-    portalBackingPosition += vec3{portalBackingModelScale.y * 0.5f, 0.0f, 0.0f};
-    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&globalWorld, octahedronSceneIndex, portalBackingModelIndex,
-                                                            portalBackingPosition, portalBackingModelScale, -90.0f * RadiansPerDegree, world->globalShaders.reflectSkyboxShader);
+    const u32 maxLights = ArrayCount(scene->dirPosLightStack);
+    for(u32 dirLightIndex = 0; dirLightIndex < scene->dirLightCount; dirLightIndex++) {
+      Light dirLight = scene->dirPosLightStack[dirLightIndex];
+      DirectionalLightSaveFormat directionalLightSaveFormat{};
+      directionalLightSaveFormat.color = dirLight.color.rgb;
+      directionalLightSaveFormat.power = dirLight.color.a;
+      directionalLightSaveFormat.dirToSource = dirLight.pos;
+      sceneSaveFormat.directionalLights.push_back(directionalLightSaveFormat);
+    }
+
+    for(u32 posLightIndex = 0; posLightIndex < scene->posLightCount; posLightIndex++) {
+      Light posLight = scene->dirPosLightStack[maxLights - 1 - posLightIndex];
+      PositionalLightSaveFormat positionalLightSaveFormat{};
+      positionalLightSaveFormat.color = posLight.color.rgb;
+      positionalLightSaveFormat.power = posLight.color.a;
+      positionalLightSaveFormat.pos = posLight.pos;
+      sceneSaveFormat.positionalLights.push_back(positionalLightSaveFormat);
+    }
+
+    sceneSaveFormat.ambientLightSaveFormat.color = scene->ambientLight.rgb;
+    sceneSaveFormat.ambientLightSaveFormat.power = scene->ambientLight.a;
+
+    saveFormat.scenes.push_back(sceneSaveFormat);
   }
 
-  {
-    u32 paperModelIndex = addNewModel(&globalWorld, paperModelLoc);
-    u32 paperEntityIndex = addNewEntity(&globalWorld, paperSceneIndex, paperModelIndex, shapePosition, shapeScale, 0.0f, world->globalShaders.singleColorShader, EntityType_Rotating | EntityType_Wireframe);
-    globalWorld.models[paperModelIndex].meshes[0].textureData.baseColor = vec4{0.4f, 0.4f, 1.0f, 1.0f};
+  save(saveFormat, title);
+}
 
-    loadCubeMapTexture(calmSeaFaceLocations, &globalWorld.scenes[paperSceneIndex].skyboxTexture);
-    u32 calmSeaSkyboxIndex = addNewEntity(&globalWorld, paperSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, world->globalShaders.skyboxShader);
+void cleanupScene(Scene* scene) {
+  for(u32 entityIndex = 0; entityIndex < scene->entityCount; entityIndex++) {
+    scene->entities[entityIndex] = {}; // zero out struct
+  }
+  scene->entityCount = 0;
 
-    addPortal(&globalWorld, paperSceneIndex, gatePortalNegativeXCenter, positiveXNormal, portalDimens, destGateStencilMask, gateEntityIndex);
+  for(u32 portalIndex = 0; portalIndex < scene->portalCount; portalIndex++) {
+    scene->portals[portalIndex] = {}; // zero out struct
+  }
+  scene->portalCount = 0;
 
-    vec3 portalBackingPosition = gatePortalNegativeXCenter;
-    portalBackingPosition += vec3{portalBackingModelScale.y * -0.5f, 0.0f, 0.0f};
-    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&globalWorld, paperSceneIndex, portalBackingModelIndex,
-                                                            portalBackingPosition, portalBackingModelScale, 90.0f * RadiansPerDegree, world->globalShaders.reflectSkyboxShader);
+  glDeleteTextures(1, &scene->skyboxTexture);
+  scene->skyboxTexture = TEXTURE_ID_NO_TEXTURE;
+
+  delete[] scene->title;
+  if(scene->skyboxDir != nullptr) { delete[] scene->skyboxDir; }
+  if(scene->skyboxExt != nullptr) { delete[] scene->skyboxExt; }
+  scene->title = nullptr;
+  scene->skyboxDir = nullptr;
+  scene->skyboxExt = nullptr;
+}
+
+void cleanupWorld(World* world) {
+  for(u32 sceneIndex = 0; sceneIndex < world->sceneCount; sceneIndex++) {
+    cleanupScene(world->scenes + sceneIndex);
   }
 
-  {
-    u32 icosahedronModelIndex = addNewModel(&globalWorld, icosahedronModelLoc);
-    u32 icosahedronEntityIndex = addNewEntity(&globalWorld, icosahedronSceneIndex, icosahedronModelIndex, shapePosition, shapeScale, 0.0f, world->globalShaders.singleColorShader, EntityType_Rotating | EntityType_Wireframe);
-    globalWorld.models[icosahedronModelIndex].meshes[0].textureData.baseColor = vec4{0.9f, 0.9f, 0.9f, 1.0f};
+  deleteModels(world->models, world->modelCount);
+  memset(world->models, 0, sizeof(Model) * world->modelCount);
 
-    loadCubeMapTexture(pollutedEarthFaceLocations, &globalWorld.scenes[icosahedronSceneIndex].skyboxTexture);
-    u32 pollutedEarthSkyboxIndex = addNewEntity(&globalWorld, icosahedronSceneIndex, skyboxModelIndex, skyboxPosition, skyboxScale, 0.0f, world->globalShaders.skyboxShader);
-
-    addPortal(&globalWorld, icosahedronSceneIndex, gatePortalPositiveYCenter, negativeYNormal, portalDimens, destGateStencilMask, gateEntityIndex);
-
-    vec3 portalBackingPosition = gatePortalPositiveYCenter;
-    portalBackingPosition += vec3{0.0f, portalBackingModelScale.y * 0.5f, 0.0f};
-    u32 portalSceneToGatePortalBackingEntity = addNewEntity(&globalWorld, icosahedronSceneIndex, portalBackingModelIndex,
-                                                            portalBackingPosition, portalBackingModelScale, 0.0f, world->globalShaders.reflectSkyboxShader);
+  for(u32 shaderIndex = 0; shaderIndex < world->shaderCount; shaderIndex++) {
+    deleteShaderProgram(world->shaders + shaderIndex);
   }
+
+  world = {};
+}
+
+void cleanupEditorState(EditorState* editorState) {
+  if(editorState->currentlyLoadedWorld) { delete[] editorState->currentlyLoadedWorld; }
+  deleteCStringRingBuffer(&editorState->debugCStringRingBuffer);
+  editorState = {};
+}
+
+void initPlayer(Player* player) {
+  player->boundingBox.diagonal = defaultPlayerDimensionInMeters;
+  player->boundingBox.min = {-(globalWorld.player.boundingBox.diagonal.x * 0.5f), -12.0f - (globalWorld.player.boundingBox.diagonal.y * 0.5f), 0.0f};
+}
+
+void initCamera(Camera* camera, const Player& player) {
+  vec3 firstPersonCameraInitPosition = calcPlayerViewingPosition(&player);
+  vec3 firstPersonCameraInitFocus{0, 0, firstPersonCameraInitPosition.z};
+  lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, camera);
+}
+
+void loadWorld(World* world, EditorState* editorState, const char* saveJsonFile) {
+  if(editorState->currentlyLoadedWorld) { delete[] editorState->currentlyLoadedWorld; }
+  editorState->currentlyLoadedWorld = new char[strlen(saveJsonFile) + 1];
+  strcpy(editorState->currentlyLoadedWorld, saveJsonFile);
+
+  SaveFormat saveFormat = loadSave(saveJsonFile);
+
+  size_t sceneCount = saveFormat.scenes.size();
+  size_t modelCount = saveFormat.models.size();
+  size_t shaderCount = saveFormat.shaders.size();
+
+  u32 worldShaderIndices[ArrayCount(world->shaders)] = {};
+  { // shaders
+    for(u32 shaderIndex = 0; shaderIndex < shaderCount; shaderIndex++) {
+      ShaderSaveFormat shaderSaveFormat = saveFormat.shaders[shaderIndex];
+      Assert(shaderSaveFormat.index < shaderCount);
+
+      const char* noiseTexture = nullptr;
+      if(!shaderSaveFormat.noiseTextureName.empty())
+      {
+        noiseTexture = shaderSaveFormat.noiseTextureName.c_str();
+      }
+
+      worldShaderIndices[shaderSaveFormat.index] = addNewShader(world, shaderSaveFormat.vertexName.c_str(), shaderSaveFormat.fragmentName.c_str(), noiseTexture);
+    }
+  }
+
+  u32 worldModelIndices[ArrayCount(world->models)] = {};
+  { // models
+    for(u32 modelIndex = 0; modelIndex < modelCount; modelIndex++) {
+      ModelSaveFormat modelSaveFormat = saveFormat.models[modelIndex];
+      Assert(modelSaveFormat.index < modelCount);
+      worldModelIndices[modelSaveFormat.index] = addNewModel(world, modelSaveFormat.fileName.c_str());
+
+      Model* model = world->models + worldModelIndices[modelSaveFormat.index];
+      for(u32 meshIndex = 0; meshIndex < model->meshCount; meshIndex++) {
+        Mesh* mesh = model->meshes + meshIndex;
+        mesh->textureData.baseColor = modelSaveFormat.baseColor;
+      }
+    }
+  }
+
+  u32 worldSceneIndices[ArrayCount(world->scenes)] = {};
+  { // scenes
+    for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++) {
+      SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
+      size_t entityCount = sceneSaveFormat.entities.size();
+
+      Assert(sceneSaveFormat.index < sceneCount);
+      worldSceneIndices[sceneSaveFormat.index] = addNewScene(world, sceneSaveFormat.title.c_str());
+      Scene* scene = world->scenes + worldSceneIndices[sceneSaveFormat.index];
+      scene->title = cStrAllocateAndCopy(sceneSaveFormat.title.c_str());
+
+      if(!sceneSaveFormat.skyboxDir.empty() && !sceneSaveFormat.skyboxExt.empty()) { // if we have a skybox...
+        scene->skyboxDir = cStrAllocateAndCopy(sceneSaveFormat.skyboxDir.c_str());
+        scene->skyboxExt = cStrAllocateAndCopy(sceneSaveFormat.skyboxExt.c_str());
+        loadCubeMapTexture(scene->skyboxDir, scene->skyboxExt, &scene->skyboxTexture);
+      } else {
+        scene->skyboxTexture = TEXTURE_ID_NO_TEXTURE;
+      }
+
+      for(u32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+        EntitySaveFormat entitySaveFormat = sceneSaveFormat.entities[entityIndex];
+        addNewEntity(world, worldSceneIndices[sceneSaveFormat.index], worldModelIndices[entitySaveFormat.modelIndex],
+                     entitySaveFormat.posXYZ, entitySaveFormat.scaleXYZ, entitySaveFormat.yaw,
+                     worldShaderIndices[entitySaveFormat.shaderIndex], entitySaveFormat.flags);
+      }
+
+      size_t dirLightCount = sceneSaveFormat.directionalLights.size();
+      for(u32 dirLightIndex = 0; dirLightIndex < dirLightCount; dirLightIndex++) {
+        DirectionalLightSaveFormat dirLightSaveFormat = sceneSaveFormat.directionalLights[dirLightIndex];
+        addNewDirectionalLight(world, worldSceneIndices[sceneSaveFormat.index], dirLightSaveFormat.color,
+                               dirLightSaveFormat.power, dirLightSaveFormat.dirToSource);
+      }
+
+      size_t posLightCount = sceneSaveFormat.positionalLights.size();
+      for(u32 posLightIndex = 0; posLightIndex < posLightCount; posLightIndex++) {
+        PositionalLightSaveFormat posLightSaveFormat = sceneSaveFormat.positionalLights[posLightIndex];
+        addNewPositionalLight(world, worldSceneIndices[sceneSaveFormat.index], posLightSaveFormat.color,
+                               posLightSaveFormat.power, posLightSaveFormat.pos);
+      }
+
+      if(sceneSaveFormat.ambientLightSaveFormat.power != 0.0f) {
+        adjustAmbientLight(world, worldSceneIndices[sceneSaveFormat.index],
+                           sceneSaveFormat.ambientLightSaveFormat.color,
+                           sceneSaveFormat.ambientLightSaveFormat.power);
+      }
+    }
+
+    // we have to iterate over the worlds once more for portals, as the scene destination index requires
+    // the other worlds to have been initialized
+    for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++)
+    {
+      SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
+      size_t portalCount = sceneSaveFormat.portals.size();
+      Assert(portalCount <= MAX_PORTALS);
+      for (u32 portalIndex = 0; portalIndex < portalCount; portalIndex++)
+      {
+        PortalSaveFormat portalSaveFormat = sceneSaveFormat.portals[portalIndex];
+        addPortal(world, worldSceneIndices[sceneSaveFormat.index], portalSaveFormat.centerXYZ, portalSaveFormat.normalXYZ, portalSaveFormat.dimensXY,
+                  portalIndex + 1, worldSceneIndices[portalSaveFormat.destination]);
+      }
+    }
+  }
+
+  Assert(saveFormat.startingSceneIndex < sceneCount);
+  world->currentSceneIndex = worldSceneIndices[saveFormat.startingSceneIndex];
+
+  // TODO: Set player based on save file
+  initPlayer(&world->player);
+  // TODO: Set camera based on save file
+  initCamera(&globalWorld.camera, globalWorld.player);
+  // TODO: Set FOV based on save file
+  world->fov = fieldOfView(13.5f, 25.0f);
+  vec2_u32 windowExtent = getWindowExtent();
+  world->aspect = f32(windowExtent.width) / windowExtent.height;
+  // NOTE: projection and view in UBO gets updated at the beginning of every frame, no need to manually update UBO here
+  world->UBOs.projectionViewModelUbo.projection = perspective(world->fov, world->aspect, near, far);
+  // NOTE: fragmentUBO gets updated using the stopwatch at the beginning of every frame, no need to manually update UBO here
+  world->stopWatch = createStopWatch();
+
+  return;
+}
+
+void initGuiState(EditorState* guiState) {
+  guiState->cursorEnabled = true;
+  guiState->showDebugTextWindow = true;
+  guiState->showDemoWindow = false;
+  guiState->debugCStringRingBuffer = createCStringRingBuffer(128, 50);
+}
+
+void saveEditorState(EditorState* editorState) {
+  nlohmann::json saveJson{};
+
+  if(editorState->currentlyLoadedWorld) {
+    saveJson["worldFile"] = editorState->currentlyLoadedWorld;
+  }
+
+  saveJson["editorActive"] = editorState->cursorEnabled;
+  saveJson["demoWindowActive"] = editorState->showDemoWindow;
+  saveJson["debugTextWindowActive"] = editorState->showDebugTextWindow;
+
+  // write prettified JSON to another file
+  std::ofstream o(editorSaveFileName);
+  o << std::setw(4) << saveJson << std::endl;
+}
+
+void loadPrevEditorState(World* world, EditorState* editorState) {
+  nlohmann::json saveJson;
+  { // parse file
+    std::ifstream sceneJsonFileInput(editorSaveFileName);
+    sceneJsonFileInput >> saveJson;
+  }
+
+  if(!saveJson["worldFile"].is_null()) {
+    std::string previousWorldFileName;
+    saveJson["worldFile"].get_to(previousWorldFileName);
+    if(fileReadable(previousWorldFileName.c_str())) {
+      loadWorld(world, editorState, previousWorldFileName.c_str());
+    } else {
+      std::string debugString = "Could not load scene file: " + previousWorldFileName;
+      addCString(&editorState->debugCStringRingBuffer, debugString.c_str(), (u32)debugString.length());
+    }
+  }
+
+  editorState->cursorEnabled = saveJson["editorActive"];
+  editorState->showDemoWindow = saveJson["demoWindowActive"];
+  editorState->showDebugTextWindow = saveJson["debugTextWindowActive"];
 }
 
 void portalScene(GLFWwindow* window) {
@@ -526,22 +825,16 @@ void portalScene(GLFWwindow* window) {
   glGenQueries(ArrayCount(portalQueryObjects), portalQueryObjects);
 
   VertexAtt cubePosVertexAtt = cubePosVertexAttBuffers();
-  portalQuadVertexAtt = quadPosVertexAttBuffers(false);
-  portalBoxVertexAtt = cubePosVertexAttBuffers(true, true);
 
-  initShaders(&globalWorld);
+  initGlobalShaders();
+  initGlobalVertexAtts();
 
-  globalWorld.player.boundingBox.diagonal = defaultPlayerDimensionInMeters;
-  globalWorld.player.boundingBox.min = {-(globalWorld.player.boundingBox.diagonal.x * 0.5f), -12.0f - (globalWorld.player.boundingBox.diagonal.y * 0.5f), 0.0f};
+  initPlayer(&globalWorld.player);
 
-  vec3 firstPersonCameraInitPosition = calcPlayerViewingPosition(&globalWorld.player);
-  vec3 firstPersonCameraInitFocus{gatePosition.x, gatePosition.y, firstPersonCameraInitPosition.z};
-  lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, &globalWorld.camera);
+  initCamera(&globalWorld.camera, globalWorld.player);
 
   globalWorld.fov = fieldOfView(13.5f, 25.0f);
-  globalWorld.projectionViewModelUbo.projection = perspective(globalWorld.fov, globalWorld.aspect, near, far);
-
-  createScenes(&globalWorld);
+  globalWorld.UBOs.projectionViewModelUbo.projection = perspective(globalWorld.fov, globalWorld.aspect, near, far);
 
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
@@ -554,39 +847,33 @@ void portalScene(GLFWwindow* window) {
   glViewport(0, 0, windowExtent.width, windowExtent.height);
 
   // UBOs
-  GLuint gateSceneFragUBOid;
   {
-    glGenBuffers(1, &projViewModelGlobalUBOid);
+    glGenBuffers(1, &globalWorld.UBOs.projectionViewModelUboId);
     // allocate size for buffer
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(ProjectionViewModelUBO), NULL, GL_STREAM_DRAW);
     // attach buffer to ubo binding point
-    glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, projViewModelGlobalUBOid, 0, sizeof(ProjectionViewModelUBO));
+    glBindBufferRange(GL_UNIFORM_BUFFER, projectionViewModelUBOBindingIndex, globalWorld.UBOs.projectionViewModelUboId, 0, sizeof(ProjectionViewModelUBO));
 
-    u32 fragUBOBindingIndex = 1;
-    glGenBuffers(1, &fragUBOid);
+    glGenBuffers(1, &globalWorld.UBOs.fragUboId);
     // allocate size for buffer
-    glBindBuffer(GL_UNIFORM_BUFFER, fragUBOid);
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.fragUboId);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(FragUBO), NULL, GL_STREAM_DRAW);
     // attach buffer to ubo binding point
-    glBindBufferRange(GL_UNIFORM_BUFFER, fragUBOBindingIndex, fragUBOid, 0, sizeof(FragUBO));
-
-    u32 portalFragUBOBindingIndex = 2;
-    glGenBuffers(1, &gateSceneFragUBOid);
-    // allocate size for buffer
-    glBindBuffer(GL_UNIFORM_BUFFER, gateSceneFragUBOid);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(gateSceneFragUbo), &gateSceneFragUbo, GL_STATIC_DRAW);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    // attach buffer to ubo binding point
-    glBindBufferRange(GL_UNIFORM_BUFFER, portalFragUBOBindingIndex, gateSceneFragUBOid, 0, sizeof(gateSceneFragUbo));
+    glBindBufferRange(GL_UNIFORM_BUFFER, fragUBOBindingIndex, globalWorld.UBOs.fragUboId, 0, sizeof(FragUBO));
   }
 
   globalWorld.stopWatch = createStopWatch();
+  initGuiState(&globalEditorState);
+
+  loadPrevEditorState(&globalWorld, &globalEditorState);
+  enableCursor(window, globalEditorState.cursorEnabled);
+
   while(glfwWindowShouldClose(window) == GL_FALSE)
   {
     loadInputStateForFrame(window);
     updateStopWatch(&globalWorld.stopWatch);
-    globalWorld.fragUbo.time = globalWorld.stopWatch.totalElapsed;
+    globalWorld.UBOs.fragUbo.time = globalWorld.stopWatch.totalElapsed;
 
     vec3 playerCenter;
     vec3 playerViewPosition = calcPlayerViewingPosition(&globalWorld.player);
@@ -603,7 +890,13 @@ void portalScene(GLFWwindow* window) {
       globalWorld.aspect = f32(windowExtent.width) / windowExtent.height;
       glViewport(0, 0, windowExtent.width, windowExtent.height);
 
-      adjustAspectPerspProj(&globalWorld.projectionViewModelUbo.projection, globalWorld.fov, globalWorld.aspect);
+      adjustAspectPerspProj(&globalWorld.UBOs.projectionViewModelUbo.projection, globalWorld.fov, globalWorld.aspect);
+    }
+
+    // toggle cursor
+    if(hotPress(KeyboardInput_Space)) {
+      globalEditorState.cursorEnabled = !globalEditorState.cursorEnabled;
+      enableCursor(window, globalEditorState.cursorEnabled);
     }
 
     // gather input
@@ -616,7 +909,8 @@ void portalScene(GLFWwindow* window) {
     vec2_f64 mouseDelta = getMouseDelta();
 
     // gather input for movement and camera changes
-    {
+    const bool cameraMovementEnabled = !globalEditorState.cursorEnabled;
+    if(cameraMovementEnabled) {
       b32 lateralMovement = leftIsActive != rightIsActive;
       b32 forwardMovement = upIsActive != downIsActive;
       vec3 playerDelta{};
@@ -661,9 +955,8 @@ void portalScene(GLFWwindow* window) {
       } else {
         updateCamera_FirstPerson(&globalWorld.camera, playerDelta, f32(-mouseDelta.y * mouseDeltaMultConst), f32(-mouseDelta.x * mouseDeltaMultConst));
       }
-
-      globalWorld.projectionViewModelUbo.view = getViewMat(globalWorld.camera);
     }
+    globalWorld.UBOs.projectionViewModelUbo.view = getViewMat(globalWorld.camera);
 
     // draw
     glStencilMask(0xFF);
@@ -673,17 +966,11 @@ void portalScene(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     // universal matrices in UBO
-    glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &globalWorld.projectionViewModelUbo);
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &globalWorld.UBOs.projectionViewModelUbo);
 
-    glBindBuffer(GL_UNIFORM_BUFFER, fragUBOid);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(FragUBO), &globalWorld.fragUbo);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, gateSceneFragUBOid);
-    f32 scaleElapsedTime = globalWorld.stopWatch.totalElapsed * 0.2;
-    gateSceneFragUbo.directionalLightDirToSource = normalize(vec3{cosf(scaleElapsedTime) * 3.0f, sinf(scaleElapsedTime) * 3.0f, 1.0f});
-    glBufferSubData(GL_UNIFORM_BUFFER, offsetof(GateSceneFragUBO, directionalLightDirToSource), sizeof(vec3), &gateSceneFragUbo.directionalLightDirToSource);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.fragUboId);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(FragUBO), &globalWorld.UBOs.fragUbo);
 
     if(globalWorld.camera.thirdPerson) { // draw player if third person
       vec3 playerViewCenter = calcPlayerViewingPosition(&globalWorld.player);
@@ -694,37 +981,37 @@ void portalScene(GLFWwindow* window) {
 
       mat4 thirdPersonPlayerBoxesModelMatrix;
 
-      glUseProgram(globalWorld.globalShaders.singleColorShader.id);
+      glUseProgram(globalShaders.singleColor.id);
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
       glDisable(GL_CULL_FACE);
 
       // debug player bounding box
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(globalWorld.player.boundingBox.diagonal, playerCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      setUniform(globalWorld.globalShaders.singleColorShader.id, "baseColor", playerBoundingBoxColor_Red);
+      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerBoundingBoxColor_Red);
       drawTriangles(&cubePosVertexAtt);
 
       // debug player center
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.05f, playerCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      setUniform(globalWorld.globalShaders.singleColorShader.id, "baseColor", playerMinCoordBoxColor_Black);
+      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerMinCoordBoxColor_Black);
       drawTriangles(&cubePosVertexAtt);
 
       // debug player min coordinate box
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, globalWorld.player.boundingBox.min);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      setUniform(globalWorld.globalShaders.singleColorShader.id, "baseColor", playerMinCoordBoxColor_Green);
+      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerMinCoordBoxColor_Green);
       drawTriangles(&cubePosVertexAtt);
 
       // debug player view
-      glBindBuffer(GL_UNIFORM_BUFFER, projViewModelGlobalUBOid);
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
       thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, playerViewCenter);
       glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
       glBindBuffer(GL_UNIFORM_BUFFER, 0);
-      setUniform(globalWorld.globalShaders.singleColorShader.id, "baseColor", playerViewBoxColor_White);
+      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerViewBoxColor_White);
       drawTriangles(&cubePosVertexAtt);
 
       glEnable(GL_CULL_FACE);
@@ -732,11 +1019,136 @@ void portalScene(GLFWwindow* window) {
     }
 
     updateEntities(&globalWorld);
+
+    // Start the Dear ImGui frame
+    {
+      ImGui_ImplOpenGL3_NewFrame();
+      ImGui_ImplGlfw_NewFrame();
+      ImGui::NewFrame();
+
+      ImGuiFileDialog::Instance()->SetExtentionInfos(".json", ImVec4(0.1f,0.7f,0.1f, 0.9f));
+
+      if (ImGui::BeginMainMenuBar())
+      {
+        if (ImGui::BeginMenu("File"))
+        {
+          if (ImGui::MenuItem("Load..", NULL)) {
+            // load worlds
+            ImGuiFileDialog::Instance()->OpenDialog("LoadSceneFileDialogKey", "Load Scene", ".json", "");
+          }
+
+          if(ImGui::MenuItem("Save", NULL)) {
+            // save current worlds
+            // TODO: Save based on current scene loaded or open "Save As..." if no scene has been loaded
+            saveWorld(&globalWorld, originalSceneLoc);
+          }
+
+          if (ImGui::MenuItem("Save As..", NULL)) {
+            // save worlds as...
+            ImGuiFileDialog::Instance()->OpenDialog("SaveSceneFileDialogKey", "Save Scene", ".json", "");
+          }
+
+          ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("View"))
+        {
+          if (ImGui::MenuItem("Debug Output", NULL)) {
+            globalEditorState.showDebugTextWindow = !globalEditorState.showDebugTextWindow;
+          }
+
+          if (ImGui::MenuItem("ImGUI demo window", NULL)) {
+            globalEditorState.showDemoWindow = !globalEditorState.showDemoWindow;
+          }
+
+          ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+      }
+
+      // load scene dialog
+      if (ImGuiFileDialog::Instance()->Display("LoadSceneFileDialogKey"))
+      {
+        // action if OK
+        if (ImGuiFileDialog::Instance()->IsOk())
+        {
+          std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+
+          if(fileReadable(filePathName.c_str())) {
+            cleanupWorld(&globalWorld);
+            loadWorld(&globalWorld, &globalEditorState, filePathName.c_str());
+            globalEditorState.cursorEnabled = !globalEditorState.cursorEnabled;
+            enableCursor(window, globalEditorState.cursorEnabled);
+          } else {
+            std::string debugString = "Could not load scene file: " + ImGuiFileDialog::Instance()->GetFilePathName();
+            addCString(&globalEditorState.debugCStringRingBuffer, debugString.c_str(), (u32)debugString.length());
+          }
+        }
+
+        // close
+        ImGuiFileDialog::Instance()->Close();
+      }
+
+      // save scene dialog
+      if (ImGuiFileDialog::Instance()->Display("SaveSceneFileDialogKey"))
+      {
+        // action if OK
+        if (ImGuiFileDialog::Instance()->IsOk())
+        {
+          std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+          saveWorld(&globalWorld, filePathName.c_str());
+        }
+
+        // close
+        ImGuiFileDialog::Instance()->Close();
+      }
+
+      // debug text window
+      if(globalEditorState.showDebugTextWindow) {
+        ImGui::Begin("Debug text output", &globalEditorState.showDebugTextWindow, ImGuiWindowFlags_None);
+        {
+          ImGui::BeginChild("Scrolling");
+          {
+            // TODO: Can I extract this logic while without increasing number of modulos?
+            if(globalEditorState.debugCStringRingBuffer.count > 0) {
+              const s32 lastIndex = (globalEditorState.debugCStringRingBuffer.first + globalEditorState.debugCStringRingBuffer.count - 1) % globalEditorState.debugCStringRingBuffer.cStringMaxCount;
+              s32 traversalIndex = lastIndex;
+              while(traversalIndex >= 0) {
+                ImGui::Text(globalEditorState.debugCStringRingBuffer.buffer + (traversalIndex * globalEditorState.debugCStringRingBuffer.cStringSize));
+                traversalIndex--;
+              }
+
+              if(globalEditorState.debugCStringRingBuffer.first != 0) {
+                traversalIndex = globalEditorState.debugCStringRingBuffer.cStringMaxCount - 1;
+                while(traversalIndex >= (s32)globalEditorState.debugCStringRingBuffer.first) {
+                  ImGui::Text(globalEditorState.debugCStringRingBuffer.buffer + (traversalIndex * globalEditorState.debugCStringRingBuffer.cStringSize));
+                  traversalIndex--;
+                }
+              }
+            }
+          }
+          ImGui::EndChild();
+        }
+        ImGui::End();
+      }
+
+      if(globalEditorState.showDemoWindow)
+      {
+        ImGui::ShowDemoWindow(&globalEditorState.showDemoWindow);
+      }
+
+      // Rendering
+      ImGui::Render();
+    }
+
     drawSceneWithPortals(&globalWorld);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
     glfwSwapBuffers(window); // swaps double buffers (call after all render commands are completed)
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
   }
 
-  deleteShaderPrograms(globalWorld.globalShaders.shaders, ArrayCount(globalWorld.globalShaders.shaders));
+  saveEditorState(&globalEditorState);
+  cleanupEditorState(&globalEditorState);
+  cleanupWorld(&globalWorld);
 }

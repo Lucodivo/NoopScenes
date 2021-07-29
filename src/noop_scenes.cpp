@@ -6,6 +6,7 @@
 void loadGLFW();
 GLFWwindow* createWindow();
 void initializeGLAD();
+void initializeImgui(GLFWwindow* window);
 
 int main()
 {
@@ -13,6 +14,7 @@ int main()
   GLFWwindow* window = createWindow();
   initializeGLAD();
   initializeInput(window);
+  initializeImgui(window);
   portalScene(window);
   glfwTerminate(); // clean up gl resources
   return 0;
@@ -67,4 +69,20 @@ GLFWwindow* createWindow()
   enableCursor(window, false);
 
   return window;
+}
+
+void initializeImgui(GLFWwindow* window) {
+  // Setup Dear ImGui context
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO& io = ImGui::GetIO(); (void)io;
+  //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+  //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+  // Setup Dear ImGui style
+  ImGui::StyleColorsDark();
+
+  // Setup Platform/Renderer bindings
+  ImGui_ImplGlfw_InitForOpenGL(window, true);
+  ImGui_ImplOpenGL3_Init(NULL);
 }
