@@ -30,13 +30,15 @@ struct FragUBO {
 };
 
 u32 lightUBOBindingIndex = 2;
+struct LightUniform {
+  vec4 color; // NOTE: fourth component used for light power
+  vec4 pos; // NOTE: fourth component for padding, currently un-defined
+};
 struct LightUBO {
-  vec3 directionalLightColor;
-  u8 __padding1;
-  vec3 ambientLightColor;
-  u8 __padding2;
-  vec3 directionalLightDirToSource;
-  u8 __padding3;
+  vec4 ambientLight;
+  LightUniform dirPosLightStack[8];
+  u32 dirLightCount;
+  u32 posLightCount;
 };
 
 /*NOTE: GLSL Shader UBO Examples

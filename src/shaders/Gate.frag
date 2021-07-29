@@ -9,10 +9,16 @@ layout (binding = 1, std140) uniform FragUBO {
   float time;
 } fragUbo;
 
+struct Light {
+  vec4 color;
+  vec4 pos;
+};
+
 layout (binding = 2, std140) uniform LightInfoUBO {
-  vec3 directionalLightColor;
-  vec3 ambientLightColor;
-  vec3 directionalLightDirToSource;
+  vec4 ambientLightColor;
+  Light dirPosLightStack[8];
+  uint dirLightCount;
+  uint posLightCount;
 } lightInfoUbo;
 
 uniform sampler2D albedoTex;
@@ -40,8 +46,16 @@ void main() {
   vec3 albedoColor = texture(albedoTex, texCoordNoiseTime).rgb;
 
   vec3 surfaceNormal = getNormal(texCoordNoiseTime);
-  float directLightContribution = max(dot(surfaceNormal, lightInfoUbo.directionalLightDirToSource), 0.0);
-  vec3 lightContribution = vec3(lightInfoUbo.ambientLightColor + (lightInfoUbo.directionalLightColor * directLightContribution));
+
+  vec3 lightContribution = lightInfoUbo.ambientLightColor.rgb * lightInfoUbo.ambientLightColor.a;
+
+  float directLightContribution = 0.0;
+  for(uint i = 0; i < lightInfoUbo.dirLightCount; i++) {
+    vec3 surfaceToSource = lightInfoUbo.dirPosLightStack[i].pos.xyz;
+    float cosTerm = max(dot(surfaceNormal, surfaceToSource), 0.0);
+    lightContribution += lightInfoUbo.dirPosLightStack[i].color.rgb * lightInfoUbo.dirPosLightStack[i].color.a * cosTerm;
+  }
+
   outColor = vec4(lightContribution * albedoColor, 1.0);
 }
 

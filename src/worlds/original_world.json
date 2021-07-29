@@ -70,6 +70,31 @@
                 }
             ],
             "index": 0,
+            "lights": {
+                "ambient": {
+                    "color": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "power": 0.30000001192092896
+                },
+                "directional": [
+                    {
+                        "color": [
+                            1.0,
+                            1.0,
+                            1.0
+                        ],
+                        "dirToSource": [
+                            0.6882472038269043,
+                            -0.6882472038269043,
+                            0.22941572964191437
+                        ],
+                        "power": 0.5
+                    }
+                ]
+            },
             "portals": [
                 {
                     "centerXYZ": [
@@ -180,6 +205,7 @@
                 }
             ],
             "index": 1,
+            "lights": null,
             "portals": [
                 {
                     "centerXYZ": [
@@ -239,6 +265,7 @@
                 }
             ],
             "index": 2,
+            "lights": null,
             "portals": [
                 {
                     "centerXYZ": [
@@ -298,6 +325,7 @@
                 }
             ],
             "index": 3,
+            "lights": null,
             "portals": [
                 {
                     "centerXYZ": [
@@ -357,6 +385,7 @@
                 }
             ],
             "index": 4,
+            "lights": null,
             "portals": [
                 {
                     "centerXYZ": [

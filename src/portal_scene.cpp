@@ -38,7 +38,8 @@ struct Portal {
 
 struct Light {
   vec4 color;
-  vec3 pos; // NOTE: For directional lights, this is the direction to the source
+  // NOTE: For directional lights, this is the direction to the source
+  vec3 pos;
 };
 
 struct Scene {
@@ -47,11 +48,10 @@ struct Scene {
   u32 entityCount;
   Portal portals[MAX_PORTALS];
   u32 portalCount;
-  Light posLights[4];
-  u32 posLightCount;
-  Light dirLights[4];
+  Light dirPosLightStack[8];
   u32 dirLightCount;
-  vec4 ambientLightColor;
+  u32 posLightCount;
+  vec4 ambientLight;
   GLuint skyboxTexture;
   const char* title;
   const char* skyboxDir;
@@ -80,23 +80,22 @@ struct World
   } UBOs;
   ShaderProgram shaders[16];
   u32 shaderCount;
-  char* currentlyLoadedWorld;
-};
+} globalWorld{};
 
-struct GuiState
+struct EditorState
 {
+  char* currentlyLoadedWorld;
   bool cursorEnabled;
   bool showDebugTextWindow;
   bool showDemoWindow;
   CStringRingBuffer debugCStringRingBuffer;
-} guiState;
+} globalEditorState{};
 
 const vec3 defaultPlayerDimensionInMeters{0.5f, 0.25f, 1.75f}; // NOTE: ~1'7"w, 9"d, 6'h
 const f32 near = 0.1f;
 const f32 far = 200.0f;
 
 global_variable GLuint portalQueryObjects[MAX_PORTALS];
-global_variable World globalWorld{};
 
 global_variable struct {
   VertexAtt portalQuad{};
@@ -171,6 +170,37 @@ u32 addNewEntity(World* world, u32 sceneIndex, u32 modelIndex,
   entity->shaderIndex = shaderIndex;
   entity->typeFlags = entityTypeFlags;
   return sceneEntityIndex;
+}
+
+u32 addNewDirectionalLight(World* world, u32 sceneIndex, vec3 lightColor, f32 lightPower, vec3 lightToSource) {
+  Scene* scene = world->scenes + sceneIndex;
+  Assert(scene->posLightCount + scene->dirLightCount < ArrayCount(scene->dirPosLightStack));
+  u32 newLightIndex = scene->dirLightCount++;
+  scene->dirPosLightStack[newLightIndex].color.rgb = lightColor;
+  scene->dirPosLightStack[newLightIndex].color.a = lightPower;
+  scene->dirPosLightStack[newLightIndex].pos = normalize(lightToSource);
+  return newLightIndex;
+}
+
+u32 addNewPositionalLight(World* world, u32 sceneIndex, vec3 lightColor, f32 lightPower, vec3 lightPos) {
+  Scene* scene = world->scenes + sceneIndex;
+  const u32 maxLights = ArrayCount(scene->dirPosLightStack);
+  Assert(scene->posLightCount + scene->dirLightCount < maxLights);
+  u32 newLightIndex = maxLights - 1 - scene->posLightCount++;
+  scene->dirPosLightStack[newLightIndex].color.rgb = lightColor;
+  scene->dirPosLightStack[newLightIndex].color.a = lightPower;
+  scene->dirPosLightStack[newLightIndex].pos = lightPos;
+  return newLightIndex;
+}
+
+void adjustAmbientLight(World* world, u32 sceneIndex, vec3 lightColor, f32 lightPower) {
+  Scene* scene = world->scenes + sceneIndex;
+  scene->ambientLight.rgb = lightColor;
+  scene->ambientLight.a = lightPower;
+}
+
+void removeAmbientLight(World* world, u32 sceneIndex) {
+  world->scenes[sceneIndex].ambientLight = {};
 }
 
 u32 addNewModel(World* world, const char* modelFileLoc) {
@@ -311,6 +341,38 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
     glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &identityMat4);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     drawTriangles(&globalVertexAtts.skyboxBox);
+  }
+
+  // update scene light uniform buffer object
+  {
+    const u32 maxLights = ArrayCount(world->UBOs.lightUbo.dirPosLightStack);
+    Assert((scene->dirLightCount + scene->posLightCount) <= maxLights);
+
+
+    // TODO: If LightUniform and Light struct for class were the same we could do a simple memcpy
+    world->UBOs.lightUbo.dirLightCount = scene->dirLightCount;
+    for(u32 i = 0; i < scene->dirLightCount; ++i) {
+      world->UBOs.lightUbo.dirPosLightStack[i].color = scene->dirPosLightStack[i].color;
+      world->UBOs.lightUbo.dirPosLightStack[i].pos.xyz = scene->dirPosLightStack[i].pos;
+      // TODO: Z component of pos currently undefined and potentially dangerous. Determine if it can be used.
+    }
+
+    world->UBOs.lightUbo.posLightCount = scene->posLightCount;
+    for(u32 i = 0; i < scene->posLightCount; ++i) {
+      world->UBOs.lightUbo.dirPosLightStack[maxLights - i].color = scene->dirPosLightStack[maxLights - i].color;
+      world->UBOs.lightUbo.dirPosLightStack[maxLights - i].pos.xyz = scene->dirPosLightStack[maxLights - i].pos;
+      // TODO: Z component of pos currently undefined and potentially dangerous. Determine if it can be used.
+    }
+
+    world->UBOs.lightUbo.ambientLight = scene->ambientLight;
+
+    glGenBuffers(1, &globalWorld.UBOs.lightUboId);
+    // allocate size for buffer
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.lightUboId);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(world->UBOs.lightUbo), &world->UBOs.lightUbo, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    // attach buffer to ubo binding point
+    glBindBufferRange(GL_UNIFORM_BUFFER, lightUBOBindingIndex, globalWorld.UBOs.lightUboId, 0, sizeof(world->UBOs.lightUbo));
   }
 
   for(u32 sceneEntityIndex = 0; sceneEntityIndex < scene->entityCount; ++sceneEntityIndex) {
@@ -504,6 +566,28 @@ void saveWorld(World* world, const char* title) {
       sceneSaveFormat.portals.push_back(portalSaveFormat);
     }
 
+    const u32 maxLights = ArrayCount(scene->dirPosLightStack);
+    for(u32 dirLightIndex = 0; dirLightIndex < scene->dirLightCount; dirLightIndex++) {
+      Light dirLight = scene->dirPosLightStack[dirLightIndex];
+      DirectionalLightSaveFormat directionalLightSaveFormat{};
+      directionalLightSaveFormat.color = dirLight.color.rgb;
+      directionalLightSaveFormat.power = dirLight.color.a;
+      directionalLightSaveFormat.dirToSource = dirLight.pos;
+      sceneSaveFormat.directionalLights.push_back(directionalLightSaveFormat);
+    }
+
+    for(u32 posLightIndex = 0; posLightIndex < scene->posLightCount; posLightIndex++) {
+      Light posLight = scene->dirPosLightStack[maxLights - 1 - posLightIndex];
+      PositionalLightSaveFormat positionalLightSaveFormat{};
+      positionalLightSaveFormat.color = posLight.color.rgb;
+      positionalLightSaveFormat.power = posLight.color.a;
+      positionalLightSaveFormat.pos = posLight.pos;
+      sceneSaveFormat.positionalLights.push_back(positionalLightSaveFormat);
+    }
+
+    sceneSaveFormat.ambientLightSaveFormat.color = scene->ambientLight.rgb;
+    sceneSaveFormat.ambientLightSaveFormat.power = scene->ambientLight.a;
+
     saveFormat.scenes.push_back(sceneSaveFormat);
   }
 
@@ -544,9 +628,13 @@ void cleanupWorld(World* world) {
     deleteShaderProgram(world->shaders + shaderIndex);
   }
 
-  if(world->currentlyLoadedWorld) { delete[] world->currentlyLoadedWorld; }
-
   world = {};
+}
+
+void cleanupEditorState(EditorState* editorState) {
+  if(editorState->currentlyLoadedWorld) { delete[] editorState->currentlyLoadedWorld; }
+  deleteCStringRingBuffer(&editorState->debugCStringRingBuffer);
+  editorState = {};
 }
 
 void initPlayer(Player* player) {
@@ -560,12 +648,10 @@ void initCamera(Camera* camera, const Player& player) {
   lookAt_FirstPerson(firstPersonCameraInitPosition, firstPersonCameraInitFocus, camera);
 }
 
-void loadWorld(World* world, const char* saveJsonFile) {
-  // TODO: Include lights in save and pull them into the scene here
-
-  if(world->currentlyLoadedWorld) { delete[] world->currentlyLoadedWorld; }
-  world->currentlyLoadedWorld = new char[strlen(saveJsonFile) + 1];
-  strcpy(world->currentlyLoadedWorld, saveJsonFile);
+void loadWorld(World* world, EditorState* editorState, const char* saveJsonFile) {
+  if(editorState->currentlyLoadedWorld) { delete[] editorState->currentlyLoadedWorld; }
+  editorState->currentlyLoadedWorld = new char[strlen(saveJsonFile) + 1];
+  strcpy(editorState->currentlyLoadedWorld, saveJsonFile);
 
   SaveFormat saveFormat = loadSave(saveJsonFile);
 
@@ -605,7 +691,7 @@ void loadWorld(World* world, const char* saveJsonFile) {
   }
 
   u32 worldSceneIndices[ArrayCount(world->scenes)] = {};
-  { // worlds
+  { // scenes
     for(u32 sceneIndex = 0; sceneIndex < sceneCount; sceneIndex++) {
       SceneSaveFormat sceneSaveFormat = saveFormat.scenes[sceneIndex];
       size_t entityCount = sceneSaveFormat.entities.size();
@@ -628,6 +714,26 @@ void loadWorld(World* world, const char* saveJsonFile) {
         addNewEntity(world, worldSceneIndices[sceneSaveFormat.index], worldModelIndices[entitySaveFormat.modelIndex],
                      entitySaveFormat.posXYZ, entitySaveFormat.scaleXYZ, entitySaveFormat.yaw,
                      worldShaderIndices[entitySaveFormat.shaderIndex], entitySaveFormat.flags);
+      }
+
+      size_t dirLightCount = sceneSaveFormat.directionalLights.size();
+      for(u32 dirLightIndex = 0; dirLightIndex < dirLightCount; dirLightIndex++) {
+        DirectionalLightSaveFormat dirLightSaveFormat = sceneSaveFormat.directionalLights[dirLightIndex];
+        addNewDirectionalLight(world, worldSceneIndices[sceneSaveFormat.index], dirLightSaveFormat.color,
+                               dirLightSaveFormat.power, dirLightSaveFormat.dirToSource);
+      }
+
+      size_t posLightCount = sceneSaveFormat.positionalLights.size();
+      for(u32 posLightIndex = 0; posLightIndex < posLightCount; posLightIndex++) {
+        PositionalLightSaveFormat posLightSaveFormat = sceneSaveFormat.positionalLights[posLightIndex];
+        addNewPositionalLight(world, worldSceneIndices[sceneSaveFormat.index], posLightSaveFormat.color,
+                               posLightSaveFormat.power, posLightSaveFormat.pos);
+      }
+
+      if(sceneSaveFormat.ambientLightSaveFormat.power != 0.0f) {
+        adjustAmbientLight(world, worldSceneIndices[sceneSaveFormat.index],
+                           sceneSaveFormat.ambientLightSaveFormat.color,
+                           sceneSaveFormat.ambientLightSaveFormat.power);
       }
     }
 
@@ -666,49 +772,50 @@ void loadWorld(World* world, const char* saveJsonFile) {
   return;
 }
 
-void initGuiState(GuiState* guiState) {
+void initGuiState(EditorState* guiState) {
   guiState->cursorEnabled = true;
   guiState->showDebugTextWindow = true;
   guiState->showDemoWindow = false;
   guiState->debugCStringRingBuffer = createCStringRingBuffer(128, 50);
 }
 
-void cleanupGuiState(GuiState* guiState) {
-  deleteCStringRingBuffer(&guiState->debugCStringRingBuffer);
-}
-
-void saveEditorState(World* world, GuiState* guiState) {
+void saveEditorState(EditorState* editorState) {
   nlohmann::json saveJson{};
 
-  if(world->currentlyLoadedWorld) {
-    saveJson["world"] = world->currentlyLoadedWorld;
+  if(editorState->currentlyLoadedWorld) {
+    saveJson["worldFile"] = editorState->currentlyLoadedWorld;
   }
 
-  saveJson["editorActive"] = guiState->cursorEnabled;
-  saveJson["demoWindowActive"] = guiState->showDemoWindow;
-  saveJson["debugTextWindowActive"] = guiState->showDebugTextWindow;
+  saveJson["editorActive"] = editorState->cursorEnabled;
+  saveJson["demoWindowActive"] = editorState->showDemoWindow;
+  saveJson["debugTextWindowActive"] = editorState->showDebugTextWindow;
 
   // write prettified JSON to another file
   std::ofstream o(editorSaveFileName);
   o << std::setw(4) << saveJson << std::endl;
 }
 
-void loadPrevEditorState(World* world, GuiState* guiState) {
+void loadPrevEditorState(World* world, EditorState* editorState) {
   nlohmann::json saveJson;
   { // parse file
     std::ifstream sceneJsonFileInput(editorSaveFileName);
     sceneJsonFileInput >> saveJson;
   }
 
-  if(!saveJson["world"].is_null()) {
+  if(!saveJson["worldFile"].is_null()) {
     std::string previousWorldFileName;
-    saveJson["world"].get_to(previousWorldFileName);
-    loadWorld(world, previousWorldFileName.c_str());
+    saveJson["worldFile"].get_to(previousWorldFileName);
+    if(fileReadable(previousWorldFileName.c_str())) {
+      loadWorld(world, editorState, previousWorldFileName.c_str());
+    } else {
+      std::string debugString = "Could not load scene file: " + previousWorldFileName;
+      addCString(&editorState->debugCStringRingBuffer, debugString.c_str(), (u32)debugString.length());
+    }
   }
 
-  guiState->cursorEnabled = saveJson["editorActive"];
-  guiState->showDemoWindow = saveJson["demoWindowActive"];
-  guiState->showDebugTextWindow = saveJson["debugTextWindowActive"];
+  editorState->cursorEnabled = saveJson["editorActive"];
+  editorState->showDemoWindow = saveJson["demoWindowActive"];
+  editorState->showDebugTextWindow = saveJson["debugTextWindowActive"];
 }
 
 void portalScene(GLFWwindow* window) {
@@ -740,7 +847,6 @@ void portalScene(GLFWwindow* window) {
   glViewport(0, 0, windowExtent.width, windowExtent.height);
 
   // UBOs
-  LightUBO lightUbo;
   {
     glGenBuffers(1, &globalWorld.UBOs.projectionViewModelUboId);
     // allocate size for buffer
@@ -755,25 +861,13 @@ void portalScene(GLFWwindow* window) {
     glBufferData(GL_UNIFORM_BUFFER, sizeof(FragUBO), NULL, GL_STREAM_DRAW);
     // attach buffer to ubo binding point
     glBindBufferRange(GL_UNIFORM_BUFFER, fragUBOBindingIndex, globalWorld.UBOs.fragUboId, 0, sizeof(FragUBO));
-
-    // TODO: Specify light in JSON for scene?
-    lightUbo.directionalLightColor = {0.5f, 0.5f, 0.5f};
-    lightUbo.ambientLightColor = {0.3f, 0.3f, 0.3f};
-    lightUbo.directionalLightDirToSource = normalize(vec3{3.0f, -3.0f, 1.0f});
-    glGenBuffers(1, &globalWorld.UBOs.lightUboId);
-    // allocate size for buffer
-    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.lightUboId);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(lightUbo), &lightUbo, GL_STATIC_DRAW);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    // attach buffer to ubo binding point
-    glBindBufferRange(GL_UNIFORM_BUFFER, lightUBOBindingIndex, globalWorld.UBOs.lightUboId, 0, sizeof(lightUbo));
   }
 
   globalWorld.stopWatch = createStopWatch();
-  initGuiState(&guiState);
+  initGuiState(&globalEditorState);
 
-  loadPrevEditorState(&globalWorld, &guiState);
-  enableCursor(window, guiState.cursorEnabled);
+  loadPrevEditorState(&globalWorld, &globalEditorState);
+  enableCursor(window, globalEditorState.cursorEnabled);
 
   while(glfwWindowShouldClose(window) == GL_FALSE)
   {
@@ -801,8 +895,8 @@ void portalScene(GLFWwindow* window) {
 
     // toggle cursor
     if(hotPress(KeyboardInput_Space)) {
-      guiState.cursorEnabled = !guiState.cursorEnabled;
-      enableCursor(window, guiState.cursorEnabled);
+      globalEditorState.cursorEnabled = !globalEditorState.cursorEnabled;
+      enableCursor(window, globalEditorState.cursorEnabled);
     }
 
     // gather input
@@ -815,7 +909,7 @@ void portalScene(GLFWwindow* window) {
     vec2_f64 mouseDelta = getMouseDelta();
 
     // gather input for movement and camera changes
-    const bool cameraMovementEnabled = !guiState.cursorEnabled;
+    const bool cameraMovementEnabled = !globalEditorState.cursorEnabled;
     if(cameraMovementEnabled) {
       b32 lateralMovement = leftIsActive != rightIsActive;
       b32 forwardMovement = upIsActive != downIsActive;
@@ -960,11 +1054,11 @@ void portalScene(GLFWwindow* window) {
         if (ImGui::BeginMenu("View"))
         {
           if (ImGui::MenuItem("Debug Output", NULL)) {
-            guiState.showDebugTextWindow = !guiState.showDebugTextWindow;
+            globalEditorState.showDebugTextWindow = !globalEditorState.showDebugTextWindow;
           }
 
           if (ImGui::MenuItem("ImGUI demo window", NULL)) {
-            guiState.showDemoWindow = !guiState.showDemoWindow;
+            globalEditorState.showDemoWindow = !globalEditorState.showDemoWindow;
           }
 
           ImGui::EndMenu();
@@ -982,12 +1076,12 @@ void portalScene(GLFWwindow* window) {
 
           if(fileReadable(filePathName.c_str())) {
             cleanupWorld(&globalWorld);
-            loadWorld(&globalWorld, filePathName.c_str());
-            guiState.cursorEnabled = !guiState.cursorEnabled;
-            enableCursor(window, guiState.cursorEnabled);
+            loadWorld(&globalWorld, &globalEditorState, filePathName.c_str());
+            globalEditorState.cursorEnabled = !globalEditorState.cursorEnabled;
+            enableCursor(window, globalEditorState.cursorEnabled);
           } else {
-            std::string something = "Could not load scene file: " + ImGuiFileDialog::Instance()->GetFilePathName();
-            addCString(&guiState.debugCStringRingBuffer, something.c_str(), (u32)something.length());
+            std::string debugString = "Could not load scene file: " + ImGuiFileDialog::Instance()->GetFilePathName();
+            addCString(&globalEditorState.debugCStringRingBuffer, debugString.c_str(), (u32)debugString.length());
           }
         }
 
@@ -1010,24 +1104,24 @@ void portalScene(GLFWwindow* window) {
       }
 
       // debug text window
-      if(guiState.showDebugTextWindow) {
-        ImGui::Begin("Debug text output", &guiState.showDebugTextWindow, ImGuiWindowFlags_None);
+      if(globalEditorState.showDebugTextWindow) {
+        ImGui::Begin("Debug text output", &globalEditorState.showDebugTextWindow, ImGuiWindowFlags_None);
         {
           ImGui::BeginChild("Scrolling");
           {
             // TODO: Can I extract this logic while without increasing number of modulos?
-            if(guiState.debugCStringRingBuffer.count > 0) {
-              const s32 lastIndex = (guiState.debugCStringRingBuffer.first + guiState.debugCStringRingBuffer.count - 1) % guiState.debugCStringRingBuffer.cStringMaxCount;
+            if(globalEditorState.debugCStringRingBuffer.count > 0) {
+              const s32 lastIndex = (globalEditorState.debugCStringRingBuffer.first + globalEditorState.debugCStringRingBuffer.count - 1) % globalEditorState.debugCStringRingBuffer.cStringMaxCount;
               s32 traversalIndex = lastIndex;
               while(traversalIndex >= 0) {
-                ImGui::Text(guiState.debugCStringRingBuffer.buffer + (traversalIndex * guiState.debugCStringRingBuffer.cStringSize));
+                ImGui::Text(globalEditorState.debugCStringRingBuffer.buffer + (traversalIndex * globalEditorState.debugCStringRingBuffer.cStringSize));
                 traversalIndex--;
               }
 
-              if(guiState.debugCStringRingBuffer.first != 0) {
-                traversalIndex = guiState.debugCStringRingBuffer.cStringMaxCount - 1;
-                while(traversalIndex >= (s32)guiState.debugCStringRingBuffer.first) {
-                  ImGui::Text(guiState.debugCStringRingBuffer.buffer + (traversalIndex * guiState.debugCStringRingBuffer.cStringSize));
+              if(globalEditorState.debugCStringRingBuffer.first != 0) {
+                traversalIndex = globalEditorState.debugCStringRingBuffer.cStringMaxCount - 1;
+                while(traversalIndex >= (s32)globalEditorState.debugCStringRingBuffer.first) {
+                  ImGui::Text(globalEditorState.debugCStringRingBuffer.buffer + (traversalIndex * globalEditorState.debugCStringRingBuffer.cStringSize));
                   traversalIndex--;
                 }
               }
@@ -1038,9 +1132,9 @@ void portalScene(GLFWwindow* window) {
         ImGui::End();
       }
 
-      if(guiState.showDemoWindow)
+      if(globalEditorState.showDemoWindow)
       {
-        ImGui::ShowDemoWindow(&guiState.showDemoWindow);
+        ImGui::ShowDemoWindow(&globalEditorState.showDemoWindow);
       }
 
       // Rendering
@@ -1054,7 +1148,7 @@ void portalScene(GLFWwindow* window) {
     glfwPollEvents(); // checks for events (ex: keyboard/mouse input)
   }
 
-  saveEditorState(&globalWorld, &guiState);
-  cleanupGuiState(&guiState);
+  saveEditorState(&globalEditorState);
+  cleanupEditorState(&globalEditorState);
   cleanupWorld(&globalWorld);
 }
