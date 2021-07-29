@@ -9,14 +9,14 @@ layout (binding = 1, std140) uniform FragUBO {
   float time;
 } fragUbo;
 
-struct Light {
+struct InLight {
   vec4 color;
   vec4 pos;
 };
 
 layout (binding = 2, std140) uniform LightInfoUBO {
   vec4 ambientLightColor;
-  Light dirPosLightStack[8];
+  InLight dirPosLightStack[8];
   uint dirLightCount;
   uint posLightCount;
 } lightInfoUbo;
