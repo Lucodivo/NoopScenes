@@ -63,3 +63,7 @@ b32 fileReadable(const char* filename) {
   }
   return false;
 }
+
+b32 empty(const char* cStr) {
+  return cStr[0] == '\0';
+}

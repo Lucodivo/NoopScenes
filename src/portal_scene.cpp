@@ -84,7 +84,7 @@ struct World
 
 struct EditorState
 {
-  char* currentlyLoadedWorld;
+  char currentlyLoadedWorld[256];
   bool cursorEnabled;
   bool showDebugTextWindow;
   bool showDemoWindow;
@@ -632,7 +632,6 @@ void cleanupWorld(World* world) {
 }
 
 void cleanupEditorState(EditorState* editorState) {
-  if(editorState->currentlyLoadedWorld) { delete[] editorState->currentlyLoadedWorld; }
   deleteCStringRingBuffer(&editorState->debugCStringRingBuffer);
   editorState = {};
 }
@@ -649,9 +648,9 @@ void initCamera(Camera* camera, const Player& player) {
 }
 
 void loadWorld(World* world, EditorState* editorState, const char* saveJsonFile) {
-  if(editorState->currentlyLoadedWorld) { delete[] editorState->currentlyLoadedWorld; }
-  editorState->currentlyLoadedWorld = new char[strlen(saveJsonFile) + 1];
+
   strcpy(editorState->currentlyLoadedWorld, saveJsonFile);
+  addCStringF(&editorState->debugCStringRingBuffer, "Currently leading world: %s", editorState->currentlyLoadedWorld);
 
   SaveFormat saveFormat = loadSave(saveJsonFile);
 
@@ -782,7 +781,7 @@ void initGuiState(EditorState* guiState) {
 void saveEditorState(EditorState* editorState) {
   nlohmann::json saveJson{};
 
-  if(editorState->currentlyLoadedWorld) {
+  if(!empty(editorState->currentlyLoadedWorld)) {
     saveJson["worldFile"] = editorState->currentlyLoadedWorld;
   }
 
@@ -958,68 +957,6 @@ void portalScene(GLFWwindow* window) {
     }
     globalWorld.UBOs.projectionViewModelUbo.view = getViewMat(globalWorld.camera);
 
-    // draw
-    glStencilMask(0xFF);
-    glStencilFunc(GL_ALWAYS, // stencil function always passes
-                  0x00, // reference
-                  0x00); // mask
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-    // universal matrices in UBO
-    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &globalWorld.UBOs.projectionViewModelUbo);
-
-    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.fragUboId);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(FragUBO), &globalWorld.UBOs.fragUbo);
-
-    if(globalWorld.camera.thirdPerson) { // draw player if third person
-      vec3 playerViewCenter = calcPlayerViewingPosition(&globalWorld.player);
-      vec3 playerBoundingBoxColor_Red{1.0f, 0.0f, 0.0f};
-      vec3 playerViewBoxColor_White{1.0f, 1.0f, 1.0f};
-      vec3 playerMinCoordBoxColor_Green{0.0f, 1.0f, 0.0f};
-      vec3 playerMinCoordBoxColor_Black{0.0f, 0.0f, 0.0f};
-
-      mat4 thirdPersonPlayerBoxesModelMatrix;
-
-      glUseProgram(globalShaders.singleColor.id);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-      glDisable(GL_CULL_FACE);
-
-      // debug player bounding box
-      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
-      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(globalWorld.player.boundingBox.diagonal, playerCenter);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerBoundingBoxColor_Red);
-      drawTriangles(&cubePosVertexAtt);
-
-      // debug player center
-      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
-      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.05f, playerCenter);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerMinCoordBoxColor_Black);
-      drawTriangles(&cubePosVertexAtt);
-
-      // debug player min coordinate box
-      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
-      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, globalWorld.player.boundingBox.min);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerMinCoordBoxColor_Green);
-      drawTriangles(&cubePosVertexAtt);
-
-      // debug player view
-      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
-      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, playerViewCenter);
-      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
-      glBindBuffer(GL_UNIFORM_BUFFER, 0);
-      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerViewBoxColor_White);
-      drawTriangles(&cubePosVertexAtt);
-
-      glEnable(GL_CULL_FACE);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    }
-
-    updateEntities(&globalWorld);
-
     // Start the Dear ImGui frame
     {
       ImGui_ImplOpenGL3_NewFrame();
@@ -1096,7 +1033,12 @@ void portalScene(GLFWwindow* window) {
         if (ImGuiFileDialog::Instance()->IsOk())
         {
           std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-          saveWorld(&globalWorld, filePathName.c_str());
+          u32 fileNameSize = (u32)filePathName.length();
+          if(fileNameSize > (ArrayCount(globalEditorState.currentlyLoadedWorld) - 1)) {
+            addCString(&globalEditorState.debugCStringRingBuffer, "Error: Max file name is 255 characters!");
+          } else {
+            saveWorld(&globalWorld, filePathName.c_str());
+          }
         }
 
         // close
@@ -1110,20 +1052,18 @@ void portalScene(GLFWwindow* window) {
           ImGui::BeginChild("Scrolling");
           {
             // TODO: Can I extract this logic while without increasing number of modulos?
-            if(globalEditorState.debugCStringRingBuffer.count > 0) {
-              const s32 lastIndex = (globalEditorState.debugCStringRingBuffer.first + globalEditorState.debugCStringRingBuffer.count - 1) % globalEditorState.debugCStringRingBuffer.cStringMaxCount;
-              s32 traversalIndex = lastIndex;
-              while(traversalIndex >= 0) {
+            const s32 lastIndex = (globalEditorState.debugCStringRingBuffer.first + globalEditorState.debugCStringRingBuffer.count - 1) % globalEditorState.debugCStringRingBuffer.cStringMaxCount;
+            s32 traversalIndex = lastIndex;
+            while(traversalIndex >= 0) {
+              ImGui::Text(globalEditorState.debugCStringRingBuffer.buffer + (traversalIndex * globalEditorState.debugCStringRingBuffer.cStringSize));
+              traversalIndex--;
+            }
+
+            if(globalEditorState.debugCStringRingBuffer.first != 0) {
+              traversalIndex = globalEditorState.debugCStringRingBuffer.cStringMaxCount - 1;
+              while(traversalIndex >= (s32)globalEditorState.debugCStringRingBuffer.first) {
                 ImGui::Text(globalEditorState.debugCStringRingBuffer.buffer + (traversalIndex * globalEditorState.debugCStringRingBuffer.cStringSize));
                 traversalIndex--;
-              }
-
-              if(globalEditorState.debugCStringRingBuffer.first != 0) {
-                traversalIndex = globalEditorState.debugCStringRingBuffer.cStringMaxCount - 1;
-                while(traversalIndex >= (s32)globalEditorState.debugCStringRingBuffer.first) {
-                  ImGui::Text(globalEditorState.debugCStringRingBuffer.buffer + (traversalIndex * globalEditorState.debugCStringRingBuffer.cStringSize));
-                  traversalIndex--;
-                }
               }
             }
           }
@@ -1140,6 +1080,68 @@ void portalScene(GLFWwindow* window) {
       // Rendering
       ImGui::Render();
     }
+
+    // draw
+    glStencilMask(0xFF);
+    glStencilFunc(GL_ALWAYS, // stencil function always passes
+                  0x00, // reference
+                  0x00); // mask
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    // universal matrices in UBO
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, offsetof(ProjectionViewModelUBO, model), &globalWorld.UBOs.projectionViewModelUbo);
+
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.fragUboId);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(FragUBO), &globalWorld.UBOs.fragUbo);
+
+    if(globalWorld.camera.thirdPerson) { // draw player if third person
+      vec3 playerViewCenter = calcPlayerViewingPosition(&globalWorld.player);
+      vec3 playerBoundingBoxColor_Red{1.0f, 0.0f, 0.0f};
+      vec3 playerViewBoxColor_White{1.0f, 1.0f, 1.0f};
+      vec3 playerMinCoordBoxColor_Green{0.0f, 1.0f, 0.0f};
+      vec3 playerMinCoordBoxColor_Black{0.0f, 0.0f, 0.0f};
+
+      mat4 thirdPersonPlayerBoxesModelMatrix;
+
+      glUseProgram(globalShaders.singleColor.id);
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+      glDisable(GL_CULL_FACE);
+
+      // debug player bounding box
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
+      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(globalWorld.player.boundingBox.diagonal, playerCenter);
+      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
+      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerBoundingBoxColor_Red);
+      drawTriangles(&cubePosVertexAtt);
+
+      // debug player center
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
+      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.05f, playerCenter);
+      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
+      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerMinCoordBoxColor_Black);
+      drawTriangles(&cubePosVertexAtt);
+
+      // debug player min coordinate box
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
+      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, globalWorld.player.boundingBox.min);
+      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
+      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerMinCoordBoxColor_Green);
+      drawTriangles(&cubePosVertexAtt);
+
+      // debug player view
+      glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.projectionViewModelUboId);
+      thirdPersonPlayerBoxesModelMatrix = scaleTrans_mat4(0.1f, playerViewCenter);
+      glBufferSubData(GL_UNIFORM_BUFFER, offsetof(ProjectionViewModelUBO, model), sizeof(mat4), &thirdPersonPlayerBoxesModelMatrix);
+      glBindBuffer(GL_UNIFORM_BUFFER, 0);
+      setUniform(globalShaders.singleColor.id, baseColorUniformName, playerViewBoxColor_White);
+      drawTriangles(&cubePosVertexAtt);
+
+      glEnable(GL_CULL_FACE);
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
+
+    updateEntities(&globalWorld);
 
     drawSceneWithPortals(&globalWorld);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
