@@ -37,18 +37,8 @@ struct vec2 {
     struct {
       f32 r, g;
     };
-    f32 valuesPtr[2];
+    f32 val[2];
   };
-
-  inline f32 operator[](u32 index) const
-  {
-    return valuesPtr[index];
-  }
-
-  inline f32& operator[](u32 index)
-  {
-    return valuesPtr[index];
-  }
 
   b32 operator==(const vec2& v2) const {
     return epsilonComparison(x, v2.x) &&
@@ -75,18 +65,8 @@ struct vec3 {
       vec2 rg;
       f32 __;
     };
-    f32 valuesPtr[3];
+    f32 val[3];
   };
-
-  inline f32 operator[](u32 index) const
-  {
-    return valuesPtr[index];
-  }
-
-  inline f32& operator[](u32 index)
-  {
-    return valuesPtr[index];
-  }
 
   b32 operator==(const vec3& v2) const {
     return epsilonComparison(x, v2.x) &&
@@ -119,18 +99,8 @@ struct vec4 {
       vec3 rgb;
       f32 __;
     };
-    f32 valuesPtr[4];
+    f32 val[4];
   };
-
-  inline f32 operator[](u32 index) const
-  {
-    return valuesPtr[index];
-  }
-
-  inline f32& operator[](u32 index)
-  {
-    return valuesPtr[index];
-  }
 
   b32 operator==(const vec4& v2) const {
     return epsilonComparison(x, v2.x) &&
@@ -149,18 +119,9 @@ struct mat3 {
       vec3 zTransform;
     };
     vec3 col[3];
-    f32 valuesPtr[9];
+    f32 val[9];
+    f32 val2d[3][3];
   };
-
-  inline vec3 const& operator[](u32 index) const
-  {
-    return col[index];
-  }
-
-  inline vec3& operator[](u32 index)
-  {
-    return col[index];
-  }
 
   b32 operator==(const mat3& B) const {
     return col[0] == B.col[0] &&
@@ -179,18 +140,9 @@ struct mat4 {
       vec4 translation;
     };
     vec4 col[4];
-    f32 valuesPtr[16];
+    f32 val[16];
+    f32 val2d[4][4];
   };
-
-  inline vec4 const& operator[](u32 index) const
-  {
-    return col[index];
-  }
-
-  inline vec4& operator[](u32 index)
-  {
-    return col[index];
-  }
 
   b32 operator==(const mat4& B) const {
     return col[0] == B.col[0] &&
@@ -209,18 +161,8 @@ struct quaternion {
       f32 _;
       vec3 ijk;
     };
-    f32 valuesPtr[4];
+    f32 val[4];
   };
-
-  inline f32 operator[](u32 index) const
-  {
-    return valuesPtr[index];
-  }
-
-  inline f32& operator[](u32 index)
-  {
-    return valuesPtr[index];
-  }
 
   b32 operator==(const quaternion& q2) const {
     return epsilonComparison(r, q2.r) &&
@@ -235,18 +177,8 @@ struct complex {
     struct {
       f32 r, i; // r = real
     };
-    f32 valuesPtr[2];
+    f32 val[2];
   };
-
-  inline f32 operator[](u32 index) const
-  {
-    return valuesPtr[index];
-  }
-
-  inline f32& operator[](u32 index)
-  {
-    return valuesPtr[index];
-  }
 
   b32 operator==(const complex& c2) const {
     return epsilonComparison(r, c2.r) &&
@@ -493,11 +425,11 @@ inline vec4 Vec4(vec3 xyz, f32 w) {
 }
 
 inline vec4 Vec4(f32 x, vec3 yzw) {
-  return vec4{x, yzw[0], yzw[1], yzw[2]};
+  return vec4{x, yzw.val[0], yzw.val[1], yzw.val[2]};
 }
 
 inline vec4 Vec4(vec2 xy, vec2 zw) {
-  return vec4{xy.x, xy.y, zw[0], zw[1]};
+  return vec4{xy.x, xy.y, zw.val[0], zw.val[1]};
 }
 
 inline f32 dot(vec4 xyzw1, vec4 xyzw2) {
@@ -794,9 +726,9 @@ inline mat3 scale_mat3(vec3 scale) {
 
 inline mat3 transpose(const mat3& A) {
   return mat3 {
-          A[0][0], A[1][0], A[2][0],
-          A[0][1], A[1][1], A[2][1],
-          A[0][2], A[1][2], A[2][2],
+          A.val2d[0][0], A.val2d[1][0], A.val2d[2][0],
+          A.val2d[0][1], A.val2d[1][1], A.val2d[2][1],
+          A.val2d[0][2], A.val2d[1][2], A.val2d[2][2],
   };
 }
 
@@ -809,17 +741,17 @@ inline mat3 rotate_mat3(f32 angle, vec3 v) {
   vec3 const axisTimesOneMinusCos = axis * (1.0f - cosA);
 
   mat3 rotate;
-  rotate[0][0] = axis.x * axisTimesOneMinusCos.x + cosA;
-  rotate[0][1] = axis.x * axisTimesOneMinusCos.y + sinA * axis.z;
-  rotate[0][2] = axis.x * axisTimesOneMinusCos.z - sinA * axis.y;
+  rotate.val2d[0][0] = axis.x * axisTimesOneMinusCos.x + cosA;
+  rotate.val2d[0][1] = axis.x * axisTimesOneMinusCos.y + sinA * axis.z;
+  rotate.val2d[0][2] = axis.x * axisTimesOneMinusCos.z - sinA * axis.y;
 
-  rotate[1][0] = axis.y * axisTimesOneMinusCos.x - sinA * axis.z;
-  rotate[1][1] = axis.y * axisTimesOneMinusCos.y + cosA;
-  rotate[1][2] = axis.y * axisTimesOneMinusCos.z + sinA * axis.x;
+  rotate.val2d[1][0] = axis.y * axisTimesOneMinusCos.x - sinA * axis.z;
+  rotate.val2d[1][1] = axis.y * axisTimesOneMinusCos.y + cosA;
+  rotate.val2d[1][2] = axis.y * axisTimesOneMinusCos.z + sinA * axis.x;
 
-  rotate[2][0] = axis.z * axisTimesOneMinusCos.x + sinA * axis.y;
-  rotate[2][1] = axis.z * axisTimesOneMinusCos.y - sinA * axis.x;
-  rotate[2][2] = axis.z * axisTimesOneMinusCos.z + cosA;
+  rotate.val2d[2][0] = axis.z * axisTimesOneMinusCos.x + sinA * axis.y;
+  rotate.val2d[2][1] = axis.z * axisTimesOneMinusCos.y - sinA * axis.x;
+  rotate.val2d[2][2] = axis.z * axisTimesOneMinusCos.z + cosA;
 
   return rotate;
 }
@@ -843,15 +775,15 @@ mat3 operator*(const mat3& A, const mat3& B) {
   mat3 result;
 
   mat3 transposeA = transpose(A); // cols <=> rows
-  result[0][0] = dot(transposeA.col[0], B.col[0]);
-  result[0][1] = dot(transposeA.col[1], B.col[0]);
-  result[0][2] = dot(transposeA.col[2], B.col[0]);
-  result[1][0] = dot(transposeA.col[0], B.col[1]);
-  result[1][1] = dot(transposeA.col[1], B.col[1]);
-  result[1][2] = dot(transposeA.col[2], B.col[1]);
-  result[2][0] = dot(transposeA.col[0], B.col[2]);
-  result[2][1] = dot(transposeA.col[1], B.col[2]);
-  result[2][2] = dot(transposeA.col[2], B.col[2]);
+  result.val2d[0][0] = dot(transposeA.col[0], B.col[0]);
+  result.val2d[0][1] = dot(transposeA.col[1], B.col[0]);
+  result.val2d[0][2] = dot(transposeA.col[2], B.col[0]);
+  result.val2d[1][0] = dot(transposeA.col[0], B.col[1]);
+  result.val2d[1][1] = dot(transposeA.col[1], B.col[1]);
+  result.val2d[1][2] = dot(transposeA.col[2], B.col[1]);
+  result.val2d[2][0] = dot(transposeA.col[0], B.col[2]);
+  result.val2d[2][1] = dot(transposeA.col[1], B.col[2]);
+  result.val2d[2][2] = dot(transposeA.col[2], B.col[2]);
 
   return result;
 }
@@ -859,9 +791,9 @@ mat3 operator*(const mat3& A, const mat3& B) {
 // mat4
 inline mat4 Mat4(mat3 M) {
   return mat4{
-          M[0][1], M[0][1], M[0][1], 0.0f,
-          M[0][1], M[0][1], M[0][1], 0.0f,
-          M[0][1], M[0][1], M[0][1], 0.0f,
+          M.val2d[0][1], M.val2d[0][1], M.val2d[0][1], 0.0f,
+          M.val2d[0][1], M.val2d[0][1], M.val2d[0][1], 0.0f,
+          M.val2d[0][1], M.val2d[0][1], M.val2d[0][1], 0.0f,
           0.0f, 0.0f, 0.0f, 1.0f,
   };
 }
@@ -904,10 +836,10 @@ inline mat4 translate_mat4(vec3 translation) {
 
 inline mat4 transpose(const mat4& A) {
   return mat4 {
-          A[0][0], A[1][0], A[2][0], A[3][0],
-          A[0][1], A[1][1], A[2][1], A[3][1],
-          A[0][2], A[1][2], A[2][2], A[3][2],
-          A[0][3], A[1][3], A[2][3], A[3][3],
+          A.val2d[0][0], A.val2d[1][0], A.val2d[2][0], A.val2d[3][0],
+          A.val2d[0][1], A.val2d[1][1], A.val2d[2][1], A.val2d[3][1],
+          A.val2d[0][2], A.val2d[1][2], A.val2d[2][2], A.val2d[3][2],
+          A.val2d[0][3], A.val2d[1][3], A.val2d[2][3], A.val2d[3][3],
   };
 }
 
@@ -934,20 +866,20 @@ inline mat4 rotate_mat4(f32 angle, vec3 v) {
   vec3 const axisTimesOneMinusCos = axis * (1.0f - cosA);
 
   mat4 rotate;
-  rotate[0][0] = axis.x * axisTimesOneMinusCos.x + cosA;
-  rotate[0][1] = axis.x * axisTimesOneMinusCos.y + sinA * axis.z;
-  rotate[0][2] = axis.x * axisTimesOneMinusCos.z - sinA * axis.y;
-  rotate[0][3] = 0;
+  rotate.val2d[0][0] = axis.x * axisTimesOneMinusCos.x + cosA;
+  rotate.val2d[0][1] = axis.x * axisTimesOneMinusCos.y + sinA * axis.z;
+  rotate.val2d[0][2] = axis.x * axisTimesOneMinusCos.z - sinA * axis.y;
+  rotate.val2d[0][3] = 0;
 
-  rotate[1][0] = axis.y * axisTimesOneMinusCos.x - sinA * axis.z;
-  rotate[1][1] = axis.y * axisTimesOneMinusCos.y + cosA;
-  rotate[1][2] = axis.y * axisTimesOneMinusCos.z + sinA * axis.x;
-  rotate[1][3] = 0;
+  rotate.val2d[1][0] = axis.y * axisTimesOneMinusCos.x - sinA * axis.z;
+  rotate.val2d[1][1] = axis.y * axisTimesOneMinusCos.y + cosA;
+  rotate.val2d[1][2] = axis.y * axisTimesOneMinusCos.z + sinA * axis.x;
+  rotate.val2d[1][3] = 0;
 
-  rotate[2][0] = axis.z * axisTimesOneMinusCos.x + sinA * axis.y;
-  rotate[2][1] = axis.z * axisTimesOneMinusCos.y - sinA * axis.x;
-  rotate[2][2] = axis.z * axisTimesOneMinusCos.z + cosA;
-  rotate[2][3] = 0;
+  rotate.val2d[2][0] = axis.z * axisTimesOneMinusCos.x + sinA * axis.y;
+  rotate.val2d[2][1] = axis.z * axisTimesOneMinusCos.y - sinA * axis.x;
+  rotate.val2d[2][2] = axis.z * axisTimesOneMinusCos.z + cosA;
+  rotate.val2d[2][3] = 0;
 
   rotate.col[3] = {0.0f, 0.0f, 0.0f, 1.0f};
 
@@ -980,23 +912,23 @@ inline mat4 scaleRotTrans_mat4(const vec3& scale, const vec3& rotAxis, const f32
   vec3 const axisTimesOneMinusCos = axis * (1.0f - cosA);
 
   mat4 scaleRotTransMat;
-  scaleRotTransMat[0][0] = (axis.x * axisTimesOneMinusCos.x + cosA) * scale.x;
-  scaleRotTransMat[0][1] = (axis.x * axisTimesOneMinusCos.y + sinA * axis.z) * scale.x;
-  scaleRotTransMat[0][2] = (axis.x * axisTimesOneMinusCos.z - sinA * axis.y) * scale.x;
-  scaleRotTransMat[0][3] = 0;
+  scaleRotTransMat.val2d[0][0] = (axis.x * axisTimesOneMinusCos.x + cosA) * scale.x;
+  scaleRotTransMat.val2d[0][1] = (axis.x * axisTimesOneMinusCos.y + sinA * axis.z) * scale.x;
+  scaleRotTransMat.val2d[0][2] = (axis.x * axisTimesOneMinusCos.z - sinA * axis.y) * scale.x;
+  scaleRotTransMat.val2d[0][3] = 0;
 
-  scaleRotTransMat[1][0] = (axis.y * axisTimesOneMinusCos.x - sinA * axis.z) * scale.y;
-  scaleRotTransMat[1][1] = (axis.y * axisTimesOneMinusCos.y + cosA) * scale.y;
-  scaleRotTransMat[1][2] = (axis.y * axisTimesOneMinusCos.z + sinA * axis.x) * scale.y;
-  scaleRotTransMat[1][3] = 0;
+  scaleRotTransMat.val2d[1][0] = (axis.y * axisTimesOneMinusCos.x - sinA * axis.z) * scale.y;
+  scaleRotTransMat.val2d[1][1] = (axis.y * axisTimesOneMinusCos.y + cosA) * scale.y;
+  scaleRotTransMat.val2d[1][2] = (axis.y * axisTimesOneMinusCos.z + sinA * axis.x) * scale.y;
+  scaleRotTransMat.val2d[1][3] = 0;
 
-  scaleRotTransMat[2][0] = (axis.z * axisTimesOneMinusCos.x + sinA * axis.y) * scale.z;
-  scaleRotTransMat[2][1] = (axis.z * axisTimesOneMinusCos.y - sinA * axis.x) * scale.z;
-  scaleRotTransMat[2][2] = (axis.z * axisTimesOneMinusCos.z + cosA) * scale.z;
-  scaleRotTransMat[2][3] = 0;
+  scaleRotTransMat.val2d[2][0] = (axis.z * axisTimesOneMinusCos.x + sinA * axis.y) * scale.z;
+  scaleRotTransMat.val2d[2][1] = (axis.z * axisTimesOneMinusCos.y - sinA * axis.x) * scale.z;
+  scaleRotTransMat.val2d[2][2] = (axis.z * axisTimesOneMinusCos.z + cosA) * scale.z;
+  scaleRotTransMat.val2d[2][3] = 0;
 
   scaleRotTransMat.translation.xyz = translation;
-  scaleRotTransMat[3][3] = 1.0f;
+  scaleRotTransMat.val2d[3][3] = 1.0f;
 
   return scaleRotTransMat;
 }
@@ -1008,10 +940,10 @@ inline mat4 scaleRotTrans_mat4(const vec3& scale, const quaternion& q, const vec
   scaleRotTransMat.zTransform.xyz = (q * vec3{0.0f, 0.0f, 1.0f}) * scale.z;
   scaleRotTransMat.translation.xyz = translation;
 
-  scaleRotTransMat[0][3] = 0.0f;
-  scaleRotTransMat[1][3] = 0.0f;
-  scaleRotTransMat[2][3] = 0.0f;
-  scaleRotTransMat[3][3] = 1.0f;
+  scaleRotTransMat.val2d[0][3] = 0.0f;
+  scaleRotTransMat.val2d[1][3] = 0.0f;
+  scaleRotTransMat.val2d[2][3] = 0.0f;
+  scaleRotTransMat.val2d[3][3] = 1.0f;
 
   return scaleRotTransMat;
 }
@@ -1021,7 +953,7 @@ inline mat4 rotate_mat4(quaternion q) {
   resultMat.xTransform.xyz = q * vec3{1.0f, 0.0f, 0.0f};
   resultMat.yTransform.xyz = q * vec3{0.0f, 1.0f, 0.0f};
   resultMat.zTransform.xyz = q * vec3{0.0f, 0.0f, 1.0f};
-  resultMat[3][3] = 1.0f;
+  resultMat.val2d[3][3] = 1.0f;
   return resultMat;
 }
 
@@ -1037,22 +969,22 @@ mat4 operator*(const mat4& A, const mat4& B) {
   mat4 result;
 
   mat4 transposeA = transpose(A); // cols <=> rows
-  result[0][0] = dot(transposeA.col[0], B.col[0]);
-  result[0][1] = dot(transposeA.col[1], B.col[0]);
-  result[0][2] = dot(transposeA.col[2], B.col[0]);
-  result[0][3] = dot(transposeA.col[3], B.col[0]);
-  result[1][0] = dot(transposeA.col[0], B.col[1]);
-  result[1][1] = dot(transposeA.col[1], B.col[1]);
-  result[1][2] = dot(transposeA.col[2], B.col[1]);
-  result[1][3] = dot(transposeA.col[3], B.col[1]);
-  result[2][0] = dot(transposeA.col[0], B.col[2]);
-  result[2][1] = dot(transposeA.col[1], B.col[2]);
-  result[2][2] = dot(transposeA.col[2], B.col[2]);
-  result[2][3] = dot(transposeA.col[3], B.col[2]);
-  result[3][0] = dot(transposeA.col[0], B.col[3]);
-  result[3][1] = dot(transposeA.col[1], B.col[3]);
-  result[3][2] = dot(transposeA.col[2], B.col[3]);
-  result[3][3] = dot(transposeA.col[3], B.col[3]);
+  result.val2d[0][0] = dot(transposeA.col[0], B.col[0]);
+  result.val2d[0][1] = dot(transposeA.col[1], B.col[0]);
+  result.val2d[0][2] = dot(transposeA.col[2], B.col[0]);
+  result.val2d[0][3] = dot(transposeA.col[3], B.col[0]);
+  result.val2d[1][0] = dot(transposeA.col[0], B.col[1]);
+  result.val2d[1][1] = dot(transposeA.col[1], B.col[1]);
+  result.val2d[1][2] = dot(transposeA.col[2], B.col[1]);
+  result.val2d[1][3] = dot(transposeA.col[3], B.col[1]);
+  result.val2d[2][0] = dot(transposeA.col[0], B.col[2]);
+  result.val2d[2][1] = dot(transposeA.col[1], B.col[2]);
+  result.val2d[2][2] = dot(transposeA.col[2], B.col[2]);
+  result.val2d[2][3] = dot(transposeA.col[3], B.col[2]);
+  result.val2d[3][0] = dot(transposeA.col[0], B.col[3]);
+  result.val2d[3][1] = dot(transposeA.col[1], B.col[3]);
+  result.val2d[3][2] = dot(transposeA.col[2], B.col[3]);
+  result.val2d[3][3] = dot(transposeA.col[3], B.col[3]);
 
   return result;
 }
@@ -1167,10 +1099,10 @@ mat4 obliquePerspective(const mat4& perspectiveMat, vec3 planeNormal_viewSpace, 
 
   vec4 scaledPlane_viewSpace = ((-2.0f * oppositeFrustumCorner_viewSpace.z) / dot(plane_viewSpace, oppositeFrustumCorner_viewSpace)) * plane_viewSpace;
 
-  persp[0][2] = scaledPlane_viewSpace.x;
-  persp[1][2] = scaledPlane_viewSpace.y;
-  persp[2][2] = scaledPlane_viewSpace.z + 1.0f;
-  persp[3][2] = scaledPlane_viewSpace.w;
+  persp.val2d[0][2] = scaledPlane_viewSpace.x;
+  persp.val2d[1][2] = scaledPlane_viewSpace.y;
+  persp.val2d[2][2] = scaledPlane_viewSpace.z + 1.0f;
+  persp.val2d[3][2] = scaledPlane_viewSpace.w;
 
   return persp;
 }
@@ -1210,13 +1142,13 @@ mat4 obliquePerspective(f32 fovVert, f32 aspect, f32 near, f32 far, vec3 planeNo
 
 void adjustAspectPerspProj(mat4* projectionMatrix, f32 fovVert, f32 aspect) {
   const f32 c = 1.0f / tanf(fovVert / 2.0f);
-  (*projectionMatrix)[0][0] = c / aspect;
-  (*projectionMatrix)[1][1] = c;
+  (*projectionMatrix).val2d[0][0] = c / aspect;
+  (*projectionMatrix).val2d[1][1] = c;
 }
 
 void adjustNearFarPerspProj(mat4* projectionMatrix, f32 n, f32 f) {
-  (*projectionMatrix)[2][2] = -(f + n) / (f - n);
-  (*projectionMatrix)[3][2] = -(2.0f * f * n) / (f - n);
+  (*projectionMatrix).val2d[2][2] = -(f + n) / (f - n);
+  (*projectionMatrix).val2d[3][2] = -(2.0f * f * n) / (f - n);
 }
 
 // etc

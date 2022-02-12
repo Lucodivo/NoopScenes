@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <windows.h>
+
 #undef near
 #undef far
 
@@ -310,21 +311,21 @@ void bracketAssignmentOperatorsSanityCheck() {
   quaternion q{};
   complex c{};
 
-  v2[indexOfInterest] = zanyWhackyNum;
-  v3[indexOfInterest] = zanyWhackyNum;
-  v4[indexOfInterest] = zanyWhackyNum;
-  m3[indexOfInterest][indexOfInterest] = zanyWhackyNum;
-  m4[indexOfInterest][indexOfInterest] = zanyWhackyNum;
-  q[indexOfInterest] = zanyWhackyNum;
-  c[indexOfInterest] = zanyWhackyNum;
+  v2.val[indexOfInterest] = zanyWhackyNum;
+  v3.val[indexOfInterest] = zanyWhackyNum;
+  v4.val[indexOfInterest] = zanyWhackyNum;
+  m3.val2d[indexOfInterest][indexOfInterest] = zanyWhackyNum;
+  m4.val2d[indexOfInterest][indexOfInterest] = zanyWhackyNum;
+  q.val[indexOfInterest] = zanyWhackyNum;
+  c.val[indexOfInterest] = zanyWhackyNum;
 
-  Assert(v2[indexOfInterest] == zanyWhackyNum);
-  Assert(v3[indexOfInterest] == zanyWhackyNum);
-  Assert(v4[indexOfInterest] == zanyWhackyNum);
-  Assert(m3[indexOfInterest][indexOfInterest] == zanyWhackyNum);
-  Assert(m4[indexOfInterest][indexOfInterest] == zanyWhackyNum);
-  Assert(q[indexOfInterest] == zanyWhackyNum);
-  Assert(c[indexOfInterest] == zanyWhackyNum);
+  Assert(v2.val[indexOfInterest] == zanyWhackyNum);
+  Assert(v3.val[indexOfInterest] == zanyWhackyNum);
+  Assert(v4.val[indexOfInterest] == zanyWhackyNum);
+  Assert(m3.val2d[indexOfInterest][indexOfInterest] == zanyWhackyNum);
+  Assert(m4.val2d[indexOfInterest][indexOfInterest] == zanyWhackyNum);
+  Assert(q.val[indexOfInterest] == zanyWhackyNum);
+  Assert(c.val[indexOfInterest] == zanyWhackyNum);
 }
 
 void quaternionOrientTest() {
