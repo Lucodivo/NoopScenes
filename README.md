@@ -231,10 +231,10 @@ layout (location = 6) in float instScale;
 - [FreePBR](https://freepbr.com/)
 
 ### Environment Skyboxes
-- [3delyvisions](https://opengameart.org/content/elyvisions-skyboxes)
-- [Xonotic](https://opengameart.org/content/xonotic-skyboxes)
-- [Ulukai - Jonathan Denil](https://opengameart.org/content/ulukais-space-skyboxes)
-- [Mayhem](https://opengameart.org/content/mayhems-skyboxes)
+- [Calm Sea and Polluted Earth by Cuinn Herrick](https://opengameart.org/content/xonotic-skyboxes)
+- [Cave by 3delyvisions](https://opengameart.org/content/elyvisions-skyboxes)
+- [Yellow Cloudy by Spiney](https://opengameart.org/content/cloudy-skyboxes)
+- [Interstellar by Jockum Skoglund (hipshot)](https://opengameart.org/content/interstellar-skybox)
 
 ### Papers
 - [Oblique View Frustum Depth Projection and Clipping by Eric Lengyel](http://www.terathon.com/lengyel/Lengyel-Oblique.pdf)
