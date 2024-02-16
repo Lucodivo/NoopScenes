@@ -366,13 +366,8 @@ void drawScene(World* world, const u32 sceneIndex, u32 stencilMask) {
 
     world->UBOs.lightUbo.ambientLight = scene->ambientLight;
 
-    glGenBuffers(1, &globalWorld.UBOs.lightUboId);
-    // allocate size for buffer
-    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.lightUboId);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(world->UBOs.lightUbo), &world->UBOs.lightUbo, GL_STATIC_DRAW);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    // attach buffer to ubo binding point
-    glBindBufferRange(GL_UNIFORM_BUFFER, lightUBOBindingIndex, globalWorld.UBOs.lightUboId, 0, sizeof(world->UBOs.lightUbo));
+    glBindBuffer(GL_UNIFORM_BUFFER, world->UBOs.lightUboId);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(LightUBO), &world->UBOs.lightUbo);
   }
 
   for(u32 sceneEntityIndex = 0; sceneEntityIndex < scene->entityCount; ++sceneEntityIndex) {
@@ -860,6 +855,14 @@ void portalScene(GLFWwindow* window) {
     glBufferData(GL_UNIFORM_BUFFER, sizeof(FragUBO), NULL, GL_STREAM_DRAW);
     // attach buffer to ubo binding point
     glBindBufferRange(GL_UNIFORM_BUFFER, fragUBOBindingIndex, globalWorld.UBOs.fragUboId, 0, sizeof(FragUBO));
+
+    glGenBuffers(1, &globalWorld.UBOs.lightUboId);
+    // allocate size for buffer
+    glBindBuffer(GL_UNIFORM_BUFFER, globalWorld.UBOs.lightUboId);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(LightUBO), NULL, GL_STATIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    // attach buffer to ubo binding point
+    glBindBufferRange(GL_UNIFORM_BUFFER, lightUBOBindingIndex, globalWorld.UBOs.lightUboId, 0, sizeof(globalWorld.UBOs.lightUbo));
   }
 
   globalWorld.stopWatch = createStopWatch();
