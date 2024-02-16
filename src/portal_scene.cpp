@@ -791,25 +791,29 @@ void saveEditorState(EditorState* editorState) {
 
 void loadPrevEditorState(World* world, EditorState* editorState) {
   nlohmann::json saveJson;
-  { // parse file
-    std::ifstream sceneJsonFileInput(editorSaveFileName);
+  std::ifstream sceneJsonFileInput(editorSaveFileName);
+  if(sceneJsonFileInput.good()) {
     sceneJsonFileInput >> saveJson;
-  }
 
-  if(!saveJson["worldFile"].is_null()) {
-    std::string previousWorldFileName;
-    saveJson["worldFile"].get_to(previousWorldFileName);
-    if(fileReadable(previousWorldFileName.c_str())) {
-      loadWorld(world, editorState, previousWorldFileName.c_str());
-    } else {
-      std::string debugString = "Could not load scene file: " + previousWorldFileName;
-      addCString(&editorState->debugCStringRingBuffer, debugString.c_str(), (u32)debugString.length());
+    if(!saveJson["worldFile"].is_null()) {
+      std::string previousWorldFileName;
+      saveJson["worldFile"].get_to(previousWorldFileName);
+      if(fileReadable(previousWorldFileName.c_str())) {
+        loadWorld(world, editorState, previousWorldFileName.c_str());
+      } else {
+        std::string debugString = "Could not load scene file: " + previousWorldFileName;
+        addCString(&editorState->debugCStringRingBuffer, debugString.c_str(), (u32)debugString.length());
+      }
     }
-  }
 
-  editorState->cursorEnabled = saveJson["editorActive"];
-  editorState->showDemoWindow = saveJson["demoWindowActive"];
-  editorState->showDebugTextWindow = saveJson["debugTextWindowActive"];
+    editorState->cursorEnabled = saveJson["editorActive"];
+    editorState->showDemoWindow = saveJson["demoWindowActive"];
+    editorState->showDebugTextWindow = saveJson["debugTextWindowActive"];
+  } else {
+    editorState->cursorEnabled = true;
+    editorState->showDemoWindow = true;
+    editorState->showDebugTextWindow = true;
+  }
 }
 
 void portalScene(GLFWwindow* window) {
