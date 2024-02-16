@@ -159,7 +159,7 @@ void readShaderCodeAsString(const char* shaderPath, std::string* shaderCode)
     *shaderCode = shaderStream.str();
   } catch (std::ifstream::failure e)
   {
-    std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ" << std::endl;
+    std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ - " << shaderPath << std::endl;
   }
 }
 
